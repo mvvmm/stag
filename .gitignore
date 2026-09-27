@@ -4,6 +4,17 @@ coverage
 .DS_Store
 *.local
 .wrangler
+.idea
+
+# secrets: env files and Worker dev vars (only the documented examples are committed)
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.key
 
 # devlog: raw recordings are compressed by `pnpm devlog:video` (pre-commit)
 devlog/**/*.mov

@@ -35,7 +35,7 @@
 - [x] **0.4 Dev tooling:** dev-keys mode, Tweakpane tuning panel with a tunables registry, stats overlay + profiler, debug-draw helpers, Babylon Inspector, commands + `window.__game`, wireframe/free camera. → [plan](plans/0.4-dev-tooling.md)
 - [x] **0.4.1 Scenes & reset:** scene registry/switcher, in-place reset, seed display + restart, frame step, entity picker. → [plan](plans/0.4.1-scenes-and-reset.md)
 - [x] **0.4.2 Record & replay:** auto-recorded sessions, state checksums, save/load replay files, playback (seek, take over), headless replay tests. → [plan](plans/0.4.2-record-and-replay.md)
-- [ ] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds.
+- [ ] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds. → [plan](plans/0.5-repo-and-cloudflare-deploy.md)
 
 ## Phase 1: Sandbox & Movement
 

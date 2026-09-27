@@ -1,0 +1,9 @@
+Copyright (c) 2026 mvvmm (github.com/mvvmm). All rights reserved.
+
+This repository is public so its source can be read. No license is granted to
+use, copy, modify, distribute or publish any part of it, in source or compiled
+form, except as permitted by applicable law.
+
+Third-party assets and code in this repository remain under their own licenses.
+They are listed in CREDITS.md (assets) and in each package's own license (npm
+dependencies), and are not covered by this notice.
