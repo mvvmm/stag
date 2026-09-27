@@ -21,7 +21,7 @@
 | UI | Hybrid: in-world UI (health bars, telegraphs, damage numbers) in Babylon; screen UI (HUD, menus, reward picks) as a light HTML overlay |
 | Rooms | Hand-built in code/data first, procedural generation later |
 | Art | Stylized asset packs (glTF) + our own lighting/post-processing; grey-box until the art pass |
-| Hosting | Cloudflare Workers (static assets), Workers preview builds for PRs; R2 for large assets; D1 for server data; Astro if we need a marketing site |
+| Hosting | Cloudflare Workers (static assets) via Workers Builds: `main` → production, PR branches → Worker Previews (public repo `mvvmm/stag`, required CI checks); R2 for large assets; D1 for server data; Astro if we need a marketing site |
 | Saves | localStorage first (versioned); optional D1 cloud sync later (anonymous ID, no logins) |
 
 ---
@@ -35,7 +35,8 @@
 - [x] **0.4 Dev tooling:** dev-keys mode, Tweakpane tuning panel with a tunables registry, stats overlay + profiler, debug-draw helpers, Babylon Inspector, commands + `window.__game`, wireframe/free camera. → [plan](plans/0.4-dev-tooling.md)
 - [x] **0.4.1 Scenes & reset:** scene registry/switcher, in-place reset, seed display + restart, frame step, entity picker. → [plan](plans/0.4.1-scenes-and-reset.md)
 - [x] **0.4.2 Record & replay:** auto-recorded sessions, state checksums, save/load replay files, playback (seek, take over), headless replay tests. → [plan](plans/0.4.2-record-and-replay.md)
-- [ ] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds. → [plan](plans/0.5-repo-and-cloudflare-deploy.md)
+- [x] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds. → [plan](plans/0.5-repo-and-cloudflare-deploy.md)
+  - [ ] Follow-up: switch Workers Builds to the `stag`-scoped account-owned token once Builds supports account-owned tokens.
 
 ## Phase 1: Sandbox & Movement
 

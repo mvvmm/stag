@@ -3,6 +3,7 @@ import { Pane } from "tweakpane";
 import { TICK_HZ } from "@/core/constants";
 import { debugDraw } from "@/core/debugDraw";
 import { type Tunable, tuning } from "@/core/tuning";
+import { BUILD } from "@/debug/build";
 import type { DevTools } from "@/debug/devtools";
 import { createEntityPane } from "@/debug/entityPane";
 import { entityLabel } from "@/debug/inspect";
@@ -31,7 +32,11 @@ export function createPane(tools: DevTools) {
     "position:absolute;top:16px;right:16px;width:300px;max-height:calc(100vh - 32px);" +
     "overflow-y:auto;pointer-events:auto;z-index:10";
   document.body.append(container);
-  const pane = new Pane({ container, title: "Debug", expanded: state.paneFolders.Debug ?? true });
+  const pane = new Pane({
+    container,
+    title: `Debug · ${BUILD}`,
+    expanded: state.paneFolders.Debug ?? true,
+  });
   pane.on("fold", (event) => {
     state.paneFolders.Debug = event.expanded;
     tools.save();

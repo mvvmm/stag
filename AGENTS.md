@@ -33,10 +33,22 @@ Always use **pnpm** (never npm or yarn). Node 24 (`.nvmrc`).
 | `pnpm replay:update` | Rewrite the checkpoints of the replay fixtures after an intentional behaviour change (keeps the recorded input) |
 | `pnpm devlog:video` | Compress raw videos in `devlog/` to MP4 + poster and stage them (runs as the husky pre-commit hook; needs ffmpeg) |
 | `pnpm exec agent-browser` | Headless browser for devlog screenshots and checks (see `devlog/README.md`) |
+| `pnpm cf:dev` | Production build served by `wrangler dev` (real `_headers`, http://localhost:8787) |
+| `pnpm cf:preview` / `pnpm cf:deploy` | Build + deploy a Worker Preview for the current branch / production, with the scoped token from `.env`. Emergencies and agents only; the normal path is a PR |
+
+## Repo & deploy
+
+- **Public repo:** [github.com/mvvmm/stag](https://github.com/mvvmm/stag). Production: https://stag.root-mvm.workers.dev (static-assets-only Worker `stag`, config in `wrangler.jsonc`, headers in `public/_headers`).
+- **Every step is a branch + PR** named `<step>-<slug>`. Nothing is pushed to `main` directly (ruleset: PR required, no force-push). PRs merge with a **merge commit** (the only allowed method), so step commits and devlog links survive.
+- **Required checks** (`.github/workflows/check.yml`): `typecheck`, `lint` (`biome ci`: lint + format + import sorting), `test` (incl. replay fixtures), `build`. Run `pnpm check` before pushing.
+- **Cloudflare Workers Builds** deploys, not Actions: every push to a PR branch builds a **Worker Preview**, and Cloudflare comments its stable URL (`<branch>-stag.root-mvm.workers.dev`, follows the latest push) plus a per-commit URL on the PR. A merge to `main` deploys production. Playtest the Preview before merging.
+- **Credentials:** local wrangler uses an account-owned API token scoped to the `stag` Worker only (role Editor), in `.env` as `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (see `.env.example`). No `wrangler login`. Workers Builds uses its own user build token until it supports account-owned (per-Worker) tokens.
+- **Observability:** Workers Logs + traces are on in `wrangler.jsonc`. Asset-only requests don't run a script, so they stay empty until the Worker gets code.
 
 ## Layout
 
 ```
+.github/      CI: the required check jobs (workflows/check.yml) + shared setup action
 devlog/       per-step devlog entries + media (not shipped)
 scripts/      Node dev scripts (run directly with node, e.g. devlog-video.ts)
 src/

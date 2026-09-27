@@ -1,0 +1,51 @@
+# The quality gate: every job below is a required status on main (repo ruleset "main"), so a PR
+# can only merge when all of them pass. Together they're `pnpm check` + `pnpm build`, split so the
+# PR shows exactly what failed. Deploys are done by Cloudflare Workers Builds, not here: this
+# workflow needs no secrets (fork PRs work too).
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      # `biome ci`: lint, formatting and import sorting, read-only, with GitHub annotations.
+      - run: pnpm exec biome ci .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm test # includes the replay fixtures (src/replay/fixtures/)
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm build

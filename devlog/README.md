@@ -16,6 +16,7 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 0.4 | [Dev tooling](0.4-dev-tooling/index.md) | 2026-09-27 |
 | 0.4.1 | [Scenes & reset](0.4.1-scenes-and-reset/index.md) | 2026-09-27 |
 | 0.4.2 | [Record & replay](0.4.2-record-and-replay/index.md) | 2026-09-27 |
+| 0.5 | [Repo & Cloudflare deploy](0.5-repo-and-cloudflare-deploy/index.md) | 2026-09-27 |
 
 ## Layout
 
@@ -87,6 +88,7 @@ The per-step commits so far:
 | 0.4 | `b045d34` (revised in `18b4b93`, `25fd320`) |
 | 0.4.1 | `5fc8a1a` (revised in `e66306b`, `a55974a`, `fcf5527`) |
 | 0.4.2 | `e72397a` |
+| 0.5 | [PR #1](https://github.com/mvvmm/stag/pull/1) (merge commit on `main`) |
 
 ## Videos (you)
 
