@@ -6,6 +6,7 @@ Dark-fantasy druid roguelite for the browser. Babylon.js + TypeScript (strict) +
 
 - Core game design (style & mechanics): [slopdocs/core-game-design.md](slopdocs/core-game-design.md)
 - Implementation plan (step order): [slopdocs/implementation-plan.md](slopdocs/implementation-plan.md)
+- Misc thoughts (undecided ideas): [slopdocs/misc-thoughts.md](slopdocs/misc-thoughts.md)
 - Step plans: [slopdocs/plans/](slopdocs/plans/)
   - **Every implementation step gets its own plan** before any code is written, named `<step>-<slug>.md` (e.g. [`0.1-project-scaffold.md`](slopdocs/plans/0.1-project-scaffold.md)).
   - Write it by interviewing the user (one question at a time) until the plan is solid. Record decisions, defaults picked, steps and acceptance criteria.
@@ -17,7 +18,7 @@ Always use **pnpm** (never npm or yarn). Node 24 (`.nvmrc`).
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | Vite dev server |
+| `pnpm dev` | Vite dev server on http://localhost:5746 ("STAG") |
 | `pnpm build` | Typecheck + production build to `dist/` |
 | `pnpm preview` | Serve the production build |
 | `pnpm check` | Typecheck + Biome lint/format check + tests. **Must pass before committing.** |
