@@ -36,7 +36,6 @@
 - [x] **0.4.1 Scenes & reset:** scene registry/switcher, in-place reset, seed display + restart, frame step, entity picker. → [plan](plans/0.4.1-scenes-and-reset.md)
 - [x] **0.4.2 Record & replay:** auto-recorded sessions, state checksums, save/load replay files, playback (seek, take over), headless replay tests. → [plan](plans/0.4.2-record-and-replay.md)
 - [x] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds. → [plan](plans/0.5-repo-and-cloudflare-deploy.md)
-  - [ ] Follow-up: switch Workers Builds to the `stag`-scoped account-owned token once Builds supports account-owned tokens.
 
 ## Phase 1: Sandbox & Movement
 
