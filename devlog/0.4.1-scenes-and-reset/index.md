@@ -1,6 +1,6 @@
 # 0.4.1 Scenes & Reset
 
-> 2026-09-27 · [plan](../../slopdocs/plans/0.4.1-scenes-and-reset.md)
+> 2026-09-27 · [plan](../../slopdocs/plans/0.4.1-scenes-and-reset.md) · commit `5fc8a1a`
 
 ![The input test paused at a fixed seed, with the pawn picked: a magenta ring and its #5 label, and its transform and pawn components live and editable in the pane's new Entity folder. The Scene folder shows the seed with restart buttons, and the Loop folder has frame step and the tick count](01-overview.png)
 
