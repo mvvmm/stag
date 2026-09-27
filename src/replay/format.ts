@@ -2,6 +2,7 @@ import type { TunableValue } from "@/core/tuning";
 import { ACTIONS, type Action, type InputFrame } from "@/input/actions";
 import { fromQuantUnits, QUANT, toQuantUnits } from "@/input/quantize";
 import type { Checkpoint } from "@/replay/checksum";
+import type { WorldSnapshot } from "@/replay/snapshot";
 
 /**
  * The replay file: everything needed to run a scene again tick for tick (scene, seed, tunables
@@ -27,13 +28,18 @@ export type ReplayFile = {
   ticks: number;
   /** Set when the recording continued live from a replay at this tick ("take over"). */
   takenOverAt?: number;
+  /**
+   * Set when the recording started mid-run ("New recording"): the world to restore instead of
+   * spawning the scene. Without it, the recording starts at the scene's tick 0.
+   */
+  start?: WorldSnapshot;
   /** Every tunable's value at tick 0 (before the scene spawned). */
   tunables: Record<string, TunableValue>;
   /** Delta-encoded input, see `createInputEncoder`. */
   input: number[];
   /** Out-of-band sim mutations, in order, each applied right before its tick runs. */
   events: ReplayEvent[];
-  /** Every 60th tick, before each event tick, and at the end. */
+  /** Every 60th tick, before each event tick, and at the end (and at 0 when it has a `start`). */
   checksums: Checkpoint[];
 };
 
@@ -266,6 +272,18 @@ export function parseReplay(data: unknown, tickHz: number): ReplayFile {
   if (!Array.isArray(data.input) || !data.input.every(isInt)) throw bad("input");
   if (!Array.isArray(data.events) || !data.events.every((e) => isObject(e) && isInt(e.tick))) {
     throw bad("events");
+  }
+  if (
+    data.start !== undefined &&
+    !(
+      isObject(data.start) &&
+      Array.isArray(data.start.entities) &&
+      Array.isArray(data.start.rng) &&
+      data.start.rng.length === 4 &&
+      data.start.rng.every(isInt)
+    )
+  ) {
+    throw bad("start");
   }
   if (
     !Array.isArray(data.checksums) ||

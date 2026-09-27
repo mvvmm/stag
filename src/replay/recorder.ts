@@ -16,6 +16,7 @@ import {
   type ReplayFile,
   VERSION,
 } from "@/replay/format";
+import type { WorldSnapshot } from "@/replay/snapshot";
 
 export type RecordingHeader = {
   scene: string;
@@ -23,6 +24,8 @@ export type RecordingHeader = {
   /** Every tunable's value at tick 0. */
   tunables: Record<string, TunableValue>;
   takenOverAt?: number;
+  /** The world it started from, when it didn't start at the scene's tick 0. */
+  start?: WorldSnapshot;
 };
 
 /** Build and time info that goes into a saved file. */
@@ -33,19 +36,26 @@ export type Recorder = ReturnType<typeof createRecorder>;
 /**
  * Records one scene run from tick 0: the input of every tick, out-of-band events, and
  * checkpoints (every `CHECKPOINT_TICKS`, before each event tick, at the end). Stops at `cap`
- * ticks. Pure: the caller passes the world and RNG to fingerprint.
+ * ticks or when told to. Pure: the caller passes the world and RNG to fingerprint. A recording
+ * with a `start` snapshot also fingerprints tick 0 (pass the world it was taken from), so
+ * playback proves the restore was exact.
  */
-export function createRecorder(header: RecordingHeader, { cap = MAX_TICKS } = {}) {
+export function createRecorder(
+  header: RecordingHeader,
+  { cap = MAX_TICKS, world, rng }: { cap?: number; world?: World<Entity>; rng?: Rng } = {},
+) {
   const encoder = createInputEncoder();
   const events: ReplayEvent[] = [];
   const checksums: Checkpoint[] = [];
   let full = false;
+  let stopped = false;
 
   const checkpoint = (world: World<Entity>, rng: Rng) => {
     const tick = encoder.ticks;
     if (checksums[checksums.length - 1]?.tick === tick) return;
     checksums.push(checksumWorld(world, rng, tick));
   };
+  if (header.start && world && rng) checkpoint(world, rng);
 
   return {
     header,
@@ -59,10 +69,21 @@ export function createRecorder(header: RecordingHeader, { cap = MAX_TICKS } = {}
     get full() {
       return full;
     },
+    /** Stopped by hand: nothing more is recorded. */
+    get stopped() {
+      return stopped;
+    },
+
+    /** Stops recording here (the world is fingerprinted as the end). */
+    stop(world: World<Entity>, rng: Rng): void {
+      if (full || stopped) return;
+      stopped = true;
+      checkpoint(world, rng);
+    },
 
     /** Call after each tick with the input it ran with. */
     tick(frame: InputFrame, world: World<Entity>, rng: Rng): void {
-      if (full) return;
+      if (full || stopped) return;
       encoder.push(frame);
       if (encoder.ticks % CHECKPOINT_TICKS === 0) checkpoint(world, rng);
       if (encoder.ticks >= cap) {
@@ -76,7 +97,7 @@ export function createRecorder(header: RecordingHeader, { cap = MAX_TICKS } = {}
      * next tick, and the state before it is fingerprinted. False once the recording is full.
      */
     event(data: ReplayEventData, world: World<Entity>, rng: Rng): boolean {
-      if (full) return false;
+      if (full || stopped) return false;
       checkpoint(world, rng);
       events.push({ ...data, tick: encoder.ticks } as ReplayEvent);
       return true;
@@ -100,6 +121,7 @@ export function createRecorder(header: RecordingHeader, { cap = MAX_TICKS } = {}
         quant: QUANT,
         ticks,
         ...(header.takenOverAt !== undefined ? { takenOverAt: header.takenOverAt } : {}),
+        ...(header.start ? { start: header.start } : {}),
         tunables: { ...header.tunables },
         input: [...encoder.data],
         events: events.filter((event) => event.tick < ticks),
@@ -128,6 +150,7 @@ export function recorderFromReplay(
     seed: file.seed,
     tunables: file.tunables,
     takenOverAt: ticks,
+    ...(file.start ? { start: file.start } : {}),
   });
   recorder.importPrefix(file, ticks, fingerprints);
   return recorder;

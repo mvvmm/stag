@@ -25,6 +25,11 @@ const STATS_INTERVAL = 0.25;
 /** The scene that's running and the seed it was loaded with. */
 export type LoadedScene = { def: SceneDef; seed: number };
 
+export type LoadOptions = {
+  /** Fills the fresh world instead of `def.spawn` (e.g. restoring a replay snapshot). */
+  spawn?: (world: World<Entity>, rng: Rng) => void;
+};
+
 /**
  * Takes over the simulation's input (replay playback): `input` gets the tick's index and the live
  * input (sampled anyway, so no stale presses are left over when it lets go) and returns what the
@@ -51,9 +56,10 @@ export type Shell = {
   /**
    * Tears the current scene down (listeners, owned meshes, the world) and sets `def` up in a
    * fresh world with an RNG seeded with `seed`, at tick 0. Pause and time scale are kept. Called
-   * during a frame (e.g. from a tick listener), it waits until the frame has ended.
+   * during a frame (e.g. from a tick listener), it waits until the frame has ended. `spawn`
+   * replaces the scene's own spawn (a replay restoring a mid-run snapshot).
    */
-  load(def: SceneDef, seed: number): void;
+  load(def: SceneDef, seed: number, options?: LoadOptions): void;
   /** Loads the current scene again, with the same seed or the given one. */
   restart(seed?: number): void;
   /** Runs one simulation tick now, even while paused (frame step). */
@@ -178,7 +184,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     };
   };
 
-  const doLoad = (def: SceneDef, seed: number) => {
+  const doLoad = (def: SceneDef, seed: number, options: LoadOptions = {}) => {
     for (const listener of beforeLoadListeners) listener({ def, seed });
     if (current) {
       try {
@@ -201,7 +207,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     const disposer = createDisposer();
     const loaded = { def, seed, disposer };
     current = loaded;
-    def.spawn(world, rng);
+    (options.spawn ?? def.spawn)(world, rng);
     const ctx: SceneContext = {
       world,
       seed,
@@ -230,10 +236,10 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   // Loads requested mid-frame (from a tick or frame listener) wait for the frame to end, so a
   // frame never runs half in one world and half in the next.
   let inFrame = false;
-  let pendingLoad: LoadedScene | null = null;
-  const load = (def: SceneDef, seed: number) => {
-    if (inFrame) pendingLoad = { def, seed };
-    else doLoad(def, seed);
+  let pendingLoad: (LoadedScene & { options?: LoadOptions }) | null = null;
+  const load = (def: SceneDef, seed: number, options?: LoadOptions) => {
+    if (inFrame) pendingLoad = { def, seed, ...(options ? { options } : {}) };
+    else doLoad(def, seed, options);
   };
 
   const frame = (frameSeconds: number) => {
@@ -261,9 +267,9 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     const { alpha } = loop.advance(frameSeconds);
     inFrame = false;
     if (pendingLoad) {
-      const { def, seed } = pendingLoad;
+      const { def, seed, options } = pendingLoad;
       pendingLoad = null;
-      doLoad(def, seed);
+      doLoad(def, seed, options);
     }
     time("meshSync", () => meshSync.sync(settings.interpolate ? alpha : 1));
     for (const phase of renderPhases) time(phase.name, phase.run);

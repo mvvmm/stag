@@ -13,6 +13,7 @@ import { gzip, readText } from "@/replay/gzip";
 import { runReplay } from "@/replay/headless";
 import { createPlayer } from "@/replay/player";
 import { createRecorder, recorderFromReplay } from "@/replay/recorder";
+import { snapshotWorld } from "@/replay/snapshot";
 import type { SceneSim } from "@/scenes/sim";
 import { sims } from "@/scenes/sims";
 import { PAWN } from "@/systems/pawn";
@@ -181,5 +182,76 @@ describe("record → replay (headless)", () => {
     const ran: string[] = [];
     expect(runReplay(file, sims, { runCommand: (id) => ran.push(id) }).divergence).toBeNull();
     expect(ran).toEqual(["spawn.enemy"]);
+  });
+
+  it("records from the middle of a run and replays from its snapshot", async () => {
+    const world = createWorld();
+    const rng = createRng(31);
+    inputTestSim.spawn(world, rng);
+    const simulation = createSimulation(world, rng, inputTestSim.systems);
+    const step = (tick: number) => {
+      const { input, events = [] } = session(tick);
+      for (const event of events) applyEvent(world, { ...event, tick } as never, () => {});
+      simulation.step(1 / HZ, { ...emptyInputFrame(), ...input });
+    };
+    // Play 100 ticks unrecorded, then start a recording right there.
+    for (let tick = 0; tick < 100; tick++) step(tick);
+    const recorder = createRecorder(
+      {
+        scene: inputTestSim.id,
+        seed: 31,
+        tunables: tunableValues(),
+        start: snapshotWorld(world, rng, 100),
+      },
+      { world, rng },
+    );
+    for (let tick = 100; tick < 220; tick++) {
+      const { input, events = [] } = session(tick);
+      for (const event of events) {
+        recorder.event(event, world, rng);
+        applyEvent(world, { ...event, tick } as never, () => {});
+      }
+      const frame = { ...emptyInputFrame(), ...input };
+      simulation.step(1 / HZ, frame);
+      recorder.tick(frame, world, rng);
+    }
+    const file = recorder.toFile(META, world, rng);
+    expect(file.ticks).toBe(120);
+    expect(file.start?.tick).toBe(100);
+    // Tick 0 is fingerprinted, so a restore that isn't exact shows up right away.
+    expect(file.checksums[0]?.tick).toBe(0);
+    // The pane edit at live tick 130 is tick 30 of the recording.
+    expect(file.events.map((event) => event.tick)).toEqual([30]);
+
+    tuning.reset();
+    const text = await readText(await gzip(JSON.stringify(file)));
+    const parsed = parseReplay(JSON.parse(text), HZ);
+    expect(runReplay(parsed, sims).divergence).toBeNull();
+    const rewritten = runReplay(parsed, sims, { rewrite: true });
+    expect(rewritten.checksums).toEqual(file.checksums);
+  });
+
+  it("stops recording by hand and replays up to there", () => {
+    const recorder = createRecorder({ scene: inputTestSim.id, seed: 8, tunables: tunableValues() });
+    const world = createWorld();
+    const rng = createRng(8);
+    inputTestSim.spawn(world, rng);
+    const simulation = createSimulation(world, rng, inputTestSim.systems);
+    for (let tick = 0; tick < 150; tick++) {
+      if (tick === 75) recorder.stop(world, rng);
+      const frame = { ...emptyInputFrame(), move: { x: 1, z: 0 } };
+      simulation.step(1 / HZ, frame);
+      recorder.tick(frame, world, rng);
+      if (tick === 100) {
+        expect(recorder.event({ kind: "tunable", id: "pawn.speed", value: 2 }, world, rng)).toBe(
+          false,
+        );
+      }
+    }
+    expect(recorder.stopped).toBe(true);
+    const file = recorder.toFile(META, world, rng);
+    expect(file.ticks).toBe(75);
+    expect(file.checksums.at(-1)?.tick).toBe(75);
+    expect(runReplay(file, sims).divergence).toBeNull();
   });
 });

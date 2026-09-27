@@ -11,8 +11,10 @@ export type Rng = {
   int(min: number, max: number): number;
   /** Uniformly random element; throws on an empty array. */
   pick<T>(items: readonly T[]): T;
-  /** The generator's internal state (four uint32s), for replay checksums. Read-only. */
+  /** The generator's internal state (four uint32s), for replay checksums and snapshots. */
   state(): [number, number, number, number];
+  /** Puts the generator back into a state from `state()` (restoring a replay snapshot). */
+  setState(state: readonly [number, number, number, number]): void;
 };
 
 function splitmix32(seed: number): () => number {
@@ -54,5 +56,8 @@ export function createRng(seed: number): Rng {
       return items[Math.floor(next() * items.length)] as (typeof items)[number];
     },
     state: () => [a, b, c, d],
+    setState(state) {
+      [a, b, c, d] = state.map((word) => word >>> 0) as [number, number, number, number];
+    },
   };
 }

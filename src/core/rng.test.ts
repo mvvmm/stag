@@ -59,4 +59,14 @@ describe("createRng", () => {
     expect(a.state()).toEqual(b.state());
     for (const word of a.state()) expect(word >>> 0).toBe(word);
   });
+
+  it("setState() continues the sequence from a saved state", () => {
+    const a = createRng(3);
+    a.next();
+    const saved = a.state();
+    const expected = [a.next(), a.next(), a.next()];
+    const b = createRng(999);
+    b.setState(saved);
+    expect([b.next(), b.next(), b.next()]).toEqual(expected);
+  });
 });

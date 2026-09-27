@@ -7,6 +7,7 @@ import type { ReplayFile } from "@/replay/format";
 import type { Divergence } from "@/replay/headless";
 import { createPlayer, type Player } from "@/replay/player";
 import { createRecorder, type Recorder, recorderFromReplay } from "@/replay/recorder";
+import { restoreSnapshot, snapshotWorld, type WorldSnapshot } from "@/replay/snapshot";
 import { scenes } from "@/scenes";
 import type { Shell, TickDriver } from "@/shell";
 import { replayStatus } from "@/ui/signals";
@@ -30,7 +31,7 @@ type Playback = {
 
 type Seek = { target: number; resume: boolean; done: (() => void)[] };
 
-export type ReplayMode = "idle" | "recording" | "full" | "playing" | "ended";
+export type ReplayMode = "idle" | "recording" | "full" | "stopped" | "playing" | "ended";
 
 export type ReplaySession = ReturnType<typeof createReplaySession>;
 
@@ -112,8 +113,8 @@ export function createReplaySession(
     changed();
   };
 
-  /** After each played tick: check the checkpoint, stop at the end. */
-  const verify = (pb: Playback) => {
+  /** Compares the world with the recording's checkpoint for the current tick, if it has one. */
+  const check = (pb: Playback, pauseOnDivergence: boolean) => {
     const tick = pb.player.position;
     const expected = pb.player.expected(tick);
     if (expected) {
@@ -124,12 +125,19 @@ export function createReplaySession(
         pb.divergedThisPass = true;
         if (!pb.divergence || tick < pb.divergence.tick) pb.divergence = { tick, diff };
         console.warn(`replay diverged at tick ${tick}: ${diff.join(", ")}`);
-        setPaused(true);
-        finishSeek();
+        if (pauseOnDivergence) {
+          setPaused(true);
+          finishSeek();
+        }
       } else if (!diff.length && !pb.divergedThisPass && !pb.divergence) {
         pb.lastGood = tick;
       }
     }
+  };
+
+  /** After each played tick: check the checkpoint, stop at the end. */
+  const verify = (pb: Playback) => {
+    check(pb, true);
     if (pb.player.done) {
       setPaused(true);
       finishSeek();
@@ -170,12 +178,30 @@ export function createReplaySession(
     changed();
   });
 
+  // A recording that starts from a snapshot fingerprints tick 0: check the restore right away.
+  shell.onLoad(() => {
+    if (playback && playback.player.position === 0) check(playback, !seek);
+  });
+
+  /** Loads the replay's scene: its own spawn, or the recording's start snapshot. */
+  const loadReplay = (file: ReplayFile): void => {
+    const def = scenes.get(file.scene);
+    if (!def) throw new Error(`replay scene "${file.scene}" doesn't exist in this build`);
+    const start = file.start;
+    ownLoad = file;
+    shell.load(
+      def,
+      file.seed,
+      start ? { spawn: (world, rng) => restoreSnapshot(start, world, rng) } : undefined,
+    );
+  };
+
   shell.onTick((frame) => {
     if (playback) {
       verify(playback);
       return;
     }
-    if (!recorder || recorder.full) return;
+    if (!recorder || recorder.full || recorder.stopped) return;
     recorder.tick(frame, shell.world, shell.rng);
     if (recorder.full) setNotice("recording full (60 min): saving still works", "warn");
   });
@@ -231,8 +257,9 @@ export function createReplaySession(
   const session = {
     /** Plays a replay from tick 0 (through a scene load). Throws if its scene doesn't exist. */
     play(file: ReplayFile): void {
-      const def = scenes.get(file.scene);
-      if (!def) throw new Error(`replay scene "${file.scene}" doesn't exist in this build`);
+      if (!scenes.get(file.scene)) {
+        throw new Error(`replay scene "${file.scene}" doesn't exist in this build`);
+      }
       setNotice(
         file.commit !== __COMMIT__
           ? `recorded on ${file.commit}, build is ${__COMMIT__}: may diverge`
@@ -249,9 +276,8 @@ export function createReplaySession(
         divergedThisPass: false,
         lastGood: 0,
       };
-      ownLoad = file;
-      shell.load(def, file.seed);
       setPaused(false);
+      loadReplay(file);
       changed();
     },
 
@@ -263,13 +289,8 @@ export function createReplaySession(
       const resume = seek ? seek.resume : !shell.loop.paused;
       const done = seek?.done ?? [];
       setPaused(true);
-      if (tick < pb.player.position) {
-        const def = scenes.get(pb.file.scene);
-        if (!def) return Promise.resolve();
-        ownLoad = pb.file;
-        shell.load(def, pb.file.seed);
-      }
       seek = { target: tick, resume, done };
+      if (tick < pb.player.position) loadReplay(pb.file);
       changed();
       return new Promise((resolve) => done.push(resolve));
     },
@@ -307,6 +328,38 @@ export function createReplaySession(
       setNotice("");
     },
 
+    /** Stops the live recording here; saving keeps what was recorded. */
+    stop(): void {
+      if (playback || !recorder || recorder.full || recorder.stopped) return;
+      recorder.stop(shell.world, shell.rng);
+      setNotice(`recording stopped at tick ${recorder.ticks}; Save replay keeps it`);
+    },
+
+    /**
+     * Forgets the current recording and starts a new one from right now: the world, RNG and
+     * tunables are snapshotted into it, and playback restores them instead of spawning.
+     */
+    newRecording(): boolean {
+      const current = shell.current;
+      if (playback || !current) return false;
+      let start: WorldSnapshot;
+      try {
+        start = snapshotWorld(shell.world, shell.rng, shell.loop.tickCount);
+      } catch (error) {
+        setNotice(
+          `can't record from here: ${error instanceof Error ? error.message : error}`,
+          "warn",
+        );
+        return false;
+      }
+      recorder = createRecorder(
+        { scene: current.def.id, seed: current.seed, tunables: tunableValues(), start },
+        { world: shell.world, rng: shell.rng },
+      );
+      setNotice(`new recording from tick ${start.tick}`);
+      return true;
+    },
+
     /** An entity-pane edit: takes over first during playback, and is recorded. */
     edit(edit: Edit): void {
       if (playback) session.takeOver();
@@ -334,7 +387,8 @@ export function createReplaySession(
     get mode(): ReplayMode {
       if (playback) return playback.player.done ? "ended" : "playing";
       if (!recorder) return "idle";
-      return recorder.full ? "full" : "recording";
+      if (recorder.full) return "full";
+      return recorder.stopped ? "stopped" : "recording";
     },
     get notice(): string {
       return notice;

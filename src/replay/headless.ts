@@ -5,6 +5,7 @@ import { type Checkpoint, checksumWorld, diffCheckpoints } from "@/replay/checks
 import { applyEvent, replayTunables, tunableValues } from "@/replay/events";
 import { CHECKPOINT_TICKS, type ReplayFile } from "@/replay/format";
 import { createPlayer } from "@/replay/player";
+import { restoreSnapshot } from "@/replay/snapshot";
 import type { SceneSim } from "@/scenes/sim";
 import { createSimulation } from "@/systems/simulation";
 
@@ -29,7 +30,7 @@ export type HeadlessOptions = {
 
 /**
  * Runs a replay in Node, without Babylon: spawns the scene's sim with the recorded seed and
- * tick-0 tunables, feeds it the recorded input and events, and checks every checkpoint. Stops at
+ * tick-0 tunables (or restores its start snapshot), feeds it the recorded input and events, and checks every checkpoint. Stops at
  * the first divergence. The game's tunables are restored afterwards.
  */
 export function runReplay(
@@ -50,7 +51,8 @@ export function runReplay(
   try {
     const world = createWorld();
     const rng = createRng(file.seed);
-    sim.spawn(world, rng);
+    if (file.start) restoreSnapshot(file.start, world, rng);
+    else sim.spawn(world, rng);
     const simulation = createSimulation(world, rng, sim.systems);
     const player = createPlayer(file);
     const eventTicks = new Set(file.events.map((event) => event.tick));
@@ -60,6 +62,7 @@ export function runReplay(
     for (let tick = 0; ; tick++) {
       if (rewrite) {
         const due =
+          (tick === 0 && !!file.start) ||
           (tick > 0 && tick % CHECKPOINT_TICKS === 0) ||
           eventTicks.has(tick) ||
           tick === file.ticks;

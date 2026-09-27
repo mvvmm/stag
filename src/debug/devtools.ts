@@ -473,6 +473,8 @@ export function startDevtools(shell: Shell) {
     ["scene.newSeed", "Restart with a new seed", () => tools.newSeed()],
     ["pick.toggle", "Pick entities", () => tools.setPick(!picker.active)],
     ["replay.save", "Save replay", () => void tools.saveReplay()],
+    ["replay.stop", "Stop recording", () => replay.stop()],
+    ["replay.new", "New recording from here", () => void replay.newRecording()],
     ["replay.takeOver", "Take over the replay", () => replay.takeOver()],
     ["replay.exit", "Exit the replay", () => replay.exit()],
   ];
@@ -538,6 +540,8 @@ export function startDevtools(shell: Shell) {
       stepBack: replay.stepBack,
       takeOver: replay.takeOver,
       exit: replay.exit,
+      stop: replay.stop,
+      newRecording: replay.newRecording,
       save: tools.saveReplay,
       get status() {
         return {

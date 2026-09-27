@@ -63,6 +63,10 @@ declare global {
         stepBack(): Promise<void>;
         takeOver(): void;
         exit(): void;
+        /** Stops the live recording (saving keeps it). */
+        stop(): void;
+        /** Forgets the recording and records from right now (world snapshot). False if it can't. */
+        newRecording(): boolean;
         /** Downloads the current recording; resolves with the file name. */
         save(): Promise<string | null>;
         readonly status: {

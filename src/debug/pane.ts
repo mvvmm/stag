@@ -160,6 +160,7 @@ export function createPane(tools: DevTools) {
       if (mode === "idle") return "–";
       if (mode === "recording") return "● recording";
       if (mode === "full") return "recording full (60 min)";
+      if (mode === "stopped") return "■ stopped";
       if (replay.seeking) return "seeking…";
       if (mode === "ended") return "■ ended";
       return shell.loop.paused ? "⏸ paused" : "▶ playing";
@@ -202,6 +203,13 @@ export function createPane(tools: DevTools) {
   });
   const noticeText = noticeBinding.element.querySelector("textarea");
   if (noticeText) noticeText.style.whiteSpace = "pre-wrap";
+  // Live only: stop the recording, or drop it and record from right now.
+  const stopButton = replayFolder.addButton({ title: "Stop recording" });
+  stopButton.on("click", () => replay.stop());
+  const newButton = replayFolder.addButton({ title: "New recording" });
+  newButton.on("click", () => replay.newRecording());
+  const newLabel = newButton.element.querySelector("button");
+  if (newLabel) newLabel.title = "Forget the current recording and record from right now";
   replayFolder.addButton({ title: "Save replay" }).on("click", () => void tools.saveReplay());
   if (import.meta.env.DEV) {
     replayFolder
@@ -240,6 +248,9 @@ export function createPane(tools: DevTools) {
   };
   const syncReplay = () => {
     noticeBinding.hidden = !replay.notice;
+    stopButton.hidden = !!replay.file;
+    stopButton.disabled = replay.mode !== "recording";
+    newButton.hidden = !!replay.file;
     syncBinding.hidden = !replay.file;
     const file = replay.file;
     if (file !== playbackFile) {
