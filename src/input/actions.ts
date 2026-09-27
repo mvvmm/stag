@@ -14,12 +14,6 @@ export const ACTIONS = [
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
-/** Dev/demo actions handled by the shell outside the simulation. Revisited in 0.4. */
-export const DEBUG_ACTIONS = ["toggleInterpolation", "cycleTimeScale", "switchPreset"] as const;
-export type DebugAction = (typeof DEBUG_ACTIONS)[number];
-
-export type AnyAction = Action | DebugAction;
-
 /** Everything the simulation knows about input for one fixed tick. */
 export type InputFrame = {
   /** World ground-plane direction, length ≤ 1. Zero when idle or in the moba scheme. */
@@ -37,8 +31,12 @@ export type InputFrame = {
 
 /** Per-frame input for the shell: works while the simulation is paused. */
 export type ShellFrame = {
-  held: ReadonlySet<AnyAction>;
-  pressed: ReadonlySet<AnyAction>;
+  held: ReadonlySet<Action>;
+  pressed: ReadonlySet<Action>;
+  /** The dev-keys toggle (`) was pressed. Only reported when dev keys are enabled. */
+  devToggle: boolean;
+  /** Raw controls pressed this frame in dev-keys mode (`KeyG`, `Space`, `Mouse0`, …). */
+  devPressed: ReadonlySet<string>;
 };
 
 export function emptyInputFrame(): InputFrame {

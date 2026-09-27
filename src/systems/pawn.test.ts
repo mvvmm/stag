@@ -1,14 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createRng } from "@/core/rng";
+import { tuning } from "@/core/tuning";
 import { createWorld, type Pawn } from "@/ecs/world";
 import { emptyInputFrame, type InputFrame } from "@/input/actions";
-import { pawnSystem } from "@/systems/pawn";
+import { PAWN, pawnSystem } from "@/systems/pawn";
 
 const rng = createRng(1);
 
 const spawn = (speed = 2) => {
+  PAWN.speed = speed;
   const world = createWorld();
-  const pawn: Pawn = { speed, target: null };
+  const pawn: Pawn = { target: null };
   const entity = world.add({
     transform: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } },
     pawn,
@@ -22,6 +24,8 @@ const frame = (overrides: Partial<InputFrame>): InputFrame => ({
 });
 
 describe("pawnSystem", () => {
+  afterEach(() => tuning.reset());
+
   it("moves along the input direction at its speed", () => {
     const { world, entity } = spawn(2);
     pawnSystem(world, 0.5, rng, frame({ move: { x: 0, z: -1 } }));

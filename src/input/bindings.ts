@@ -1,4 +1,4 @@
-import type { Action, AnyAction, DebugAction } from "@/input/actions";
+import type { Action } from "@/input/actions";
 
 /**
  * A physical control: a `KeyboardEvent.code` (`KeyW`, `Digit1`, `Space`) or a mouse button as
@@ -71,21 +71,17 @@ export const MOBA_PRESET: Preset = {
 export const PRESETS: Record<PresetId, Preset> = { mmo: MMO_PRESET, moba: MOBA_PRESET };
 export const DEFAULT_PRESET: PresetId = "mmo";
 
-/** Shared by every preset. */
-export const DEBUG_BINDINGS: Record<DebugAction, readonly Control[]> = {
-  toggleInterpolation: ["KeyI"],
-  cycleTimeScale: ["KeyT"],
-  switchPreset: ["KeyB"],
-};
+/** Toggles dev-keys mode, where the keyboard and mouse drive debug commands instead of the game. */
+export const DEV_TOGGLE: Control = "Backquote";
 
 export function isPresetId(value: unknown): value is PresetId {
   return typeof value === "string" && value in PRESETS;
 }
 
-/** Control → actions it triggers, for a preset plus the debug bindings. */
-export function actionsByControl(preset: Preset): Map<Control, AnyAction[]> {
-  const map = new Map<Control, AnyAction[]>();
-  const add = (action: AnyAction, controls: readonly Control[] | undefined) => {
+/** Control → actions it triggers in a preset. */
+export function actionsByControl(preset: Preset): Map<Control, Action[]> {
+  const map = new Map<Control, Action[]>();
+  const add = (action: Action, controls: readonly Control[] | undefined) => {
     for (const control of controls ?? []) {
       const list = map.get(control);
       if (list) list.push(action);
@@ -93,8 +89,5 @@ export function actionsByControl(preset: Preset): Map<Control, AnyAction[]> {
     }
   };
   for (const [action, controls] of Object.entries(preset.actions)) add(action as Action, controls);
-  for (const [action, controls] of Object.entries(DEBUG_BINDINGS)) {
-    add(action as DebugAction, controls);
-  }
   return map;
 }

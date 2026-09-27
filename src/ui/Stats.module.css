@@ -24,3 +24,36 @@
 .keys {
   color: var(--color-text-muted);
 }
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.graph {
+  display: block;
+  margin: var(--space-1) 0;
+  background: rgb(255 255 255 / 0.04);
+}
+
+.graphLine {
+  stroke: var(--color-text-muted);
+  stroke-dasharray: 2 3;
+  stroke-width: 1;
+}
+
+.bar {
+  fill: var(--color-accent);
+}
+
+.slow {
+  fill: var(--color-danger);
+}
+
+.profile {
+  border-spacing: var(--space-3) 0;
+  margin-left: calc(-1 * var(--space-3));
+}
+
+.profile td:not(:first-child) {
+  text-align: right;
+}

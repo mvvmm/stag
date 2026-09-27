@@ -6,6 +6,17 @@ const PRESET_STORAGE_KEY = "druid.inputPreset";
 /** `MouseEvent.buttons` bit → `MouseEvent.button` number (the middle and right bits are swapped). */
 const BUTTON_BY_BIT = [0, 2, 1, 3, 4];
 
+/** Typing into a text field (the debug pane, the Inspector) must not drive the game or dev keys. */
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
+
 /**
  * Feeds DOM keyboard and mouse events into an `InputState`. The only DOM-aware input code.
  * Keys are read on the window; mouse buttons must go down on the canvas but release anywhere.
@@ -21,7 +32,7 @@ export function attachInputDom(input: InputState, canvas: HTMLCanvasElement) {
       if (event.key === "Meta") releaseAll();
       return;
     }
-    if (!input.isBound(event.code)) return;
+    if (isEditable(event.target) || !input.isBound(event.code)) return;
     event.preventDefault();
     if (!event.repeat) input.controlDown(event.code);
   };

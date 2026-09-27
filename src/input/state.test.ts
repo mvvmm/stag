@@ -62,14 +62,6 @@ describe("createInputState: actions", () => {
     expect(input.sampleFrame().pressed.has("pause")).toBe(false);
   });
 
-  it("keeps debug actions out of the simulation's frame", () => {
-    const input = createInputState("mmo");
-    input.controlDown("KeyI");
-
-    expect(input.sampleFrame().pressed.has("toggleInterpolation")).toBe(true);
-    expect(input.sampleTick(0).pressed.size).toBe(0);
-  });
-
   it("ignores repeated downs and unbound controls", () => {
     const input = createInputState("mmo");
     input.controlDown("Space");
@@ -204,5 +196,89 @@ describe("createInputState: click to move", () => {
     const frame = input.sampleTick(0);
     input.setAim({ x: 0, z: 0 });
     expect(frame.aim).toEqual({ x: 7, z: -2 });
+  });
+});
+
+describe("createInputState: dev-keys mode", () => {
+  const devInput = (preset: "mmo" | "moba" = "mmo") => createInputState(preset, { devKeys: true });
+
+  it("reports the toggle to the shell only, and only when dev keys are enabled", () => {
+    const input = devInput();
+    tap(input, "Backquote");
+    expect(input.sampleFrame().devToggle).toBe(true);
+    expect(input.sampleFrame().devToggle).toBe(false);
+    expect(input.sampleTick(0).pressed.size).toBe(0);
+
+    const player = createInputState("mmo");
+    tap(player, "Backquote");
+    expect(player.sampleFrame().devToggle).toBe(false);
+    expect(player.isBound("Backquote")).toBe(false);
+  });
+
+  it("releases held game actions on entry, with release edges", () => {
+    const input = devInput();
+    input.controlDown("KeyW");
+    input.controlDown("Digit1");
+    input.sampleTick(0);
+
+    input.setDevMode(true);
+    const frame = input.sampleTick(0);
+    expect([...frame.released]).toEqual(["ability1"]);
+    expect(frame.held.size).toBe(0);
+    expect(frame.move).toEqual({ x: 0, z: 0 });
+  });
+
+  it("sends no keys or mouse buttons to the game while on", () => {
+    const input = devInput("moba");
+    input.setDevMode(true);
+    input.setAim({ x: 3, z: 4 });
+    input.controlDown("KeyQ");
+    input.controlDown("Mouse2");
+    input.controlDown("Escape");
+
+    const tick = input.sampleTick(0);
+    expect(tick.pressed.size).toBe(0);
+    expect(tick.held.size).toBe(0);
+    expect(tick.moveCommand).toBeNull();
+    expect(tick.aim).toEqual({ x: 3, z: 4 }); // the aim keeps tracking
+    expect(input.sampleFrame().pressed.size).toBe(0);
+  });
+
+  it("reports raw dev presses once per frame, ignoring repeats while held", () => {
+    const input = devInput();
+    input.setDevMode(true);
+    input.controlDown("KeyG");
+    input.controlDown("Mouse0");
+    expect([...input.sampleFrame().devPressed]).toEqual(["KeyG", "Mouse0"]);
+
+    input.controlDown("KeyG"); // still held: repeat
+    expect(input.sampleFrame().devPressed.size).toBe(0);
+    input.controlUp("KeyG");
+    tap(input, "KeyG");
+    expect([...input.sampleFrame().devPressed]).toEqual(["KeyG"]);
+  });
+
+  it("binds printable keys in dev mode but leaves browser keys alone", () => {
+    const input = devInput();
+    expect(input.isBound("KeyG")).toBe(false);
+    input.setDevMode(true);
+    expect(input.isBound("KeyG")).toBe(true);
+    expect(input.isBound("Space")).toBe(true);
+    expect(input.isBound("F5")).toBe(false);
+    expect(input.isBound("Tab")).toBe(false);
+  });
+
+  it("returns to normal after leaving, without leaking dev presses", () => {
+    const input = devInput();
+    input.setDevMode(true);
+    input.controlDown("KeyD"); // pressed in dev mode, still held on exit
+    input.setDevMode(false);
+    input.controlUp("KeyD");
+    expect(input.sampleFrame().devPressed.size).toBe(0);
+
+    input.controlDown("Space");
+    const tick = input.sampleTick(0);
+    expect(tick.pressed.has("dodge")).toBe(true);
+    expect(tick.move).toEqual({ x: 0, z: 0 });
   });
 });

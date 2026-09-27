@@ -11,10 +11,21 @@ export async function isWebGPUSupported(): Promise<boolean> {
   }
 }
 
-/** Creates the WebGPU engine, sized to the canvas. Call `fitCanvas` every frame after this. */
-export async function createEngine(canvas: HTMLCanvasElement): Promise<WebGPUEngine> {
-  // We manage the pixel ratio ourselves; Babylon's adaptToDeviceRatio ignores the cap on DPR changes.
-  const engine = new WebGPUEngine(canvas, { antialias: true, adaptToDeviceRatio: false });
+/**
+ * Creates the WebGPU engine, sized to the canvas. Call `fitCanvas` every frame after this.
+ * `gpuTiming` requests timestamp queries (when the adapter has them) for the debug stats.
+ */
+export async function createEngine(
+  canvas: HTMLCanvasElement,
+  { gpuTiming = false }: { gpuTiming?: boolean } = {},
+): Promise<WebGPUEngine> {
+  const engine = new WebGPUEngine(canvas, {
+    antialias: true,
+    // We manage the pixel ratio ourselves; Babylon's adaptToDeviceRatio ignores the cap on DPR changes.
+    adaptToDeviceRatio: false,
+    // Babylon drops features the adapter doesn't support.
+    deviceDescriptor: gpuTiming ? { requiredFeatures: ["timestamp-query"] } : undefined,
+  });
   await engine.initAsync();
   fitCanvas(engine);
   return engine;

@@ -8,8 +8,22 @@ import { snapshotSystem } from "@/systems/snapshot";
 
 export type System = (world: World<Entity>, dt: number, rng: Rng, input: InputFrame) => void;
 
+/** A system with a stable name (function names don't survive minification), for the profiler. */
+export type NamedSystem = { name: string; run: System };
+
 /** Systems in run order. The snapshot always runs first (see `createSimulation`). */
-export const defaultSystems: readonly System[] = [orbitSystem, pawnSystem];
+export const defaultSystems: readonly NamedSystem[] = [
+  { name: "orbit", run: orbitSystem },
+  { name: "pawn", run: pawnSystem },
+];
+
+export type SimulationOptions = {
+  /**
+   * Wraps every system call, e.g. to time it. Must call `run` exactly once. Lives outside the
+   * simulation so the simulation itself never reads the clock.
+   */
+  around?: (name: string, run: () => void) => void;
+};
 
 /**
  * The whole simulation, advanced one fixed tick at a time. Deterministic given the same world,
@@ -18,12 +32,16 @@ export const defaultSystems: readonly System[] = [orbitSystem, pawnSystem];
 export function createSimulation(
   world: World<Entity>,
   rng: Rng,
-  systems: readonly System[] = defaultSystems,
+  systems: readonly NamedSystem[] = defaultSystems,
+  { around }: SimulationOptions = {},
 ) {
   return {
     step(dt: number, input: InputFrame): void {
       snapshotSystem(world);
-      for (const system of systems) system(world, dt, rng, input);
+      for (const { name, run } of systems) {
+        if (around) around(name, () => run(world, dt, rng, input));
+        else run(world, dt, rng, input);
+      }
     },
   };
 }

@@ -13,6 +13,7 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 0.2 | [Game shell](0.2-game-shell/index.md) | 2026-09-27 |
 | 0.3 | [Input layer](0.3-input-layer/index.md) | 2026-09-27 |
 | 0.3.1 | [Devlog](0.3.1-devlog/index.md) | 2026-09-27 |
+| 0.4 | [Dev tooling](0.4-dev-tooling/index.md) | 2026-09-27 |
 
 ## Layout
 

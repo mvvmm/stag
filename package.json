@@ -22,13 +22,16 @@
   },
   "dependencies": {
     "@babylonjs/core": "^9.28.0",
+    "@babylonjs/inspector": "9.28.0",
     "@preact/signals": "^2.11.2",
     "miniplex": "^2.0.0",
-    "preact": "^10.29.8"
+    "preact": "^10.29.8",
+    "tweakpane": "4.0.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "@preact/preset-vite": "^2.10.6",
+    "@tweakpane/core": "2.0.5",
     "@types/node": "^26.6.3",
     "agent-browser": "^0.38.1",
     "husky": "^9.1.7",

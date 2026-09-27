@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals";
 import type { Vec2 } from "@/core/math";
-import type { Action, AnyAction } from "@/input/actions";
+import type { StatsMode } from "@/debug/persist";
+import type { Action } from "@/input/actions";
 
 export type LoopStats = {
   fps: number;
@@ -30,8 +31,8 @@ export type InputStats = {
   move: Vec2;
   moveCommand: Vec2 | null;
   aim: Vec2;
-  /** Actions held right now (live, including debug actions). */
-  held: AnyAction[];
+  /** Actions held right now (live). */
+  held: Action[];
   /** How many ticks have seen each action pressed; one per physical press. */
   pressCounts: Partial<Record<Action, number>>;
   /** Actions pressed within the last moment, for highlighting. */
@@ -46,4 +47,55 @@ export const inputStats = signal<InputStats>({
   held: [],
   pressCounts: {},
   flashing: [],
+});
+
+/** Debug-tool state for the overlays; only written when the dev tools run. */
+export type DebugState = {
+  /** The dev tools are running (dev server or `?debug`). */
+  active: boolean;
+  devMode: boolean;
+  stats: StatsMode;
+  help: boolean;
+  /** The Babylon Inspector is open (it docks over the page, so the stats step aside). */
+  inspector: boolean;
+  /** Dev keys for the cheat sheet, grouped. */
+  keys: { group: string; key: string; label: string }[];
+};
+
+export const debugState = signal<DebugState>({
+  active: false,
+  devMode: false,
+  stats: "off",
+  help: false,
+  inspector: false,
+  keys: [],
+});
+
+/** Rendering and profiler numbers for the full stats view (~4 Hz, only while it's shown). */
+export type PerfStats = {
+  /** Frame-time buckets (ms), oldest first: average and worst frame per bucket. */
+  graph: { avg: number; max: number }[];
+  cpu: { avg: number; max: number };
+  /** GPU frame time in ms, when the adapter supports timestamp queries. */
+  gpuMs: number | null;
+  drawCalls: number;
+  activeMeshes: number;
+  totalMeshes: number;
+  entities: number;
+  /** JS heap in MB (Chrome only). */
+  heapMb: number | null;
+  /** Per-frame cost of each system and render phase, most expensive first. */
+  profile: { name: string; avg: number; max: number }[];
+};
+
+export const perfStats = signal<PerfStats>({
+  graph: [],
+  cpu: { avg: 0, max: 0 },
+  gpuMs: null,
+  drawCalls: 0,
+  activeMeshes: 0,
+  totalMeshes: 0,
+  entities: 0,
+  heapMb: null,
+  profile: [],
 });

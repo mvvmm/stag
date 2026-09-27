@@ -6,15 +6,14 @@ import type { Shell } from "@/shell";
 import { inputStats } from "@/ui/signals";
 
 // Throwaway input test scene for step 0.3 (grown from the 0.2 loop test); replaced in 1.1/1.2.
+// Loop and preset debug keys live in the dev tools (0.4).
 
-const TIME_SCALES = [1, 0.25, 0.05];
-const PAWN_SPEED = 6;
 const STATS_INTERVAL = 0.1;
 /** How long a pressed action stays highlighted in the overlay, in seconds (wall clock). */
 const FLASH_SECONDS = 0.3;
 
 export function startInputTest(shell: Shell): void {
-  const { world, rng, loop, scene, input, settings, publishStats } = shell;
+  const { world, rng, scene, input } = shell;
 
   // One fast box makes 60 Hz judder obvious on a high-refresh display when interpolation is off.
   const orbits = [
@@ -43,7 +42,7 @@ export function startInputTest(shell: Shell): void {
     });
   }
 
-  const pawnState: Pawn = { speed: PAWN_SPEED, target: null };
+  const pawnState: Pawn = { target: null };
   const pawnTransform = { position: { x: 0, y: 0.3, z: 0 }, rotation: { x: 0, y: 0, z: 0 } };
   const pawn = world.add({
     transform: pawnTransform,
@@ -97,15 +96,7 @@ export function startInputTest(shell: Shell): void {
 
   let lastFrameAt = performance.now() / 1000;
   shell.onFrame((frame) => {
-    if (frame.pressed.has("toggleInterpolation")) settings.interpolate = !settings.interpolate;
-    if (frame.pressed.has("cycleTimeScale")) {
-      const next = (TIME_SCALES.indexOf(loop.timeScale) + 1) % TIME_SCALES.length;
-      loop.timeScale = TIME_SCALES[next] ?? 1;
-    }
-    if (frame.pressed.size) {
-      publishStats();
-      dirty = true;
-    }
+    if (frame.pressed.size) dirty = true;
 
     const now = performance.now() / 1000;
     statsTimer += now - lastFrameAt;

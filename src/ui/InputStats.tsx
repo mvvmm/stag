@@ -34,7 +34,6 @@ export function InputStats() {
           </span>
         ))}
       </div>
-      <div class={styles.keys}>[B] switch preset</div>
     </div>
   );
 }

@@ -48,7 +48,7 @@ src/
   input/      action bindings/presets, input state → per-tick InputFrame (dom.ts is the only DOM adapter)
   ui/         Preact HTML overlay (components, signals, CSS modules, styles/tokens.css)
   data/       data-driven definitions: abilities, augments, enemies, rooms
-  debug/      inspector, stats, tuning panel, debug draw
+  debug/      dev tools (lazy, DEBUG only): commands, pane, stats/profiler, debug-draw renderer, Inspector
   demo/       throwaway test scenes, replaced by real content
 ```
 
@@ -62,7 +62,10 @@ Create a folder when a step first needs it; don't add placeholder files.
 4. **Content is data.** Abilities, augments, enemies and rooms are defined as data in `data/`, not as bespoke code paths.
 5. **Fixed timestep.** The simulation advances in fixed ticks (`TICK_HZ` in `core/constants.ts`, currently 60). Systems get `dt` in seconds and must never assume a tick count. Rendering interpolates between `prevTransform` and `transform`; call `snapTransform()` after teleports/spawns.
 6. **Soft determinism.** Simulation code (`ecs/`, `systems/`, pure `core/`) uses only the `dt` it's given, takes randomness only from the seeded `Rng` passed in (never `Math.random`), and never reads wall-clock time (`Date.now`, `performance.now`).
-7. **Input is a per-tick snapshot.** Systems are `(world, dt, rng, input: InputFrame) => void` and read input only from that frame (actions by role: `primary`, `ability1`, …, never raw keys; world-space `move`, `moveCommand`, `aim`). A press is in `pressed` for exactly one tick. Bindings are data in `input/bindings.ts` (`mmo` and `moba` presets). Shell-level actions (pause, debug toggles) use `sampleFrame()` so they work while paused.
+7. **Input is a per-tick snapshot.** Systems are `(world, dt, rng, input: InputFrame) => void` and read input only from that frame (actions by role: `primary`, `ability1`, …, never raw keys; world-space `move`, `moveCommand`, `aim`). A press is in `pressed` for exactly one tick. Bindings are data in `input/bindings.ts` (`mmo` and `moba` presets). Shell-level actions (pause) use `sampleFrame()` so they work while paused.
+8. **Tune through tunables.** Numbers worth tweaking live in `defineTunables("group", { key: { value, min, max, step } })` (`core/tuning.ts`), which returns a live object: read it every time, never cache a value. They show up in the debug pane. Code defaults stay the source of truth: "Copy changes" in the pane gives a `group.key: old → new` snippet to paste back.
+9. **Debug draw is write-only.** Any code, systems included, may call `debugDraw.line/arrow/circle/box/point/path/text` (`core/debugDraw.ts`) with a `category`. Never read from it or branch on it in the simulation. It's a no-op unless the dev tools enable it.
+10. **Dev tools are gated.** `src/debug/` loads only when `DEBUG` (`pnpm dev`, or `?debug` in a production build) as a lazy chunk, so players never download it. Dev keys are commands (`debug/commands.ts`, one `define` each). In dev-keys mode (`` ` ``) no input reaches the game.
 
 ## Conventions
 
@@ -72,3 +75,9 @@ Create a folder when a step first needs it; don't add placeholder files.
 - Styling: CSS Modules (`*.module.css`) plus design tokens as CSS custom properties in `src/ui/styles/tokens.css`.
 - Babylon: import from the `@babylonjs/core` root for now (deep imports may come in the 9.6 performance pass).
 - Rendering is **WebGPU only** (`WebGPUEngine`); custom shaders should be WGSL. Dev-only `?nowebgpu` previews the Unsupported screen.
+
+## Dev tools
+
+- <kbd>`</kbd> toggles dev-keys mode; <kbd>H</kbd> then shows every dev key (pane, stats, debug draw, Inspector, wireframe, free camera, pause, time scale, …).
+- The Babylon Inspector is only in `pnpm dev` builds (bundling it into production pulls ~380 KB gzipped of core into the player chunks).
+- For automated checks (agent-browser `eval`), use `window.__game`: `world`, `loop`, `input`, `tunables.get/set/reset/changes`, `run("stats.cycle")`, `tools` (typed in `src/env.d.ts`). Debug settings persist in localStorage under `stag.debug`.
