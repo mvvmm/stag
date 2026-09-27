@@ -16,7 +16,9 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "pnpm typecheck && pnpm lint && pnpm test"
+    "devlog:video": "node scripts/devlog-video.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "prepare": "husky"
   },
   "dependencies": {
     "@babylonjs/core": "^9.28.0",
@@ -28,6 +30,8 @@
     "@biomejs/biome": "^2.5.14",
     "@preact/preset-vite": "^2.10.6",
     "@types/node": "^26.6.3",
+    "agent-browser": "^0.38.1",
+    "husky": "^9.1.7",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"

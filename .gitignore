@@ -4,3 +4,11 @@ coverage
 .DS_Store
 *.local
 .wrangler
+
+# devlog: raw recordings are compressed by `pnpm devlog:video` (pre-commit)
+devlog/**/*.mov
+devlog/**/*.m4v
+devlog/**/*.mkv
+devlog/**/*.webm
+devlog/**/*.avi
+devlog/**/*.tmp.mp4

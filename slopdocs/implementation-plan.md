@@ -31,6 +31,7 @@
 - [x] **0.1 Project scaffold:** pnpm + Vite + TS + Babylon, lint/format, Vitest, directory layout, core deps. → [plan](plans/0.1-project-scaffold.md)
 - [x] **0.2 Game shell:** canvas/engine bootstrap, resize handling, fixed-timestep simulation loop separate from rendering. → [plan](plans/0.2-game-shell.md)
 - [x] **0.3 Input layer:** keyboard/mouse state, action mapping, mouse-to-ground aim point; `mmo` (WASD) and `moba` (right-click-to-move) presets. → [plan](plans/0.3-input-layer.md)
+- [x] **0.3.1 Devlog:** per-step entries in `devlog/` (decisions and why + screenshots via agent-browser, optional compressed videos); backfill 0.1–0.3. → [plan](plans/0.3.1-devlog.md)
 - [ ] **0.4 Dev tooling:** Babylon Inspector toggle, FPS/stats overlay, live tuning panel, debug-draw helpers.
 - [ ] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds.
 

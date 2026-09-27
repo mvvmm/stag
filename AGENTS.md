@@ -12,6 +12,12 @@ Dark-fantasy druid roguelite for the browser. Babylon.js (WebGPU only) + TypeScr
   - Write it by interviewing the user (one question at a time) until the plan is solid. Record decisions, defaults picked, steps and acceptance criteria.
   - Link the plan from its step in `implementation-plan.md`, and tick the step there when it's done.
 
+## Devlog (`devlog/`)
+
+- One entry per step in `devlog/<step>-<slug>/index.md`: what we built, key decisions and why, surprises, and screenshots. Template and procedures: [devlog/README.md](devlog/README.md).
+- **Finishing a step includes its devlog entry.** Write it from the plan, the commits and the session, take screenshots with agent-browser (look at each one before using it; more for art/atmosphere steps), add it to the index, and commit it with the step.
+- Videos are optional and recorded by the user; the pre-commit hook compresses them.
+
 ## Commands
 
 Always use **pnpm** (never npm or yarn). Node 24 (`.nvmrc`).
@@ -24,10 +30,14 @@ Always use **pnpm** (never npm or yarn). Node 24 (`.nvmrc`).
 | `pnpm check` | Typecheck + Biome lint/format check + tests. **Must pass before committing.** |
 | `pnpm format` | Apply Biome formatting, import sorting and safe fixes |
 | `pnpm test` / `pnpm test:watch` | Vitest |
+| `pnpm devlog:video` | Compress raw videos in `devlog/` to MP4 + poster and stage them (runs as the husky pre-commit hook; needs ffmpeg) |
+| `pnpm exec agent-browser` | Headless browser for devlog screenshots and checks (see `devlog/README.md`) |
 
 ## Layout
 
 ```
+devlog/       per-step devlog entries + media (not shipped)
+scripts/      Node dev scripts (run directly with node, e.g. devlog-video.ts)
 src/
   main.tsx    entry point: WebGPU check, then the shell (or the Unsupported screen)
   shell.ts    wires sim + fixed-step loop + renderer; the only place that reads wall-clock time
