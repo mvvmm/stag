@@ -19,7 +19,7 @@ export function LoopStats() {
           {s.interpolate ? "on" : "off"}
         </span>
       </div>
-      <div class={styles.keys}>[I] interpolation · [P] pause · [T] time scale</div>
+      <div class={styles.keys}>[I] interpolation · [Esc] pause · [T] time scale</div>
     </div>
   );
 }

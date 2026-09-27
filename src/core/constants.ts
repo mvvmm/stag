@@ -9,3 +9,6 @@ export const MAX_TICKS_PER_FRAME = 5;
 
 /** Render resolution cap on high-DPI screens. Becomes a graphics-quality setting later. */
 export const MAX_PIXEL_RATIO = 2;
+
+/** Height of the ground plane the cursor is projected onto for aiming. */
+export const GROUND_Y = 0;

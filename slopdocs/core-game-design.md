@@ -29,11 +29,13 @@ Small in scope, deep in replayability: we get longevity from a tight core loop t
 ## 4. Camera & Controls
 
 - **Camera:** angled top-down / isometric-style 3D view (Hades / V Rising-like). Chosen for threat readability (telegraphs, enemies, and terrain visible at once) and for achievable visual quality.
-- **Movement:** **WASD** direct control of the character (WoW-style "I'm steering my body" feel, not click-to-move).
-- **Aiming:** mouse aims abilities.
-- **Abilities:** `Q`, `W`, `E` (basic, interchangeable) and `R` (ultimate).
+- **Movement:** two candidate schemes, both supported by the input layer (0.3) and decided at the 1.7 movement feel gate (or both kept as a setting):
+  - **MMO preset:** **WASD** direct control of the character (WoW-style "I'm steering my body" feel). Abilities on `1`/`2`/`3` + `4` (ultimate), right mouse = basic attack, left mouse = interact.
+  - **MOBA preset:** League-style **right-click to move** (hold to steer; right-click on an enemy attacks), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `S` = stop.
+- **Aiming:** mouse aims abilities (cursor projected onto the ground) in both schemes.
+- **Abilities:** 3 basics + 1 ultimate; keys per preset above. Bindings are data, and remapping comes in 16.1.
 
-> Open: exact keybinds (WASD conflicts with a literal Q/W/E layout; likely remap abilities, e.g. to Q/E/R/F or mouse buttons + keys), controller support, dash/dodge on a dedicated key or as an ability.
+> Open: final control scheme (1.7) and final keybinds (2.2); whether dodge (provisionally `Space`) is universal or form-specific; controller support.
 
 ### Movement feel requirements
 
@@ -125,7 +127,7 @@ If that loop is fun with placeholder art, the rest of the game builds on it. If 
 
 ## 11. Open Questions (not yet decided)
 
-- Exact keybinds / controller support; whether dodge is universal or form-specific.
+- Control scheme (WASD vs right-click-to-move, decided at 1.7), exact keybinds, controller support; whether dodge is universal or form-specific.
 - Full ability arsenals per form; which abilities are basics vs ultimates.
 - Augment system details (rarity, stacking, synergies).
 - Run length, number of biomes/chambers, boss count.

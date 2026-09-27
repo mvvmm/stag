@@ -35,7 +35,7 @@ src/
   ecs/        miniplex World<Entity>, entity/component types
   systems/    pure simulation systems: (world, dt) => void
   render/     Babylon scene setup, entity↔mesh sync, views
-  input/      keyboard/mouse state, action mapping
+  input/      action bindings/presets, input state → per-tick InputFrame (dom.ts is the only DOM adapter)
   ui/         Preact HTML overlay (components, signals, CSS modules, styles/tokens.css)
   data/       data-driven definitions: abilities, augments, enemies, rooms
   debug/      inspector, stats, tuning panel, debug draw
@@ -46,12 +46,13 @@ Create a folder when a step first needs it; don't add placeholder files.
 
 ## Architecture rules
 
-1. **Simulation is separate from rendering.** Code in `ecs/` and `systems/` (and pure `core/` helpers) must never import `@babylonjs/*` or `preact`. That keeps it unit-testable in Node.
+1. **Simulation is separate from rendering.** Code in `ecs/`, `systems/` and `input/` (except `input/dom.ts`), plus pure `core/` helpers, must never import `@babylonjs/*` or `preact`. That keeps it unit-testable in Node.
 2. **Babylon mirrors the ECS.** `render/` creates and disposes meshes through miniplex query `onEntityAdded` / `onEntityRemoved` events, and copies state from components each frame.
 3. **The UI reads signals.** The game writes `@preact/signals` at low frequency, and Preact components read them. The UI never reaches into the ECS directly. The `#ui` overlay has `pointer-events: none`, so interactive elements must opt back in.
 4. **Content is data.** Abilities, augments, enemies and rooms are defined as data in `data/`, not as bespoke code paths.
 5. **Fixed timestep.** The simulation advances in fixed ticks (`TICK_HZ` in `core/constants.ts`, currently 60). Systems get `dt` in seconds and must never assume a tick count. Rendering interpolates between `prevTransform` and `transform`; call `snapTransform()` after teleports/spawns.
 6. **Soft determinism.** Simulation code (`ecs/`, `systems/`, pure `core/`) uses only the `dt` it's given, takes randomness only from the seeded `Rng` passed in (never `Math.random`), and never reads wall-clock time (`Date.now`, `performance.now`).
+7. **Input is a per-tick snapshot.** Systems are `(world, dt, rng, input: InputFrame) => void` and read input only from that frame (actions by role: `primary`, `ability1`, …, never raw keys; world-space `move`, `moveCommand`, `aim`). A press is in `pressed` for exactly one tick. Bindings are data in `input/bindings.ts` (`mmo` and `moba` presets). Shell-level actions (pause, debug toggles) use `sampleFrame()` so they work while paused.
 
 ## Conventions
 

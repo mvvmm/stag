@@ -1,9 +1,10 @@
 import { render } from "preact";
 import "@/ui/styles/tokens.css";
 import "@/ui/styles/global.css";
-import { startLoopTest } from "@/demo/loopTest";
+import { startInputTest } from "@/demo/inputTest";
 import { isWebGPUSupported } from "@/render/engine";
 import { startShell } from "@/shell";
+import { InputStats } from "@/ui/InputStats";
 import { LoopStats } from "@/ui/LoopStats";
 import { Unsupported } from "@/ui/Unsupported";
 
@@ -31,8 +32,14 @@ async function bootstrap() {
   }
   console.info(`seed ${seed}`);
 
-  startLoopTest(shell);
-  render(<LoopStats />, uiRoot);
+  startInputTest(shell);
+  render(
+    <>
+      <LoopStats />
+      <InputStats />
+    </>,
+    uiRoot,
+  );
 }
 
 void bootstrap();

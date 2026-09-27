@@ -28,6 +28,11 @@ export function createMeshSync(world: World<Entity>, scene: Scene) {
   });
 
   return {
+    /** The mesh mirroring `entity`, if it has one (e.g. for demo tinting). */
+    meshOf(entity: Entity): Mesh | undefined {
+      return meshes.get(entity);
+    },
+
     sync(alpha: number) {
       for (const entity of renderable) {
         const mesh = meshes.get(entity);

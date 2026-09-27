@@ -30,19 +30,19 @@
 
 - [x] **0.1 Project scaffold:** pnpm + Vite + TS + Babylon, lint/format, Vitest, directory layout, core deps. → [plan](plans/0.1-project-scaffold.md)
 - [x] **0.2 Game shell:** canvas/engine bootstrap, resize handling, fixed-timestep simulation loop separate from rendering. → [plan](plans/0.2-game-shell.md)
-- [ ] **0.3 Input layer:** keyboard/mouse state, action mapping, mouse-to-ground aim point.
+- [x] **0.3 Input layer:** keyboard/mouse state, action mapping, mouse-to-ground aim point; `mmo` (WASD) and `moba` (right-click-to-move) presets. → [plan](plans/0.3-input-layer.md)
 - [ ] **0.4 Dev tooling:** Babylon Inspector toggle, FPS/stats overlay, live tuning panel, debug-draw helpers.
 - [ ] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds.
 
 ## Phase 1: Sandbox & Movement
 
 - [ ] **1.1 Grey-box arena:** floor, walls, pillars; angled top-down camera with tunable angle/distance.
-- [ ] **1.2 Player movement:** WASD kinematic controller with acceleration/deceleration, facing, precise stops.
+- [ ] **1.2 Player movement:** kinematic controller with acceleration/deceleration, facing, precise stops; prototype both WASD and right-click-to-move (moba needs basic player pathing around obstacles).
 - [ ] **1.3 Collision:** player vs walls/obstacles with sliding.
 - [ ] **1.4 Camera follow:** smoothing, aim look-ahead, bounds.
 - [ ] **1.5 Early atmosphere:** dark lighting, fog, shadows, player light, bloom/grading/vignette; readability check.
 - [ ] **1.6 Placeholder character:** pack model with idle/run animations driven by movement.
-- [ ] **1.7 Movement feel pass:** tune until running around the empty arena is fun on its own (gate).
+- [ ] **1.7 Movement feel pass:** tune until running around the empty arena is fun on its own (gate); pick the control scheme (WASD vs right-click-to-move, or keep both as a setting).
 
 ## Phase 2: Abilities & Combat Core
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "@/core/rng";
 import { cloneTransform, createWorld, snapTransform } from "@/ecs/world";
+import { emptyInputFrame, type InputFrame } from "@/input/actions";
 import { createSimulation, type System } from "@/systems/simulation";
 
 const transform = () => ({ position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } });
@@ -12,7 +13,7 @@ describe("createSimulation", () => {
     const a: System = (_w, dt) => calls.push(`a:${dt}`);
     const b: System = (_w, dt) => calls.push(`b:${dt}`);
 
-    createSimulation(world, createRng(1), [a, b]).step(0.5);
+    createSimulation(world, createRng(1), [a, b]).step(0.5, emptyInputFrame());
 
     expect(calls).toEqual(["a:0.5", "b:0.5"]);
   });
@@ -25,11 +26,23 @@ describe("createSimulation", () => {
     };
     const sim = createSimulation(world, createRng(1), [moveX]);
 
-    sim.step(0.1);
-    sim.step(0.1);
+    sim.step(0.1, emptyInputFrame());
+    sim.step(0.1, emptyInputFrame());
 
     expect(entity.prevTransform.position.x).toBeCloseTo(1);
     expect(entity.transform.position.x).toBeCloseTo(2);
+  });
+
+  it("passes the tick's input to every system", () => {
+    const world = createWorld();
+    const seen: InputFrame[] = [];
+    const record: System = (_w, _dt, _rng, input) => seen.push(input);
+    const input = emptyInputFrame();
+
+    createSimulation(world, createRng(1), [record, record]).step(0.5, input);
+
+    expect(seen).toEqual([input, input]);
+    expect(seen[0]).toBe(input);
   });
 
   it("is deterministic for the same seed", () => {
@@ -40,7 +53,7 @@ describe("createSimulation", () => {
         for (const e of w.with("transform")) e.transform.position.x += rng.range(-1, 1);
       };
       const sim = createSimulation(world, createRng(123), [jitter]);
-      for (let i = 0; i < 50; i++) sim.step(1 / 60);
+      for (let i = 0; i < 50; i++) sim.step(1 / 60, emptyInputFrame());
       return entity.transform.position.x;
     };
     expect(run()).toBe(run());

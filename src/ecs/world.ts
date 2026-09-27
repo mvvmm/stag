@@ -1,4 +1,5 @@
 import { World } from "miniplex";
+import type { Vec2 } from "@/core/math";
 
 export type Vec3 = { x: number; y: number; z: number };
 
@@ -18,11 +19,23 @@ export type Orbit = {
   angle: number;
 };
 
+/**
+ * Moves at constant speed from the input (WASD direction or click-to-move target) and faces the
+ * aim point. Throwaway demo component; the real player controller comes in 1.2.
+ */
+export type Pawn = {
+  /** Units per second. */
+  speed: number;
+  /** Click-to-move destination; cleared on arrival, on `stop`, or by WASD input. */
+  target: Vec2 | null;
+};
+
 export type Entity = {
   transform?: Transform;
   /** Transform at the start of the current tick; the renderer interpolates from it. */
   prevTransform?: Transform;
   orbit?: Orbit;
+  pawn?: Pawn;
 };
 
 export function createWorld(): World<Entity> {
