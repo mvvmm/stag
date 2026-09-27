@@ -1,6 +1,7 @@
-# The quality gate. `check` is a required status on main (repo ruleset), so a PR can only
-# merge when typecheck, Biome lint/format, tests (incl. replay fixtures) and the build pass.
-# Deploys are done by Cloudflare Workers Builds, not here: this workflow needs no secrets.
+# The quality gate: every job below is a required status on main (repo ruleset "main"), so a PR
+# can only merge when all of them pass. Together they're `pnpm check` + `pnpm build`, split so the
+# PR shows exactly what failed. Deploys are done by Cloudflare Workers Builds, not here: this
+# workflow needs no secrets (fork PRs work too).
 name: check
 
 on:
@@ -16,16 +17,35 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6 # version from package.json "packageManager"
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      # `biome ci`: lint, formatting and import sorting, read-only, with GitHub annotations.
+      - run: pnpm exec biome ci .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm test # includes the replay fixtures (src/replay/fixtures/)
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: pnpm build

@@ -4,7 +4,7 @@ A dark-fantasy druid roguelite for the browser (codename). You play a lone druid
 
 Early days: this is the foundation (engine shell, input, dev tools, record & replay), not a game yet.
 
-**Play:** https://stag.mvvmm.workers.dev (desktop browser with WebGPU; add `?debug` for the dev tools)
+**Play:** https://stag.root-mvm.workers.dev (desktop browser with WebGPU; add `?debug` for the dev tools)
 
 ## Stack
 
