@@ -89,7 +89,7 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
   if (!camera) throw new Error("scene has no camera");
   const meshSync = createMeshSync(world, scene);
   const dom = attachInputDom(input, canvas);
-  const groundAim = createGroundAim(scene, camera);
+  const groundAim = createGroundAim(scene);
 
   // Auto-pause while the tab is hidden or the window is unfocused; independent of a manual pause.
   const updateAutoPause = () => {
@@ -121,9 +121,11 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
 
     fitCanvas(engine);
     updateCamera(camera);
-    // Aim is recomputed every frame: the camera can move even when the mouse doesn't.
+    // Aim is recomputed every frame: the camera can move even when the mouse doesn't. It goes
+    // through the rendering camera (the debug free camera, if on) so it's under the cursor; WASD
+    // stays relative to the game camera.
     const pointer = dom.pointer;
-    const aim = pointer && groundAim.project(pointer.x, pointer.y);
+    const aim = pointer && groundAim.project(pointer.x, pointer.y, scene.activeCamera ?? camera);
     if (aim) input.setAim(aim);
     yaw = cameraYaw(camera);
 

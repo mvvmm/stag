@@ -23,11 +23,11 @@ A toolbox that every later step will lean on. In debug builds a **debug pane** d
 - **GPU time was stuck at zero.** Babylon's frame-level GPU counter depends on `writeTimestamp`, which browsers dropped. The per-pass counter works once the device requests `timestamp-query`.
 - **Every system took "0.00 ms".** Without cross-origin isolation, Chrome rounds `performance.now()` to 100 µs. COOP/COEP headers on the dev and preview servers fixed it.
 - **The Preact preset aliases `react` to `preact/compat` by default**, which would have fed the React-based Inspector our compat layer. We turned it off.
-- The free camera used to rely on dev mode swallowing input. Now it borrows just the mouse buttons from the game, so orbiting doesn't fire `interact` and you can still walk the pawn around with WASD while looking from the side.
+- The free camera used to rely on dev mode swallowing input. Now it borrows just the mouse buttons from the game, so orbiting doesn't fire `interact` and you can still walk the pawn around with WASD while looking from the side. At first the aim still went through the game camera, so the aim ring drifted away from the cursor once you orbited. Aim now projects through whichever camera is rendering.
 - The first grid drew on top of everything. It's now a normal depth-tested mesh, and only the ad-hoc shapes sit on top.
 
 ## Media
 
-![Free camera orbited away from the game view, with wireframe on: the aim ring stays where the game camera projects the cursor](02-free-camera-wireframe.png)
+![Free camera orbited away from the game view, with wireframe on](02-free-camera-wireframe.png)
 
 ![The Babylon Inspector (dev builds only); the pane and stats step aside while it's open](03-inspector.png)
