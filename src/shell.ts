@@ -2,7 +2,7 @@ import { MAX_FRAME_DELTA, MAX_TICKS_PER_FRAME, TICK_HZ } from "@/core/constants"
 import { createFixedLoop, type FixedLoop } from "@/core/loop";
 import { createRng, type Rng } from "@/core/rng";
 import { createWorld } from "@/ecs/world";
-import { createEngine } from "@/render/engine";
+import { createEngine, fitCanvas } from "@/render/engine";
 import { createMeshSync } from "@/render/meshSync";
 import { createScene } from "@/render/scene";
 import { createSimulation } from "@/systems/simulation";
@@ -70,6 +70,7 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
     last = now;
 
     const { alpha } = loop.advance(frameSeconds);
+    fitCanvas(engine);
     meshSync.sync(settings.interpolate ? alpha : 1);
     scene.render();
 
