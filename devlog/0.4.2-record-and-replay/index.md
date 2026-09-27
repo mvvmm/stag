@@ -1,6 +1,6 @@
 # 0.4.2 Record & Replay
 
-> 2026-09-27 · [plan](../../slopdocs/plans/0.4.2-record-and-replay.md) · commit (pending)
+> 2026-09-27 · [plan](../../slopdocs/plans/0.4.2-record-and-replay.md) · commit `e72397a`
 
 ![A replay of the input test halfway through: the pawn walks toward its recorded click target, the badge at the top reads "REPLAY 00:03 / 00:04", and the pane's Replay folder shows the timeline, step back, take over and "in sync so far"](01-overview.png)
 
