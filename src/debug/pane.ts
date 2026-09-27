@@ -352,8 +352,19 @@ export function createPane(tools: DevTools) {
   const offCommands = tools.commands.onChange(buildCommands);
 
   // Step aside while the Babylon Inspector is open: it docks panels on both sides of the page.
+  // A small button over the game view (and `) closes it again and brings the pane back.
+  const closeInspector = document.createElement("button");
+  closeInspector.textContent = "Close Inspector (`)";
+  closeInspector.style.cssText =
+    "position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:10000;" +
+    "pointer-events:auto;padding:4px 10px;font:12px ui-monospace,monospace;cursor:pointer;" +
+    "color:#e6e6e6;background:#28292ecc;border:1px solid #555;border-radius:4px;display:none";
+  closeInspector.addEventListener("click", () => void tools.toggleInspector());
+  document.body.append(closeInspector);
+
   const updateDisplay = () => {
     container.style.display = visible && !tools.inspector.open ? "" : "none";
+    closeInspector.style.display = tools.inspector.open ? "" : "none";
   };
 
   // Keep live values (pause, categories, …) in sync with changes made from code or the console.
@@ -381,6 +392,7 @@ export function createPane(tools: DevTools) {
     dispose(): void {
       window.clearInterval(timer);
       entityPane.dispose();
+      closeInspector.remove();
       offTuning();
       offCommands();
       pane.dispose();

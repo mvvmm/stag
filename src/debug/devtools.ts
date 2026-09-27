@@ -43,7 +43,7 @@ export type DevTools = ReturnType<typeof startDevtools>;
 
 /**
  * Starts the dev tools (only loaded when `DEBUG`): the debug pane (always there, <kbd>`</kbd>
- * hides and shows it), stats and profiler, debug draw, tunable persistence, the Inspector,
+ * hides and shows it, or closes the Inspector while that's open), stats and profiler, debug draw, tunable persistence, the Inspector,
  * commands, scene switching/reset/frame step and the entity picker. There are no dev keybinds:
  * the keyboard always belongs to the game. Call before the first `shell.load()` and
  * `shell.start()`, so stored tweaks apply before the first tick; `startup()` says which scene and
@@ -403,7 +403,9 @@ export function startDevtools(shell: Shell) {
     if (event.code !== PANE_TOGGLE || event.repeat) return;
     if (event.metaKey || event.ctrlKey || event.altKey || isEditable(event.target)) return;
     event.preventDefault();
-    tools.setPaneVisible(!state.paneVisible);
+    // The pane steps aside while the Inspector is open, so ` closes the Inspector first.
+    if (inspector.open) void tools.toggleInspector();
+    else tools.setPaneVisible(!state.paneVisible);
   });
 
   const drawRenderer = createDebugDrawRenderer(debugDraw, scene, engine);
