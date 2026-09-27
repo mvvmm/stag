@@ -7,6 +7,7 @@ import {
 } from "@babylonjs/core";
 import { debugDraw } from "@/core/debugDraw";
 import { formatChanges, tuning } from "@/core/tuning";
+import { BUILD } from "@/debug/build";
 import { createCommandRegistry } from "@/debug/commands";
 import { createDebugDrawRenderer } from "@/debug/debugDrawRender";
 import { createFrameStats } from "@/debug/frameStats";
@@ -501,6 +502,7 @@ export function startDevtools(shell: Shell) {
   // --- Console / agent handle ------------------------------------------------------------------
 
   window.__game = {
+    build: BUILD,
     get world() {
       return shell.world;
     },

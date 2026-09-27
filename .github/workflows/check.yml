@@ -1,0 +1,31 @@
+# The quality gate. `check` is a required status on main (repo ruleset), so a PR can only
+# merge when typecheck, Biome lint/format, tests (incl. replay fixtures) and the build pass.
+# Deploys are done by Cloudflare Workers Builds, not here: this workflow needs no secrets.
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6 # version from package.json "packageManager"
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build

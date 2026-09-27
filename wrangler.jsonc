@@ -1,0 +1,8 @@
+// Static-assets-only Worker: no script, Cloudflare serves `dist/` (the Vite build) directly.
+// Deployed by Workers Builds (main → production, other branches → Worker Previews); see AGENTS.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stag",
+  "compatibility_date": "2026-09-27",
+  "assets": { "directory": "./dist" }
+}

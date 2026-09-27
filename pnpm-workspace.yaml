@@ -1,3 +1,6 @@
 # agent-browser ships its native binaries in the package; its postinstall only re-downloads them.
+# esbuild and workerd (via wrangler) check or fetch their platform binary in postinstall.
 allowBuilds:
   agent-browser: false
+  esbuild: true
+  workerd: true

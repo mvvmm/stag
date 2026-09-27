@@ -25,6 +25,8 @@ declare global {
      * run (`pnpm dev` or `?debug`).
      */
     __game?: {
+      /** The build: commit short hash, with `-dirty` for uncommitted changes. */
+      readonly build: string;
       /** The current scene's world (a new one after every load). */
       readonly world: Shell["world"];
       loop: FixedLoop;
