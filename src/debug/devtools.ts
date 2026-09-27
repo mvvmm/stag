@@ -1,4 +1,10 @@
-import { Color3, HighlightLayer, type Mesh, SceneInstrumentation } from "@babylonjs/core";
+import {
+  Color3,
+  HighlightLayer,
+  type Mesh,
+  MeshBuilder,
+  SceneInstrumentation,
+} from "@babylonjs/core";
 import { debugDraw } from "@/core/debugDraw";
 import { formatChanges, tuning } from "@/core/tuning";
 import { createCommandRegistry } from "@/debug/commands";
@@ -29,6 +35,9 @@ const PERF_INTERVAL = 0.25;
 const PANE_TOGGLE = "Backquote";
 const HOVER_COLOR = new Color3(0.95, 0.9, 0.7);
 const SELECTED_COLOR = new Color3(1, 0.3, 0.9);
+/** Frames the highlight layer renders its warm-up mesh once ready, and the most it waits. */
+const WARMUP_FRAMES = 3;
+const WARMUP_GIVE_UP = 300;
 
 export type DevTools = ReturnType<typeof startDevtools>;
 
@@ -151,24 +160,47 @@ export function startDevtools(shell: Shell) {
     pane?.refresh();
   });
 
-  // A glow around the entity under the cursor while picking (pale) and the selection (magenta).
-  // The highlight layer adds render passes, so it's only created once something is highlighted.
-  let highlight: HighlightLayer | null = null;
+  // A thin outline around the entity under the cursor while picking (pale) and the selection
+  // (magenta). Outer glow only, so the mesh itself stays readable.
+  const highlight = new HighlightLayer("debugHighlight", scene, { isStroke: true });
+  highlight.innerGlow = false;
+  highlight.blurHorizontalSize = 0.6;
+  highlight.blurVerticalSize = 0.6;
   const highlighted = new Map<Mesh, Color3>();
+
+  // Warm-up: the layer imports its shaders and builds its effects, render targets and pipelines on
+  // first use. Done on the first hover, that froze a frame and flashed the whole screen. So the
+  // layer warms up right away on a speck of a mesh with nothing composed (outer glow off), and
+  // real meshes join only once it's ready. With no meshes in it, the layer costs nothing.
+  let warmup: Mesh | null = MeshBuilder.CreateBox("highlightWarmup", { size: 0.001 }, scene);
+  warmup.isPickable = false;
+  highlight.outerGlow = false;
+  highlight.addMesh(warmup, HOVER_COLOR);
+  let warmFrames = 0;
+  let readyFrames = 0;
+  const warmUp = (mesh: Mesh) => {
+    const subMesh = mesh.subMeshes[0];
+    const ready = !!subMesh && highlight.isLayerReady() && highlight.isReady(subMesh, false);
+    if (ready) readyFrames++;
+    // A few rendered frames once ready, so every pass has run; give up waiting after ~5 s.
+    if (readyFrames > WARMUP_FRAMES || ++warmFrames > WARMUP_GIVE_UP) {
+      highlight.removeMesh(mesh);
+      mesh.dispose();
+      highlight.outerGlow = true;
+      warmup = null;
+    }
+  };
+
   shell.addRenderPhase("highlight", () => {
+    if (warmup) {
+      warmUp(warmup);
+      return;
+    }
     const want = new Map<Mesh, Color3>();
     const hoveredMesh = picker.hovered && shell.meshOf(picker.hovered);
     if (hoveredMesh) want.set(hoveredMesh, HOVER_COLOR);
     const selectedMesh = selected && shell.meshOf(selected);
     if (selectedMesh) want.set(selectedMesh, SELECTED_COLOR);
-    if (!want.size && !highlighted.size) return;
-    if (!highlight) {
-      // Outer glow only, thin: an outline around the silhouette that leaves the mesh readable.
-      highlight = new HighlightLayer("debugHighlight", scene, { isStroke: true });
-      highlight.innerGlow = false;
-      highlight.blurHorizontalSize = 0.6;
-      highlight.blurVerticalSize = 0.6;
-    }
     for (const [mesh, color] of highlighted) {
       if (want.get(mesh) !== color) {
         highlight.removeMesh(mesh);
