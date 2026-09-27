@@ -82,6 +82,7 @@ The per-step commits so far:
 | 0.1 | `b18be46` |
 | 0.2 | `2303ca7` |
 | 0.3 | `0e329e1` |
+| 0.4 | `b045d34` (revised in `18b4b93`, `25fd320`) |
 
 ## Videos (you)
 

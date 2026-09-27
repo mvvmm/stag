@@ -31,3 +31,5 @@ A toolbox that every later step will lean on. In debug builds a **debug pane** d
 ![Free camera orbited away from the game view, with wireframe on](02-free-camera-wireframe.png)
 
 ![The Babylon Inspector (dev builds only); the pane and stats step aside while it's open](03-inspector.png)
+
+[![Walkthrough in Firefox: expanding the debug pane, switching the stats between compact and full, turning interpolation off, and dragging the camera pitch tunable (it picks up the ● changed marker)](04-debug-pane-walkthrough.jpg)](04-debug-pane-walkthrough.mp4)
