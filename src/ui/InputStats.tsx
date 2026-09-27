@@ -8,8 +8,8 @@ const fmt = (v: Vec2) => `(${v.x.toFixed(2)}, ${v.z.toFixed(2)})`;
 /** Live input for the input test scene. A debug overlay, toggled from the debug pane. */
 export function InputStats() {
   const { active, inputOverlay, inspector } = debugState.value;
-  if (!active || !inputOverlay || inspector) return null;
   const s = inputStats.value;
+  if (!active || !inputOverlay || inspector || !s) return null;
 
   return (
     <div class={styles.panel}>

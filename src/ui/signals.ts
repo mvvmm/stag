@@ -39,15 +39,8 @@ export type InputStats = {
   flashing: Action[];
 };
 
-export const inputStats = signal<InputStats>({
-  preset: "",
-  move: { x: 0, z: 0 },
-  moveCommand: null,
-  aim: { x: 0, z: 0 },
-  held: [],
-  pressCounts: {},
-  flashing: [],
-});
+/** Written by the input test scene; null while no scene publishes input stats. */
+export const inputStats = signal<InputStats | null>(null);
 
 /** Debug-tool state for the overlays; only written when the dev tools run. */
 export type DebugState = {

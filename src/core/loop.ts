@@ -27,6 +27,10 @@ export type FixedLoop = {
   /** Total ticks run since creation. */
   readonly tickCount: number;
   advance(frameSeconds: number): { ticks: number; alpha: number };
+  /** Runs exactly one tick now, even while paused (frame step). */
+  step(): void;
+  /** Back to tick 0 with no leftover time (scene reset). `paused` and `timeScale` are kept. */
+  reset(): void;
 };
 
 export function createFixedLoop(options: FixedLoopOptions): FixedLoop {
@@ -71,6 +75,15 @@ export function createFixedLoop(options: FixedLoopOptions): FixedLoop {
       if (accumulator >= dt) accumulator %= dt;
       tickCount += ticks;
       return { ticks, alpha: loop.alpha };
+    },
+    step() {
+      options.update(dt);
+      tickCount++;
+    },
+    reset() {
+      accumulator = 0;
+      tickCount = 0;
+      suspended = false;
     },
   };
   return loop;

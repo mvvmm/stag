@@ -1,16 +1,30 @@
-import type { BindingApi, FolderApi } from "@tweakpane/core";
+import type { BindingApi, BladeApi, FolderApi } from "@tweakpane/core";
 import { Pane } from "tweakpane";
 import { debugDraw } from "@/core/debugDraw";
 import { type Tunable, tuning } from "@/core/tuning";
 import type { DevTools } from "@/debug/devtools";
+import {
+  entityLabel,
+  type Field,
+  formatValue,
+  getPath,
+  inspectEntity,
+  shapeKey,
+} from "@/debug/inspect";
 import { STATS_MODES } from "@/debug/persist";
+import { parseSeed } from "@/debug/startup";
+import type { Entity } from "@/ecs/world";
 
 const REFRESH_INTERVAL = 250;
+/** The entity dropdown lists at most this many entities; picking reaches the rest. */
+const MAX_LISTED = 200;
+const NONE = -1;
 
 /**
  * The debug pane (Tweakpane, loaded lazily), the one place every dev tool is controlled from:
- * loop and view controls, debug-draw categories, tunables with changed markers, resets and "copy
- * changes", and a button for every command that asks for one. Always there in debug builds;
+ * scene switching, seed and restart, loop and view controls with frame step, the entity picker
+ * with live, editable components, debug-draw categories, tunables with changed markers, resets
+ * and "copy changes", and a button for every command that asks for one. Always there in debug builds;
  * <kbd>`</kbd> hides and shows it. It's a debug view, so it reads and writes the tools directly
  * instead of going through UI signals.
  */
@@ -97,8 +111,49 @@ export function createPane(tools: DevTools) {
     },
   };
 
+  // --- Scene -----------------------------------------------------------------------------------
+
+  const sceneView = {
+    get scene() {
+      return shell.current?.def.id ?? "";
+    },
+    set scene(id: string) {
+      if (id !== shell.current?.def.id) tools.loadScene(id);
+    },
+    get seed() {
+      return String(shell.current?.seed ?? "");
+    },
+    /** Enter (or leaving the field) restarts with the typed seed; anything else reverts. */
+    set seed(text: string) {
+      const seed = parseSeed(text);
+      if (seed !== null) tools.restart(seed);
+      else queueMicrotask(() => pane.refresh());
+    },
+  };
+  const sceneFolder = folder(pane, "Scene", "Scene", true);
+  sceneFolder.addBinding(sceneView, "scene", {
+    options: Object.fromEntries(tools.scenes.list().map((def) => [def.label, def.id])),
+  });
+  const seedBinding = sceneFolder.addBinding(sceneView, "seed");
+  const seedLabel = seedBinding.element.querySelector(".tp-lblv_l");
+  if (seedLabel instanceof HTMLElement) seedLabel.title = "Type a seed and press Enter to restart";
+  sceneFolder.addButton({ title: "Restart (same seed)" }).on("click", () => tools.restart());
+  sceneFolder.addButton({ title: "New seed" }).on("click", () => tools.newSeed());
+
+  // --- Loop ------------------------------------------------------------------------------------
+
   const loopFolder = folder(pane, "Loop", "Loop", true);
   loopFolder.addBinding(view, "paused");
+  loopFolder.addButton({ title: "Step one tick" }).on("click", () => tools.step());
+  loopFolder.addBinding(
+    {
+      get tick() {
+        return shell.loop.tickCount;
+      },
+    },
+    "tick",
+    { readonly: true, format: (v: number) => v.toFixed(0) },
+  );
   loopFolder.addBinding(view, "timeScale", { label: "time scale", min: 0.05, max: 2, step: 0.05 });
   loopFolder.addBinding(view, "interpolate");
   loopFolder.addBinding(view, "preset", { options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" } });
@@ -121,6 +176,114 @@ export function createPane(tools: DevTools) {
       disabled: !tools.inspector.available,
     })
     .on("click", () => void tools.toggleInspector());
+
+  // --- Entity ----------------------------------------------------------------------------------
+
+  const entityFolder = folder(pane, "Entity", "Entity", true);
+  entityFolder.addBinding(
+    {
+      get pick() {
+        return tools.picker.active;
+      },
+      set pick(on: boolean) {
+        tools.setPick(on);
+      },
+    },
+    "pick",
+    { label: "pick in world" },
+  );
+  const pickLabel = entityFolder.element.querySelector(".tp-lblv_l");
+  if (pickLabel instanceof HTMLElement) {
+    pickLabel.title = "Click an entity to select it; the game gets no mouse buttons meanwhile";
+  }
+
+  const selectionView = {
+    get selected() {
+      const entity = tools.selected;
+      return (entity && shell.world.id(entity)) ?? NONE;
+    },
+    set selected(id: number) {
+      tools.select(id === NONE ? null : id);
+    },
+  };
+  let listBinding: BladeApi | null = null;
+  let listKey = "";
+  /** Rebuilds the dropdown when the listed entities (or their components) change. */
+  const syncEntityList = () => {
+    const world = shell.world;
+    // Ids are handed out on first use; asking in world order keeps them in spawn order.
+    for (const entity of world.entities) world.id(entity);
+    const listed: [string, number][] = [["(none)", NONE]];
+    const add = (entity: Entity) => {
+      const id = world.id(entity);
+      if (id !== undefined) listed.push([entityLabel(id, entity), id]);
+    };
+    world.entities.slice(0, MAX_LISTED).forEach(add);
+    const selected = tools.selected;
+    if (selected && world.entities.indexOf(selected) >= MAX_LISTED) add(selected);
+    const hidden = world.entities.length - MAX_LISTED;
+    const key = `${hidden}|${listed.map(([label]) => label).join("|")}`;
+    if (key === listKey) return;
+    listKey = key;
+    const index = listBinding ? entityFolder.children.indexOf(listBinding) : 1;
+    listBinding?.dispose();
+    const options = Object.fromEntries(listed);
+    listBinding = entityFolder.addBinding(selectionView, "selected", {
+      label: hidden > 0 ? `selected (${MAX_LISTED} of ${world.entities.length})` : "selected",
+      options,
+      index,
+    });
+  };
+  entityFolder.addButton({ title: "Deselect" }).on("click", () => tools.select(null));
+
+  // Component folders for the selection, rebuilt when it (or the shape of its data) changes.
+  let componentBlades: BladeApi[] = [];
+  let componentsKey = "";
+  let componentsOf: Entity | null = null;
+  const addFields = (parent: FolderApi, entity: Entity, fields: readonly Field[]) => {
+    for (const field of fields) {
+      const path = field.path;
+      if (field.kind === "object") {
+        const sub = folder(parent, field.key, `Entity/${path.join("/")}`, true);
+        addFields(sub, entity, field.children);
+        if (parent === entityFolder) componentBlades.push(sub);
+        continue;
+      }
+      const readonly = field.kind === "readonly";
+      // Bind to a proxy: edits go through the tools (transform edits snap), and reads are live.
+      const proxy = {
+        get value() {
+          const value = getPath(entity, path);
+          return readonly ? formatValue(value) : value;
+        },
+        set value(value: unknown) {
+          tools.editField(path, value);
+        },
+      };
+      const binding = parent.addBinding(proxy, "value", {
+        label: field.key,
+        ...(readonly ? { readonly: true } : {}),
+        ...(field.kind === "number" ? { format: (v: number) => v.toFixed(3) } : {}),
+      });
+      if (parent === entityFolder) componentBlades.push(binding);
+    }
+  };
+  const syncComponents = () => {
+    const entity = tools.selected;
+    const fields = entity ? inspectEntity(entity) : [];
+    const key = shapeKey(fields);
+    if (entity === componentsOf && key === componentsKey) return;
+    componentsOf = entity;
+    componentsKey = key;
+    for (const blade of componentBlades) blade.dispose();
+    componentBlades = [];
+    if (entity) addFields(entityFolder, entity, fields);
+  };
+
+  const syncEntity = () => {
+    syncEntityList();
+    syncComponents();
+  };
 
   // --- Debug draw ------------------------------------------------------------------------------
 
@@ -247,14 +410,17 @@ export function createPane(tools: DevTools) {
   const timer = window.setInterval(() => {
     updateDisplay();
     syncCategories();
+    syncEntity();
     pane.refresh();
   }, REFRESH_INTERVAL);
   syncCategories();
+  syncEntity();
 
   return {
     refresh(): void {
       updateDisplay();
       syncCategories();
+      syncEntity();
       pane.refresh();
     },
     setVisible(show: boolean): void {

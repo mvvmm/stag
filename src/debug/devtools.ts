@@ -1,10 +1,12 @@
 import { SceneInstrumentation } from "@babylonjs/core";
+import { GROUND_Y } from "@/core/constants";
 import { debugDraw } from "@/core/debugDraw";
 import { formatChanges, tuning } from "@/core/tuning";
 import { createCommandRegistry } from "@/debug/commands";
 import { createDebugDrawRenderer } from "@/debug/debugDrawRender";
 import { createFrameStats } from "@/debug/frameStats";
 import { createFreeCamera } from "@/debug/freeCamera";
+import { type Path, setPath } from "@/debug/inspect";
 import { createInspector } from "@/debug/inspector";
 import {
   type DebugSettings,
@@ -13,8 +15,13 @@ import {
   type StatsMode,
   saveDebugSettings,
 } from "@/debug/persist";
+import { createPicker } from "@/debug/picker";
+import { resolveStartup } from "@/debug/startup";
+import { type Entity, snapTransform } from "@/ecs/world";
 import { isEditable, savePreset } from "@/input/dom";
-import type { Shell } from "@/shell";
+import { scenes } from "@/scenes";
+import type { SceneDef } from "@/scenes/scene";
+import { randomSeed, type Shell } from "@/shell";
 import { debugState, perfStats } from "@/ui/signals";
 
 const TIME_SCALES = [1, 0.25, 0.05];
@@ -26,9 +33,11 @@ export type DevTools = ReturnType<typeof startDevtools>;
 
 /**
  * Starts the dev tools (only loaded when `DEBUG`): the debug pane (always there, <kbd>`</kbd>
- * hides and shows it), stats and profiler, debug draw, tunable persistence, the Inspector and
- * commands. There are no dev keybinds: the keyboard always belongs to the game. Call before
- * `shell.start()` so stored tweaks apply before the first tick.
+ * hides and shows it), stats and profiler, debug draw, tunable persistence, the Inspector,
+ * commands, scene switching/reset/frame step and the entity picker. There are no dev keybinds:
+ * the keyboard always belongs to the game. Call before the first `shell.load()` and
+ * `shell.start()`, so stored tweaks apply before the first tick; `startup()` says which scene and
+ * seed to load.
  */
 export function startDevtools(shell: Shell) {
   const { loop, input, scene, engine, settings: loopSettings } = shell;
@@ -47,6 +56,8 @@ export function startDevtools(shell: Shell) {
     paneFolders: { ...stored.paneFolders },
     stats: stored.stats,
     inputOverlay: stored.inputOverlay,
+    /** The last scene loaded; reloads return to it. */
+    scene: stored.scene,
   };
 
   const dropped = tuning.apply(stored.tunables);
@@ -67,6 +78,7 @@ export function startDevtools(shell: Shell) {
       wireframe: scene.forceWireframe,
       inputOverlay: state.inputOverlay,
       tunables: tuning.overrides(),
+      scene: state.scene,
     };
     saveDebugSettings(settings);
   };
@@ -120,6 +132,34 @@ export function startDevtools(shell: Shell) {
     };
   });
 
+  // --- Selection -------------------------------------------------------------------------------
+
+  let selected: Entity | null = null;
+  const picker = createPicker(shell, (entity) => tools.select(entity));
+
+  // Each load brings a fresh world: forget the selection and follow removals in the new world.
+  let offRemoved: (() => void) | null = null;
+  shell.onLoad(({ def }) => {
+    selected = null;
+    offRemoved?.();
+    offRemoved = shell.world.onEntityRemoved.subscribe((entity) => {
+      if (entity === selected) tools.select(null);
+    });
+    state.scene = def.id;
+    save();
+    pane?.refresh();
+  });
+
+  // A ring and `#id` around the selection, at its mesh (interpolated) or else its transform.
+  shell.addRenderPhase("selection", () => {
+    if (!selected) return;
+    const at = shell.meshOf(selected)?.position ?? selected.transform?.position;
+    if (!at) return;
+    const options = { category: "selection", color: "magenta" } as const;
+    debugDraw.circle({ x: at.x, z: at.z, y: GROUND_Y + 0.04 }, 0.9, options);
+    debugDraw.text({ x: at.x, z: at.z, y: at.y + 1.2 }, `#${shell.world.id(selected)}`, options);
+  });
+
   // --- Actions (what the pane's controls and the commands call) --------------------------------
 
   let pane: { refresh(): void; setVisible(visible: boolean): void } | null = null;
@@ -133,6 +173,63 @@ export function startDevtools(shell: Shell) {
     save,
     publish,
     timeScales: TIME_SCALES,
+    picker,
+    scenes,
+
+    /** Which scene and seed to start: `?scene=`/`?seed=`, else the last scene with `freshSeed`. */
+    startup(freshSeed: number): { def: SceneDef; seed: number } {
+      const params = new URLSearchParams(location.search);
+      const wanted = resolveStartup(params, stored.scene, freshSeed);
+      if (wanted.invalidSeed !== null) {
+        console.warn(`?seed=${wanted.invalidSeed} isn't a uint32; using ${wanted.seed}`);
+      }
+      const { scene, unknown } = scenes.resolve(wanted.sceneId);
+      if (unknown) console.warn(`unknown scene "${wanted.sceneId}"; starting "${scene.id}"`);
+      return { def: scene, seed: wanted.seed };
+    },
+    /** Loads a scene by id with the given seed (a fresh one by default). False if there's none. */
+    loadScene(id: string, seed = randomSeed()): boolean {
+      const def = scenes.get(id);
+      if (!def) return false;
+      shell.load(def, seed);
+      return true;
+    },
+    /** Restarts the current scene with the same seed, or the given one. */
+    restart(seed?: number) {
+      shell.restart(seed);
+    },
+    newSeed() {
+      shell.restart(randomSeed());
+    },
+    /** One tick. Pauses first if the game is running, so the step is visible. */
+    step() {
+      if (!loop.paused) tools.setPaused(true);
+      shell.step();
+      pane?.refresh();
+    },
+
+    get selected(): Entity | null {
+      return selected;
+    },
+    /** Selects an entity (or its id in the current world); null or an unknown id deselects. */
+    select(target: Entity | number | null) {
+      const world = shell.world;
+      const entity = typeof target === "number" ? world.entity(target) : target;
+      selected = entity && world.has(entity) ? entity : null;
+      // The highlight is debug draw, so selecting something turns it on.
+      if (selected && !debugDraw.enabled) tools.setDraw(true);
+      pane?.refresh();
+    },
+    /** Edits a field of the selection. Transform edits snap, so the move doesn't smear. */
+    editField(path: Path, value: unknown) {
+      if (!selected || !setPath(selected, path, value)) return;
+      if (path[0] === "transform") snapTransform(selected);
+    },
+    /** Picking borrows the mouse: canvas clicks select entities instead of reaching the game. */
+    setPick(on: boolean) {
+      picker.active = on;
+      pane?.refresh();
+    },
 
     setPaneVisible(visible: boolean) {
       state.paneVisible = visible;
@@ -166,7 +263,7 @@ export function startDevtools(shell: Shell) {
     /** The free camera takes over the mouse, so the game gets no mouse buttons meanwhile. */
     setFreeCamera(on: boolean) {
       freeCamera.active = on;
-      input.setMouseButtons(!on);
+      input.borrowMouse("freeCamera", on);
       pane?.refresh();
     },
     async toggleInspector() {
@@ -239,6 +336,10 @@ export function startDevtools(shell: Shell) {
     ],
     ["tuning.copy", "Copy tunable changes", () => void tools.copyTunableChanges()],
     ["tuning.reset", "Reset all tunables", () => tuning.reset()],
+    ["loop.step", "Step one tick", () => tools.step()],
+    ["scene.restart", "Restart (same seed)", () => tools.restart()],
+    ["scene.newSeed", "Restart with a new seed", () => tools.newSeed()],
+    ["pick.toggle", "Pick entities", () => tools.setPick(!picker.active)],
   ];
   for (const [id, label, run] of builtIns) {
     commands.define({ id, label, group: "Built-in", button: false, run });
@@ -259,10 +360,27 @@ export function startDevtools(shell: Shell) {
   // --- Console / agent handle ------------------------------------------------------------------
 
   window.__game = {
-    world: shell.world,
+    get world() {
+      return shell.world;
+    },
     loop,
-    rng: shell.rng,
+    get rng() {
+      return shell.rng;
+    },
     scene,
+    scenes: {
+      list: () => scenes.list().map((def) => def.id),
+      current: () => shell.current && { id: shell.current.def.id, seed: shell.current.seed },
+      load: tools.loadScene,
+      restart: tools.restart,
+    },
+    get seed() {
+      return shell.current?.seed ?? null;
+    },
+    get selected() {
+      return selected;
+    },
+    select: tools.select,
     input,
     tunables: {
       list: tuning.list,

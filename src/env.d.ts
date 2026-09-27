@@ -6,6 +6,7 @@ import type { Rng } from "@/core/rng";
 import type { TuningRegistry } from "@/core/tuning";
 import type { CommandRegistry } from "@/debug/commands";
 import type { DevTools } from "@/debug/devtools";
+import type { Entity } from "@/ecs/world";
 import type { InputState } from "@/input/state";
 import type { Shell } from "@/shell";
 
@@ -16,10 +17,27 @@ declare global {
      * run (`pnpm dev` or `?debug`).
      */
     __game?: {
-      world: Shell["world"];
+      /** The current scene's world (a new one after every load). */
+      readonly world: Shell["world"];
       loop: FixedLoop;
-      rng: Rng;
+      readonly rng: Rng;
+      /** The Babylon scene (see `scenes` for game scenes). */
       scene: Shell["scene"];
+      scenes: {
+        /** Registered scene ids. */
+        list(): string[];
+        current(): { id: string; seed: number } | null;
+        /** Loads a scene with a seed (fresh by default). False if there's no such scene. */
+        load(id: string, seed?: number): boolean;
+        /** Restarts the current scene with the same seed, or the given one. */
+        restart(seed?: number): void;
+      };
+      /** The current scene's seed. */
+      readonly seed: number | null;
+      /** The entity selected in the pane, if any. */
+      readonly selected: Entity | null;
+      /** Selects an entity (or an id in the current world); null deselects. */
+      select(target: Entity | number | null): void;
       input: InputState;
       tunables: Pick<TuningRegistry, "list" | "get" | "set" | "reset" | "changes">;
       debugDraw: DebugDraw;

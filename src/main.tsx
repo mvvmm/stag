@@ -2,9 +2,9 @@ import { render } from "preact";
 import "@/ui/styles/tokens.css";
 import "@/ui/styles/global.css";
 import { DEBUG } from "@/debug/enabled";
-import { startInputTest } from "@/demo/inputTest";
 import { isWebGPUSupported } from "@/render/engine";
-import { startShell } from "@/shell";
+import { scenes } from "@/scenes";
+import { randomSeed, startShell } from "@/shell";
 import { InputStats } from "@/ui/InputStats";
 import { Stats } from "@/ui/Stats";
 import { Unsupported } from "@/ui/Unsupported";
@@ -21,24 +21,24 @@ async function bootstrap() {
     return;
   }
 
-  // Wall-clock seed for now; seeds become displayable and replayable in 0.4.1.
-  const seed = (Date.now() ^ (performance.now() * 1000)) >>> 0;
   let shell: Awaited<ReturnType<typeof startShell>>;
   try {
-    shell = await startShell(canvas, seed);
+    shell = await startShell(canvas);
   } catch (error) {
     console.error(error);
     render(<Unsupported detail={String(error)} />, uiRoot);
     return;
   }
-  console.info(`seed ${seed}`);
 
-  startInputTest(shell);
+  // Players always start the default scene with a fresh seed. The dev tools may pick another
+  // scene or seed (`?scene=`, `?seed=`, the last scene used).
+  let startup = { def: scenes.default, seed: randomSeed() };
   // The dev tools are a separate chunk that players never download (see debug/enabled.ts).
   if (DEBUG) {
     const { startDevtools } = await import("@/debug/devtools");
-    startDevtools(shell);
+    startup = startDevtools(shell).startup(startup.seed);
   }
+  shell.load(startup.def, startup.seed);
   shell.start();
 
   render(

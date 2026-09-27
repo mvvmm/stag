@@ -19,6 +19,7 @@ describe("parseDebugSettings", () => {
       wireframe: true,
       inputOverlay: false,
       tunables: { "pawn.speed": 7.5 },
+      scene: "stress",
     };
     expect(parseDebugSettings(JSON.stringify(settings))).toEqual(settings);
   });
@@ -32,6 +33,7 @@ describe("parseDebugSettings", () => {
         paneFolders: { a: true, b: 3 },
         draw: { enabled: true, categories: "x" },
         tunables: [1],
+        scene: 3,
       }),
     );
     expect(parsed).toEqual({

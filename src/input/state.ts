@@ -36,8 +36,8 @@ export function createInputState(initialPreset: PresetId) {
   /** The pointer-move control went down since the last tick (so a click shorter than a tick still moves). */
   let moveClicked = false;
   let aim: Vec2 = { x: 0, z: 0 };
-  /** Off while something else owns the mouse (the debug free camera): buttons are ignored. */
-  let mouseButtons = true;
+  /** Who borrowed the mouse (debug free camera, entity picker). While any has, buttons are ignored. */
+  const mouseBorrowers = new Set<string>();
 
   // Last-pressed-wins per axis: each direction remembers when it was last pressed.
   let pressOrder = 0;
@@ -78,7 +78,7 @@ export function createInputState(initialPreset: PresetId) {
   };
 
   const controlDown = (control: Control): void => {
-    if (!mouseButtons && isMouseButton(control)) return;
+    if (mouseBorrowers.size && isMouseButton(control)) return;
     if (down.has(control)) return; // key repeat or duplicate event
     down.add(control);
     const direction = directionOf(control);
@@ -123,21 +123,36 @@ export function createInputState(initialPreset: PresetId) {
       return bindings.has(control) || isMoveControl(control);
     },
 
+    /** False while something else has borrowed the mouse buttons. */
     get mouseButtons(): boolean {
-      return mouseButtons;
+      return mouseBorrowers.size === 0;
     },
 
     /**
-     * Stops (or resumes) feeding mouse buttons to the game, e.g. while the debug free camera uses
-     * the mouse. Held buttons are released (the next tick sees the releases); keys keep working.
+     * Borrows (or returns) the mouse buttons for a debug tool such as the free camera or the entity
+     * picker. The game gets them back once every borrower has returned them. On borrowing, held
+     * buttons are released (the next tick sees the releases); keys keep working.
      */
-    setMouseButtons(enabled: boolean): void {
-      if (enabled === mouseButtons) return;
-      mouseButtons = enabled;
-      if (!enabled) {
+    borrowMouse(owner: string, borrowed: boolean): void {
+      const wasFree = mouseBorrowers.size === 0;
+      if (borrowed) mouseBorrowers.add(owner);
+      else mouseBorrowers.delete(owner);
+      if (wasFree && mouseBorrowers.size) {
         for (const control of [...down]) if (isMouseButton(control)) controlUp(control);
         moveClicked = false;
       }
+    },
+
+    /**
+     * Drops presses and releases no tick or frame has seen yet, and a pending click-to-move (scene
+     * reset). Physically held controls stay held.
+     */
+    resetEdges(): void {
+      for (const latch of [tickLatch, frameLatch]) {
+        latch.pressed.clear();
+        latch.released.clear();
+      }
+      moveClicked = false;
     },
 
     get preset(): Preset {

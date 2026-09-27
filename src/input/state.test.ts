@@ -199,14 +199,14 @@ describe("createInputState: click to move", () => {
   });
 });
 
-describe("createInputState: mouse buttons off (debug free camera)", () => {
+describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
   it("releases held buttons with edges and ignores new presses, but keeps keys", () => {
     const input = createInputState("mmo");
     input.controlDown("Mouse2");
     input.controlDown("Digit1");
     input.sampleTick(0);
 
-    input.setMouseButtons(false);
+    input.borrowMouse("freeCamera", true);
     input.controlDown("Mouse0");
     input.controlDown("Space");
     const frame = input.sampleTick(0);
@@ -218,13 +218,47 @@ describe("createInputState: mouse buttons off (debug free camera)", () => {
   it("sends no move command in the moba scheme while off", () => {
     const input = createInputState("moba");
     input.setAim({ x: 1, z: 1 });
-    input.setMouseButtons(false);
+    input.borrowMouse("freeCamera", true);
     input.controlDown("Mouse2");
     expect(input.sampleTick(0).moveCommand).toBeNull();
 
-    input.setMouseButtons(true);
+    input.borrowMouse("freeCamera", false);
     input.controlUp("Mouse2");
     input.controlDown("Mouse2");
     expect(input.sampleTick(0).moveCommand).toEqual({ x: 1, z: 1 });
+  });
+
+  it("gives the mouse back only when every borrower has returned it", () => {
+    const input = createInputState("mmo");
+    input.borrowMouse("freeCamera", true);
+    input.borrowMouse("picker", true);
+    input.borrowMouse("freeCamera", false);
+    expect(input.mouseButtons).toBe(false);
+    input.controlDown("Mouse2");
+    expect(input.sampleTick(0).pressed.size).toBe(0);
+
+    input.borrowMouse("picker", false);
+    expect(input.mouseButtons).toBe(true);
+    input.controlUp("Mouse2");
+    input.controlDown("Mouse2");
+    expect([...input.sampleTick(0).pressed]).toEqual(["primary"]);
+  });
+});
+
+describe("createInputState: resetEdges", () => {
+  it("drops unseen presses, releases and click-to-move but keeps held controls", () => {
+    const input = createInputState("moba");
+    input.setAim({ x: 2, z: 3 });
+    input.controlDown("KeyQ");
+    input.controlDown("Mouse2");
+    input.controlUp("Mouse2");
+    input.resetEdges();
+
+    const tick = input.sampleTick(0);
+    expect(tick.pressed.size).toBe(0);
+    expect(tick.released.size).toBe(0);
+    expect(tick.moveCommand).toBeNull();
+    expect([...tick.held]).toEqual(["ability1"]);
+    expect(input.sampleFrame().pressed.size).toBe(0);
   });
 });

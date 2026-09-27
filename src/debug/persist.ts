@@ -14,6 +14,8 @@ export type DebugSettings = {
   inputOverlay: boolean;
   /** Tunable overrides by id (`pawn.speed`). */
   tunables: Record<string, unknown>;
+  /** The scene that was running last (reloads return to it). */
+  scene?: string;
 };
 
 const STORAGE_KEY = "stag.debug";
@@ -69,6 +71,7 @@ export function parseDebugSettings(raw: string | null): DebugSettings {
     wireframe: bool(data.wireframe, defaults.wireframe),
     inputOverlay: bool(data.inputOverlay, defaults.inputOverlay),
     tunables: isObject(data.tunables) ? data.tunables : {},
+    ...(typeof data.scene === "string" && data.scene ? { scene: data.scene } : {}),
   };
 }
 

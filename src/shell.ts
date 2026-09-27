@@ -1,8 +1,11 @@
 import type { Camera, Mesh, Scene, WebGPUEngine } from "@babylonjs/core";
+import type { World } from "miniplex";
 import { MAX_FRAME_DELTA, MAX_TICKS_PER_FRAME, TICK_HZ } from "@/core/constants";
 import { debugDraw } from "@/core/debugDraw";
+import { createDisposer, type Disposer } from "@/core/disposer";
 import { createFixedLoop, type FixedLoop } from "@/core/loop";
 import { createRng, type Rng } from "@/core/rng";
+import { tuning } from "@/core/tuning";
 import { DEBUG } from "@/debug/enabled";
 import type { FrameSample } from "@/debug/frameStats";
 import { createWorld, type Entity } from "@/ecs/world";
@@ -13,29 +16,51 @@ import { cameraYaw, createGroundAim } from "@/render/aim";
 import { createEngine, fitCanvas } from "@/render/engine";
 import { createMeshSync } from "@/render/meshSync";
 import { createScene, updateCamera } from "@/render/scene";
+import type { SceneContext, SceneDef } from "@/scenes/scene";
 import { createSimulation } from "@/systems/simulation";
 import { loopStats } from "@/ui/signals";
 
 const STATS_INTERVAL = 0.25;
 
+/** The scene that's running and the seed it was loaded with. */
+export type LoadedScene = { def: SceneDef; seed: number };
+
 export type Shell = {
-  world: ReturnType<typeof createWorld>;
-  rng: Rng;
+  /** The current scene's world. A new one on every load, so don't keep it around. */
+  readonly world: World<Entity>;
+  /** The current scene's RNG, seeded on every load. */
+  readonly rng: Rng;
   loop: FixedLoop;
   engine: WebGPUEngine;
   scene: Scene;
   /** The camera the game aims and moves with (a debug camera may be rendering instead). */
   gameCamera: Camera;
   input: InputState;
+  /** The running scene and its seed; null before the first load. */
+  readonly current: LoadedScene | null;
+  /**
+   * Tears the current scene down (listeners, owned meshes, the world) and sets `def` up in a
+   * fresh world with an RNG seeded with `seed`, at tick 0. Pause and time scale are kept. Called
+   * during a frame (e.g. from a tick listener), it waits until the frame has ended.
+   */
+  load(def: SceneDef, seed: number): void;
+  /** Loads the current scene again, with the same seed or the given one. */
+  restart(seed?: number): void;
+  /** Runs one simulation tick now, even while paused (frame step). */
+  step(): void;
+  /** Runs after every load, once the scene is set up. Returns an unsubscribe function. */
+  onLoad(listener: (loaded: LoadedScene) => void): () => void;
   /** The mesh mirroring an entity, if it has one. */
   meshOf(entity: Entity): Mesh | undefined;
+  /** The entity a mesh mirrors, if any (for picking). */
+  entityOf(mesh: Mesh): Entity | undefined;
   settings: { interpolate: boolean };
   /** Starts the render loop. Call once the scene and tools are set up. */
   start(): void;
   /** Runs once per render frame with that frame's shell input (also while paused). */
-  onFrame(listener: (frame: ShellFrame) => void): void;
+  onFrame(listener: (frame: ShellFrame) => void): () => void;
   /** Runs once per simulation tick with the input the simulation saw. */
-  onTick(listener: (input: InputFrame) => void): void;
+  onTick(listener: (input: InputFrame) => void): () => void;
   /** Adds a named, profiled step that runs each frame after mesh sync, right before rendering. */
   addRenderPhase(name: string, run: () => void): void;
   /** Runs at the end of every frame with its timings, for the profiler. */
@@ -44,14 +69,24 @@ export type Shell = {
   publishStats(): void;
 };
 
+/** A fresh uint32 seed from the wall clock (the shell is the only place allowed to read it). */
+export function randomSeed(): number {
+  return (Date.now() ^ (performance.now() * 1000) ^ (Math.random() * 0x100000000)) >>> 0;
+}
+
+/** Adds a listener to a set and returns a function that removes it. */
+const listen = <T>(set: Set<T>, listener: T) => {
+  set.add(listener);
+  return () => {
+    set.delete(listener);
+  };
+};
+
 /**
  * Wires the simulation, the fixed-step loop and the Babylon renderer together. This is the only
  * place that reads wall-clock time; the simulation only ever sees the fixed tick `dt`.
  */
-export async function startShell(canvas: HTMLCanvasElement, seed: number): Promise<Shell> {
-  const world = createWorld();
-  const rng = createRng(seed);
-
+export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   // Profiler: named timings for the current frame (systems summed over its ticks).
   let phases: Record<string, number> = {};
   const time = (name: string, run: () => void) => {
@@ -60,12 +95,19 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
     phases[name] = (phases[name] ?? 0) + performance.now() - start;
   };
 
-  const simulation = createSimulation(world, rng, undefined, { around: time });
   const input = createInputState(loadPreset());
-  const frameListeners: ((frame: ShellFrame) => void)[] = [];
-  const tickListeners: ((input: InputFrame) => void)[] = [];
+  const frameListeners = new Set<(frame: ShellFrame) => void>();
+  const tickListeners = new Set<(input: InputFrame) => void>();
+  const loadListeners = new Set<(loaded: LoadedScene) => void>();
   const renderPhases: { name: string; run: () => void }[] = [];
   const frameEndListeners: ((sample: FrameSample) => void)[] = [];
+
+  // Per-load state: replaced wholesale by `load`. Until the first load there's an empty world
+  // running no systems.
+  let world = createWorld();
+  let rng = createRng(0);
+  let simulation = createSimulation(world, rng, [], { around: time });
+  let current: (LoadedScene & { disposer: Disposer }) | null = null;
 
   // The camera's yaw for this frame; WASD is relative to it. Updated before the loop runs.
   let yaw = 0;
@@ -87,7 +129,7 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
   const scene = createScene(engine);
   const camera = scene.activeCamera;
   if (!camera) throw new Error("scene has no camera");
-  const meshSync = createMeshSync(world, scene);
+  let meshSync = createMeshSync(world, scene);
   const dom = attachInputDom(input, canvas);
   const groundAim = createGroundAim(scene);
 
@@ -115,9 +157,67 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
     };
   };
 
+  const doLoad = (def: SceneDef, seed: number) => {
+    if (current) {
+      try {
+        current.disposer.dispose();
+      } catch (error) {
+        console.error(`tearing down scene "${current.def.id}" failed`, error);
+      }
+    }
+    meshSync.dispose();
+
+    world = createWorld();
+    rng = createRng(seed);
+    simulation = createSimulation(world, rng, def.systems, { around: time });
+    meshSync = createMeshSync(world, scene);
+    loop.reset();
+    input.resetEdges();
+    debugDraw.clear();
+    statsTicks = 0;
+
+    const disposer = createDisposer();
+    const loaded = { def, seed, disposer };
+    current = loaded;
+    const ctx: SceneContext = {
+      world,
+      rng,
+      seed,
+      scene,
+      input,
+      meshOf: meshSync.meshOf,
+      own: disposer.own,
+      onDispose: disposer.add,
+      onTick: (listener) => disposer.add(listen(tickListeners, listener)),
+      onFrame: (listener) => disposer.add(listen(frameListeners, listener)),
+      onBeforeRender: (run) => {
+        const observer = scene.onBeforeRenderObservable.add(run);
+        disposer.add(() => scene.onBeforeRenderObservable.remove(observer));
+      },
+      onTunableChange: (listener) => disposer.add(tuning.onChange(listener)),
+      restart: () => {
+        // Only while this run is the current one (a stale context can't restart anything).
+        if (current === loaded) load(def, seed);
+      },
+    };
+    def.setup(ctx);
+    console.info(`scene ${def.id} seed ${seed}`);
+    for (const listener of loadListeners) listener({ def, seed });
+  };
+
+  // Loads requested mid-frame (from a tick or frame listener) wait for the frame to end, so a
+  // frame never runs half in one world and half in the next.
+  let inFrame = false;
+  let pendingLoad: LoadedScene | null = null;
+  const load = (def: SceneDef, seed: number) => {
+    if (inFrame) pendingLoad = { def, seed };
+    else doLoad(def, seed);
+  };
+
   const frame = (frameSeconds: number) => {
     const frameStart = performance.now();
     phases = {};
+    inFrame = true;
 
     fitCanvas(engine);
     updateCamera(camera);
@@ -137,6 +237,12 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
     for (const listener of frameListeners) listener(shellFrame);
 
     const { alpha } = loop.advance(frameSeconds);
+    inFrame = false;
+    if (pendingLoad) {
+      const { def, seed } = pendingLoad;
+      pendingLoad = null;
+      doLoad(def, seed);
+    }
     time("meshSync", () => meshSync.sync(settings.interpolate ? alpha : 1));
     for (const phase of renderPhases) time(phase.name, phase.run);
     time("render", () => scene.render());
@@ -173,18 +279,36 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
   };
 
   return {
-    world,
-    rng,
+    get world() {
+      return world;
+    },
+    get rng() {
+      return rng;
+    },
     loop,
     engine,
     scene,
     gameCamera: camera,
     input,
-    meshOf: meshSync.meshOf,
+    get current() {
+      return current && { def: current.def, seed: current.seed };
+    },
+    load,
+    restart(seed) {
+      if (!current) throw new Error("no scene loaded");
+      load(current.def, seed ?? current.seed);
+    },
+    step() {
+      loop.step();
+      publishStats();
+    },
+    onLoad: (listener) => listen(loadListeners, listener),
+    meshOf: (entity) => meshSync.meshOf(entity),
+    entityOf: (mesh) => meshSync.entityOf(mesh),
     settings,
     start,
-    onFrame: (listener) => frameListeners.push(listener),
-    onTick: (listener) => tickListeners.push(listener),
+    onFrame: (listener) => listen(frameListeners, listener),
+    onTick: (listener) => listen(tickListeners, listener),
     addRenderPhase: (name, run) => renderPhases.push({ name, run }),
     onFrameEnd: (listener) => frameEndListeners.push(listener),
     publishStats,

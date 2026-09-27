@@ -49,7 +49,8 @@ src/
   ui/         Preact HTML overlay (components, signals, CSS modules, styles/tokens.css)
   data/       data-driven definitions: abilities, augments, enemies, rooms
   debug/      dev tools (lazy, DEBUG only): commands, pane, stats/profiler, debug-draw renderer, Inspector
-  demo/       throwaway test scenes, replaced by real content
+  scenes/     SceneDef + SceneContext, the scene registry (index.ts)
+  demo/       throwaway test scenes (input test, stress), replaced by real content
 ```
 
 Create a folder when a step first needs it; don't add placeholder files.
@@ -65,7 +66,8 @@ Create a folder when a step first needs it; don't add placeholder files.
 7. **Input is a per-tick snapshot.** Systems are `(world, dt, rng, input: InputFrame) => void` and read input only from that frame (actions by role: `primary`, `ability1`, …, never raw keys; world-space `move`, `moveCommand`, `aim`). A press is in `pressed` for exactly one tick. Bindings are data in `input/bindings.ts` (`mmo` and `moba` presets). Shell-level actions (pause) use `sampleFrame()` so they work while paused.
 8. **Tune through tunables.** Numbers worth tweaking live in `defineTunables("group", { key: { value, min, max, step } })` (`core/tuning.ts`), which returns a live object: read it every time, never cache a value. They show up in the debug pane. Code defaults stay the source of truth: "Copy changes" in the pane gives a `group.key: old → new` snippet to paste back.
 9. **Debug draw is write-only.** Any code, systems included, may call `debugDraw.line/arrow/circle/box/point/path/text` (`core/debugDraw.ts`) with a `category`. Never read from it or branch on it in the simulation. It's a no-op unless the dev tools enable it.
-10. **Dev tools are gated and pane-driven.** `src/debug/` loads only when `DEBUG` (`pnpm dev`, or `?debug` in a production build) as a lazy chunk, so players never download it. There are **no dev keybinds**: the keyboard always belongs to the game, and every dev tool is controlled from the debug pane. The only dev key is <kbd>`</kbd>, which hides/shows the pane. New debug actions (cheats) are commands (`debug/commands.ts`, one `define` each), which get a pane button and `__game.run(id)`.
+10. **Scenes are resettable.** A scene is a `SceneDef` (`scenes/scene.ts`: `id`, `label`, its `systems`, `setup(ctx)`), listed in `scenes/index.ts`. Every `shell.load(def, seed)` / `shell.restart()` tears the old scene down and builds a fresh world, RNG, simulation and mesh sync at tick 0. So setup registers everything through `ctx` (`own`, `onTick`, `onFrame`, `onBeforeRender`, `onTunableChange`, `onDispose`) and keeps no state between runs. Never hold on to `shell.world` or `shell.rng`; read them when needed (or listen to `shell.onLoad`).
+11. **Dev tools are gated and pane-driven.** `src/debug/` loads only when `DEBUG` (`pnpm dev`, or `?debug` in a production build) as a lazy chunk, so players never download it. There are **no dev keybinds**: the keyboard always belongs to the game, and every dev tool is controlled from the debug pane. The only dev key is <kbd>`</kbd>, which hides/shows the pane. New debug actions (cheats) are commands (`debug/commands.ts`, one `define` each), which get a pane button and `__game.run(id)`.
 
 ## Conventions
 
@@ -78,6 +80,7 @@ Create a folder when a step first needs it; don't add placeholder files.
 
 ## Dev tools
 
-- The debug pane (Tweakpane, top right) is always there in debug builds, and <kbd>`</kbd> hides/shows it. It covers loop control (pause, time scale, interpolation, preset), view (stats mode, input overlay, wireframe, free camera, Inspector), debug-draw categories, tunables and command buttons.
+- The debug pane (Tweakpane, top right) is always there in debug builds, and <kbd>`</kbd> hides/shows it. It covers the scene (switcher, seed, restart, new seed), loop control (pause, frame step, tick, time scale, interpolation, preset), view (stats mode, input overlay, wireframe, free camera, Inspector), the entity picker ("pick in world" borrows the mouse; live, editable components of the selection), debug-draw categories, tunables and command buttons.
+- `?scene=<id>` and `?seed=<uint32>` pick the startup scene and seed in debug builds only (read once, never written; players never deal with URLs). Without them, a reload returns to the last scene with a fresh seed.
 - The Babylon Inspector is only in `pnpm dev` builds (bundling it into production pulls ~380 KB gzipped of core into the player chunks).
-- For automated checks (agent-browser `eval`), use `window.__game`: `world`, `loop`, `input`, `tunables.get/set/reset/changes`, `run("stats.cycle")`, `tools.setStats("full")` etc. (typed in `src/env.d.ts`). Debug settings persist in localStorage under `stag.debug`.
+- For automated checks (agent-browser `eval`), use `window.__game`: `world` (the current scene's), `loop`, `input`, `scenes.load("stress", 42)`/`scenes.restart()`/`scenes.current()`, `seed`, `select(id)`/`selected`, `tunables.get/set/reset/changes`, `run("loop.step")`, `tools.setStats("full")` etc. (typed in `src/env.d.ts`). Debug settings persist in localStorage under `stag.debug`.

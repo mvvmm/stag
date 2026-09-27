@@ -105,4 +105,26 @@ describe("createFixedLoop", () => {
     loop.timeScale = 0;
     expect(loop.advance(DT).ticks).toBe(0);
   });
+
+  it("steps exactly one tick on demand, also while paused", () => {
+    const { loop, dts } = setup();
+    loop.paused = true;
+    loop.step();
+    loop.step();
+    expect(dts).toEqual([DT, DT]);
+    expect(loop.tickCount).toBe(2);
+    expect(loop.advance(DT).ticks).toBe(0);
+  });
+
+  it("resets the tick count and leftover time but keeps pause and time scale", () => {
+    const { loop } = setup();
+    loop.advance(DT * 3.5);
+    loop.paused = true;
+    loop.timeScale = 0.25;
+    loop.reset();
+    expect(loop.tickCount).toBe(0);
+    expect(loop.alpha).toBe(0);
+    expect(loop.paused).toBe(true);
+    expect(loop.timeScale).toBe(0.25);
+  });
 });
