@@ -43,9 +43,9 @@ export function createPane(tools: DevTools) {
   });
   let visible = true;
 
-  /** A folder whose expanded state is remembered by its title path. */
-  const folder = (parent: FolderApi, title: string, path = title, expanded = false) => {
-    const result = parent.addFolder({ title, expanded: state.paneFolders[path] ?? expanded });
+  /** A folder whose expanded state is remembered by its title path. Collapsed until opened. */
+  const folder = (parent: FolderApi, title: string, path = title) => {
+    const result = parent.addFolder({ title, expanded: state.paneFolders[path] ?? false });
     result.on("fold", (event) => {
       state.paneFolders[path] = event.expanded;
       tools.save();
@@ -135,7 +135,7 @@ export function createPane(tools: DevTools) {
       else if (seed !== shell.current?.seed) tools.restart(seed);
     },
   };
-  const sceneFolder = folder(pane, "Scene", "Scene", true);
+  const sceneFolder = folder(pane, "Scene", "Scene");
   sceneFolder.addBinding(sceneView, "scene", {
     options: Object.fromEntries(tools.scenes.list().map((def) => [def.label, def.id])),
   });
@@ -197,7 +197,7 @@ export function createPane(tools: DevTools) {
     fixture: "",
   };
 
-  const replayFolder = folder(pane, "Replay", "Replay", true);
+  const replayFolder = folder(pane, "Replay", "Replay");
   replayFolder.addBinding(replayView, "recording", { readonly: true, label: "length" });
   replayFolder.addBinding(replayView, "status", { readonly: true });
   const syncBinding = replayFolder.addBinding(replayView, "sync", { readonly: true });
@@ -264,7 +264,7 @@ export function createPane(tools: DevTools) {
       playbackFolder = null;
       if (file) {
         const index = replayFolder.children.indexOf(noticeBinding) + 1;
-        playbackFolder = replayFolder.addFolder({ title: "Playback", expanded: true, index });
+        playbackFolder = replayFolder.addFolder({ title: "Playback", expanded: false, index });
         playbackFolder.addBinding(replayView, "tick", {
           label: "timeline",
           min: 0,
@@ -295,7 +295,7 @@ export function createPane(tools: DevTools) {
 
   // --- Loop ------------------------------------------------------------------------------------
 
-  const loopFolder = folder(pane, "Loop", "Loop", true);
+  const loopFolder = folder(pane, "Loop", "Loop");
   loopFolder.addBinding(view, "paused");
   loopFolder.addButton({ title: "Step one tick" }).on("click", () => tools.step());
   loopFolder.addBinding(
@@ -311,7 +311,7 @@ export function createPane(tools: DevTools) {
   loopFolder.addBinding(view, "interpolate");
   loopFolder.addBinding(view, "preset", { options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" } });
 
-  const viewFolder = folder(pane, "View", "View", true);
+  const viewFolder = folder(pane, "View", "View");
   viewFolder.addBinding(view, "stats", {
     options: Object.fromEntries(STATS_MODES.map((mode) => [mode, mode])),
   });
@@ -332,7 +332,7 @@ export function createPane(tools: DevTools) {
 
   // --- Entity ----------------------------------------------------------------------------------
 
-  const entityFolder = folder(pane, "Entity", "Entity", true);
+  const entityFolder = folder(pane, "Entity", "Entity");
   entityFolder.addBinding(
     {
       get pick() {
@@ -396,7 +396,7 @@ export function createPane(tools: DevTools) {
 
   // --- Debug draw ------------------------------------------------------------------------------
 
-  const drawFolder = folder(pane, "Debug draw", "Debug draw", true);
+  const drawFolder = folder(pane, "Debug draw", "Debug draw");
   drawFolder.addBinding(view, "draw", { label: "enabled" });
   const categoryViews = new Map<string, { shown: boolean }>();
   /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
@@ -416,7 +416,7 @@ export function createPane(tools: DevTools) {
 
   // --- Tunables --------------------------------------------------------------------------------
 
-  const tunablesFolder = folder(pane, "Tunables", "Tunables", true);
+  const tunablesFolder = folder(pane, "Tunables", "Tunables");
   tunablesFolder.addButton({ title: "Copy changes" }).on("click", () => {
     void tools.copyTunableChanges();
   });
@@ -442,7 +442,7 @@ export function createPane(tools: DevTools) {
       groups.set(tunable.group, [...(groups.get(tunable.group) ?? []), tunable]);
     }
     for (const [group, tunables] of groups) {
-      const groupFolder = folder(tunablesFolder, group, `Tunables/${group}`, true);
+      const groupFolder = folder(tunablesFolder, group, `Tunables/${group}`);
       groupFolders.push(groupFolder);
       // Bind to a proxy so every edit goes through the registry (validation, listeners, storage).
       const proxy: Record<string, unknown> = {};
@@ -496,12 +496,12 @@ export function createPane(tools: DevTools) {
     commandsFolder = null;
     const buttons = tools.commands.buttons();
     if (!buttons.length) return;
-    commandsFolder = folder(pane, "Commands", "Commands", true);
+    commandsFolder = folder(pane, "Commands", "Commands");
     const groups = new Map<string, FolderApi>();
     for (const command of buttons) {
       let groupFolder = groups.get(command.group);
       if (!groupFolder) {
-        groupFolder = folder(commandsFolder, command.group, `Commands/${command.group}`, true);
+        groupFolder = folder(commandsFolder, command.group, `Commands/${command.group}`);
         groups.set(command.group, groupFolder);
       }
       groupFolder
