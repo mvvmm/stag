@@ -4,5 +4,12 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "stag",
   "compatibility_date": "2026-09-27",
-  "assets": { "directory": "./dist" }
+  "assets": { "directory": "./dist" },
+  // Workers Logs + automatic tracing, everything sampled (traffic is tiny). Asset-only requests
+  // never invoke a script, so these fill up once the Worker gets code (API, D1 in Phase 14).
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": true },
+    "traces": { "enabled": true, "head_sampling_rate": 1 }
+  }
 }
