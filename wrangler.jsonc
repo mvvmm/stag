@@ -5,6 +5,9 @@
   "name": "stag",
   "compatibility_date": "2026-09-27",
   "assets": { "directory": "./dist" },
+  // Worker Previews (`wrangler preview`, run by Workers Builds for every non-main branch). Empty:
+  // Previews inherit everything above.
+  "previews": {},
   // Workers Logs + automatic tracing, everything sampled (traffic is tiny). Asset-only requests
   // never invoke a script, so these fill up once the Worker gets code (API, D1 in Phase 14).
   "observability": {
