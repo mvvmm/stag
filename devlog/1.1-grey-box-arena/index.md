@@ -1,6 +1,6 @@
 # 1.1 Grey-box Arena
 
-> 2026-09-27 · [plan](../../slopdocs/plans/1.1-grey-box-arena.md) · PR #3
+> 2026-09-27 · [plan](../../slopdocs/plans/1.1-grey-box-arena.md) · [PR #3](https://github.com/mvvmm/stag/pull/3)
 
 ![The arena as a player sees it: the orange demo pawn in the middle of a gridded floor, surrounded by stone-coloured pillars, dark blocks, two pale low walls (one diagonal) and an angled tall wall segment, with the north perimeter wall along the top](01-arena.png)
 
