@@ -228,6 +228,16 @@ export function createPane(tools: DevTools) {
   let playbackFolder: FolderApi | null = null;
   let playbackFile: object | null = null;
   let lastGoodButton: BladeApi | null = null;
+  let playButton: ReturnType<FolderApi["addButton"]> | null = null;
+  const playTitle = () => {
+    if (replay.mode === "ended") return "⟲ Play from start";
+    return shell.loop.paused ? "▶ Play" : "⏸ Pause";
+  };
+  /** Play/pause the replay; at the end, start it over. */
+  const togglePlay = () => {
+    if (replay.mode === "ended") void replay.seek(0).then(() => tools.setPaused(false));
+    else tools.setPaused(!shell.loop.paused);
+  };
   const syncReplay = () => {
     noticeBinding.hidden = !replay.notice;
     syncBinding.hidden = !replay.file;
@@ -245,6 +255,8 @@ export function createPane(tools: DevTools) {
           max: file.ticks,
           step: 1,
         });
+        playButton = playbackFolder.addButton({ title: playTitle() });
+        playButton.on("click", togglePlay);
         playbackFolder.addBinding(replayView, "goTo", { label: "go to tick" });
         playbackFolder.addButton({ title: "Step back" }).on("click", () => void replay.stepBack());
         playbackFolder.addButton({ title: "Step" }).on("click", () => tools.step());
@@ -258,6 +270,10 @@ export function createPane(tools: DevTools) {
       }
     }
     if (lastGoodButton && playbackFolder) lastGoodButton.hidden = !replay.divergence;
+    if (playButton && playbackFolder) {
+      const title = playTitle();
+      if (playButton.title !== title) playButton.title = title;
+    }
   };
   syncReplay();
 
