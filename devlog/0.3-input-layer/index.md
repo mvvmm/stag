@@ -34,3 +34,5 @@ A real input layer. The DOM feeds key and mouse state into bindings (plain data)
 ## Media
 
 ![MOBA preset: a right-click dropped the blue move pin; the pawn heads for it while still facing the aim ring](02-moba-move-pin.png)
+
+[![Walkthrough in Firefox: WASD movement with the pawn facing the aim ring, then the MOBA preset with right-click move pins](03-input-walkthrough.jpg)](03-input-walkthrough.mp4)

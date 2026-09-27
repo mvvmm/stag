@@ -29,3 +29,5 @@ The real engine bootstrap and game loop: a **WebGPU-only** Babylon engine, a **f
 ![Slow motion at ×0.05: 4 ticks/s, but still 60 fps and smooth thanks to interpolation](02-slow-motion.png)
 
 ![The "WebGPU required" screen (forced with the dev-only ?nowebgpu flag)](03-unsupported.png)
+
+[![Walkthrough in Firefox: orbiting boxes, slow motion with interpolation, and auto-pause when switching tabs](04-loop-walkthrough.jpg)](04-loop-walkthrough.mp4)
