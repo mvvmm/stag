@@ -1,5 +1,6 @@
 import { Color3, MeshBuilder, StandardMaterial } from "@babylonjs/core";
 import { GROUND_Y } from "@/core/constants";
+import { addDemoGround } from "@/demo/ground.view";
 import { inputTestSim } from "@/demo/inputTest";
 import type { Action, InputFrame } from "@/input/actions";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
@@ -15,6 +16,7 @@ export const inputTestScene: SceneDef = { ...inputTestSim, setup };
 
 function setup(ctx: SceneContext): void {
   const { world, scene, input } = ctx;
+  addDemoGround(ctx);
   const pawn = world.with("pawn").first;
   if (!pawn) throw new Error("input test: no pawn spawned");
 

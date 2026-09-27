@@ -8,7 +8,7 @@ import { createRng, type Rng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import { DEBUG } from "@/debug/enabled";
 import type { FrameSample } from "@/debug/frameStats";
-import { createWorld, type Entity } from "@/ecs/world";
+import { createWorld, type Entity, type Vec3 } from "@/ecs/world";
 import type { InputFrame, ShellFrame } from "@/input/actions";
 import { attachInputDom, loadPreset } from "@/input/dom";
 import { createInputState, type InputState } from "@/input/state";
@@ -133,6 +133,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   let rng = createRng(0);
   let simulation = createSimulation(world, rng, [], { around: time });
   let current: (LoadedScene & { disposer: Disposer }) | null = null;
+  const ORIGIN: Vec3 = { x: 0, y: 0, z: 0 };
+  let cameraTarget = (): Vec3 => ORIGIN;
 
   // The camera's yaw for this frame; WASD is relative to it. Updated before the loop runs.
   let yaw = 0;
@@ -203,6 +205,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     input.resetEdges();
     debugDraw.clear();
     statsTicks = 0;
+    cameraTarget = () => ORIGIN;
 
     const disposer = createDisposer();
     const loaded = { def, seed, disposer };
@@ -212,8 +215,13 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       world,
       seed,
       scene,
+      camera,
       input,
       meshOf: meshSync.meshOf,
+      bindMesh: meshSync.bind,
+      setCameraTarget: (target) => {
+        cameraTarget = target;
+      },
       own: disposer.own,
       onDispose: disposer.add,
       onTick: (listener) => disposer.add(listen(tickListeners, listener)),
@@ -248,10 +256,10 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     inFrame = true;
 
     fitCanvas(engine);
-    updateCamera(camera);
     // Aim is recomputed every frame: the camera can move even when the mouse doesn't. It goes
     // through the rendering camera (the debug free camera, if on) so it's under the cursor; WASD
-    // stays relative to the game camera.
+    // stays relative to the game camera. The game camera is still where the last frame rendered
+    // it (it's placed after mesh sync, below), which is what the cursor points at.
     const pointer = dom.pointer;
     const aim = pointer && groundAim.project(pointer.x, pointer.y, scene.activeCamera ?? camera);
     if (aim) input.setAim(aim);
@@ -272,6 +280,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       doLoad(def, seed, options);
     }
     time("meshSync", () => meshSync.sync(settings.interpolate ? alpha : 1));
+    // After mesh sync, so it follows an interpolated mesh without a frame of lag.
+    updateCamera(camera, cameraTarget());
     for (const phase of renderPhases) time(phase.name, phase.run);
     time("render", () => scene.render());
     debugDraw.endFrame();

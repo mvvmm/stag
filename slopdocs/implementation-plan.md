@@ -39,7 +39,7 @@
 
 ## Phase 1: Sandbox & Movement
 
-- [ ] **1.1 Grey-box arena:** floor, walls, pillars; angled top-down camera with tunable angle/distance.
+- [x] **1.1 Grey-box arena:** floor, walls, pillars; angled top-down camera with tunable angle/distance. → [plan](plans/1.1-grey-box-arena.md)
 - [ ] **1.2 Player movement:** kinematic controller with acceleration/deceleration, facing, precise stops; prototype both WASD and right-click-to-move (moba needs basic player pathing around obstacles).
 - [ ] **1.3 Collision:** player vs walls/obstacles with sliding.
 - [ ] **1.4 Camera follow:** smoothing, aim look-ahead, bounds.
