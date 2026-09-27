@@ -6,7 +6,7 @@
 
 ## What we built
 
-Every scene load is now recorded: the seed, the tunables at tick 0, the input of every tick and anything that changed the sim from outside (tunable tweaks, entity-pane edits, cheat commands). "Save replay" downloads it as a small gzipped file. Loading one plays it back tick for tick through the in-place reset. You can pause, step, change the speed, scrub the timeline (including backwards), or **take over** and play on live from any tick. Every second the replay compares a per-component fingerprint of the world, so it says "diverged at tick 60 in transform" instead of drifting quietly. Replays saved into `src/replay/fixtures/` run headless in Vitest as regression tests.
+Every scene load is now recorded: the seed, the tunables at tick 0, the input of every tick and anything that changed the sim from outside (tunable tweaks, entity-pane edits, cheat commands). "Save replay" downloads it as a small gzipped file. Loading one plays it back tick for tick through the in-place reset. You can play and pause, step, change the speed, scrub the timeline (including backwards), or **take over** and play on live from any tick. After a first review we added **Stop recording** and **New recording**, which forgets the old recording and records from right now by snapshotting the world into the file. Every second the replay compares a per-component fingerprint of the world, so it says "diverged at tick 60 in transform" instead of drifting quietly. Replays saved into `src/replay/fixtures/` run headless in Vitest as regression tests.
 
 ## Key decisions
 
@@ -27,3 +27,5 @@ Every scene load is now recorded: the seed, the tunables at tick 0, the input of
 ## Media
 
 ![A replay whose recorded pawn speed was changed on purpose: playback stopped at tick 60, the badge shows "diverged at 60" in red, and the pane reads "✗ at 60: transform" with a "Jump to last good checkpoint" button](02-diverged.png)
+
+[![Walkthrough in Firefox: starting a new recording mid-run, moving around, stopping and saving it, then loading the file back: the replay plays with its badge, pauses from the Playback folder, and exits back to live play](03-walkthrough.jpg)](03-walkthrough.mp4)
