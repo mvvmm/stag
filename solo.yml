@@ -1,0 +1,17 @@
+name: game
+icon: null
+processes:
+  Editor:
+    command: devin-desktop .
+    working_dir: null
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}
+  Dev:
+    command: pnpm dev
+    working_dir: null
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}
