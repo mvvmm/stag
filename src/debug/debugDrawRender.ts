@@ -73,6 +73,10 @@ export function createDebugDrawRenderer(draw: DebugDraw, scene: Scene, engine: W
     colors = new Float32Array(capacity * 8);
   };
 
+  // The debug group clears depth (so shapes sit on top) but keeps the stencil, which the entity
+  // highlight layer uses to keep its glow off the mesh itself.
+  scene.setRenderingAutoClearDepthStencil(DEBUG_GROUP, true, true, false);
+
   // The grid is static and depth-tested (a separate mesh), unlike on-top debug shapes; it's
   // still toggled by the `grid` category. The axes and labels go through the buffer.
   const grid = createGrid(scene);

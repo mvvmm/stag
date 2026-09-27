@@ -3,14 +3,8 @@ import { Pane } from "tweakpane";
 import { debugDraw } from "@/core/debugDraw";
 import { type Tunable, tuning } from "@/core/tuning";
 import type { DevTools } from "@/debug/devtools";
-import {
-  entityLabel,
-  type Field,
-  formatValue,
-  getPath,
-  inspectEntity,
-  shapeKey,
-} from "@/debug/inspect";
+import { createEntityPane } from "@/debug/entityPane";
+import { entityLabel } from "@/debug/inspect";
 import { STATS_MODES } from "@/debug/persist";
 import { parseSeed } from "@/debug/startup";
 import type { Entity } from "@/ecs/world";
@@ -23,7 +17,7 @@ const NONE = -1;
 /**
  * The debug pane (Tweakpane, loaded lazily), the one place every dev tool is controlled from:
  * scene switching, seed and restart, loop and view controls with frame step, the entity picker
- * with live, editable components, debug-draw categories, tunables with changed markers, resets
+ * (the selection's components get their own pane, see `entityPane.ts`), debug-draw categories, tunables with changed markers, resets
  * and "copy changes", and a button for every command that asks for one. Always there in debug builds;
  * <kbd>`</kbd> hides and shows it. It's a debug view, so it reads and writes the tools directly
  * instead of going through UI signals.
@@ -234,55 +228,11 @@ export function createPane(tools: DevTools) {
       index,
     });
   };
-  entityFolder.addButton({ title: "Deselect" }).on("click", () => tools.select(null));
-
-  // Component folders for the selection, rebuilt when it (or the shape of its data) changes.
-  let componentBlades: BladeApi[] = [];
-  let componentsKey = "";
-  let componentsOf: Entity | null = null;
-  const addFields = (parent: FolderApi, entity: Entity, fields: readonly Field[]) => {
-    for (const field of fields) {
-      const path = field.path;
-      if (field.kind === "object") {
-        const sub = folder(parent, field.key, `Entity/${path.join("/")}`, true);
-        addFields(sub, entity, field.children);
-        if (parent === entityFolder) componentBlades.push(sub);
-        continue;
-      }
-      const readonly = field.kind === "readonly";
-      // Bind to a proxy: edits go through the tools (transform edits snap), and reads are live.
-      const proxy = {
-        get value() {
-          const value = getPath(entity, path);
-          return readonly ? formatValue(value) : value;
-        },
-        set value(value: unknown) {
-          tools.editField(path, value);
-        },
-      };
-      const binding = parent.addBinding(proxy, "value", {
-        label: field.key,
-        ...(readonly ? { readonly: true } : {}),
-        ...(field.kind === "number" ? { format: (v: number) => v.toFixed(3) } : {}),
-      });
-      if (parent === entityFolder) componentBlades.push(binding);
-    }
-  };
-  const syncComponents = () => {
-    const entity = tools.selected;
-    const fields = entity ? inspectEntity(entity) : [];
-    const key = shapeKey(fields);
-    if (entity === componentsOf && key === componentsKey) return;
-    componentsOf = entity;
-    componentsKey = key;
-    for (const blade of componentBlades) blade.dispose();
-    componentBlades = [];
-    if (entity) addFields(entityFolder, entity, fields);
-  };
+  const entityPane = createEntityPane(tools);
 
   const syncEntity = () => {
     syncEntityList();
-    syncComponents();
+    entityPane.sync(visible && !tools.inspector.open);
   };
 
   // --- Debug draw ------------------------------------------------------------------------------
@@ -426,9 +376,11 @@ export function createPane(tools: DevTools) {
     setVisible(show: boolean): void {
       visible = show;
       updateDisplay();
+      syncEntity();
     },
     dispose(): void {
       window.clearInterval(timer);
+      entityPane.dispose();
       offTuning();
       offCommands();
       pane.dispose();

@@ -1,5 +1,4 @@
-import { SceneInstrumentation } from "@babylonjs/core";
-import { GROUND_Y } from "@/core/constants";
+import { Color3, HighlightLayer, type Mesh, SceneInstrumentation } from "@babylonjs/core";
 import { debugDraw } from "@/core/debugDraw";
 import { formatChanges, tuning } from "@/core/tuning";
 import { createCommandRegistry } from "@/debug/commands";
@@ -28,6 +27,8 @@ const TIME_SCALES = [1, 0.25, 0.05];
 const PERF_INTERVAL = 0.25;
 /** Shows and hides the debug pane. Not a game binding: the dev tools listen for it themselves. */
 const PANE_TOGGLE = "Backquote";
+const HOVER_COLOR = new Color3(0.95, 0.9, 0.7);
+const SELECTED_COLOR = new Color3(1, 0.3, 0.9);
 
 export type DevTools = ReturnType<typeof startDevtools>;
 
@@ -150,14 +151,35 @@ export function startDevtools(shell: Shell) {
     pane?.refresh();
   });
 
-  // A ring and `#id` around the selection, at its mesh (interpolated) or else its transform.
-  shell.addRenderPhase("selection", () => {
-    if (!selected) return;
-    const at = shell.meshOf(selected)?.position ?? selected.transform?.position;
-    if (!at) return;
-    const options = { category: "selection", color: "magenta" } as const;
-    debugDraw.circle({ x: at.x, z: at.z, y: GROUND_Y + 0.04 }, 0.9, options);
-    debugDraw.text({ x: at.x, z: at.z, y: at.y + 1.2 }, `#${shell.world.id(selected)}`, options);
+  // A glow around the entity under the cursor while picking (pale) and the selection (magenta).
+  // The highlight layer adds render passes, so it's only created once something is highlighted.
+  let highlight: HighlightLayer | null = null;
+  const highlighted = new Map<Mesh, Color3>();
+  shell.addRenderPhase("highlight", () => {
+    const want = new Map<Mesh, Color3>();
+    const hoveredMesh = picker.hovered && shell.meshOf(picker.hovered);
+    if (hoveredMesh) want.set(hoveredMesh, HOVER_COLOR);
+    const selectedMesh = selected && shell.meshOf(selected);
+    if (selectedMesh) want.set(selectedMesh, SELECTED_COLOR);
+    if (!want.size && !highlighted.size) return;
+    if (!highlight) {
+      // Outer glow only, thin: an outline around the silhouette that leaves the mesh readable.
+      highlight = new HighlightLayer("debugHighlight", scene, { isStroke: true });
+      highlight.innerGlow = false;
+      highlight.blurHorizontalSize = 0.6;
+      highlight.blurVerticalSize = 0.6;
+    }
+    for (const [mesh, color] of highlighted) {
+      if (want.get(mesh) !== color) {
+        highlight.removeMesh(mesh);
+        highlighted.delete(mesh);
+      }
+    }
+    for (const [mesh, color] of want) {
+      if (highlighted.has(mesh)) continue;
+      highlight.addMesh(mesh, color);
+      highlighted.set(mesh, color);
+    }
   });
 
   // --- Actions (what the pane's controls and the commands call) --------------------------------
@@ -216,8 +238,6 @@ export function startDevtools(shell: Shell) {
       const world = shell.world;
       const entity = typeof target === "number" ? world.entity(target) : target;
       selected = entity && world.has(entity) ? entity : null;
-      // The highlight is debug draw, so selecting something turns it on.
-      if (selected && !debugDraw.enabled) tools.setDraw(true);
       pane?.refresh();
     },
     /** Edits a field of the selection. Transform edits snap, so the move doesn't smear. */
