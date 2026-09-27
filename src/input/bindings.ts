@@ -71,9 +71,6 @@ export const MOBA_PRESET: Preset = {
 export const PRESETS: Record<PresetId, Preset> = { mmo: MMO_PRESET, moba: MOBA_PRESET };
 export const DEFAULT_PRESET: PresetId = "mmo";
 
-/** Toggles dev-keys mode, where the keyboard and mouse drive debug commands instead of the game. */
-export const DEV_TOGGLE: Control = "Backquote";
-
 export function isPresetId(value: unknown): value is PresetId {
   return typeof value === "string" && value in PRESETS;
 }

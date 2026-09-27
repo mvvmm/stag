@@ -5,13 +5,13 @@ export type StatsMode = (typeof STATS_MODES)[number];
 
 export type DebugSettings = {
   v: 1;
-  devMode: boolean;
-  paneOpen: boolean;
-  /** Pane folders by title path, true when expanded. */
+  /** Pane folders by title path (the pane itself is `Debug`), true when expanded. */
   paneFolders: Record<string, boolean>;
   stats: StatsMode;
   draw: { enabled: boolean; categories: Record<string, boolean> };
   wireframe: boolean;
+  /** The live input overlay (the input test's actions, move mode and aim). */
+  inputOverlay: boolean;
   /** Tunable overrides by id (`pawn.speed`). */
   tunables: Record<string, unknown>;
 };
@@ -21,12 +21,11 @@ const STORAGE_KEY = "stag.debug";
 export function defaultDebugSettings(): DebugSettings {
   return {
     v: 1,
-    devMode: false,
-    paneOpen: false,
     paneFolders: {},
     stats: "compact",
     draw: { enabled: false, categories: {} },
     wireframe: false,
+    inputOverlay: true,
     tunables: {},
   };
 }
@@ -59,8 +58,6 @@ export function parseDebugSettings(raw: string | null): DebugSettings {
   const draw = isObject(data.draw) ? data.draw : {};
   return {
     v: 1,
-    devMode: bool(data.devMode, defaults.devMode),
-    paneOpen: bool(data.paneOpen, defaults.paneOpen),
     paneFolders: boolRecord(data.paneFolders),
     stats: STATS_MODES.includes(data.stats as StatsMode)
       ? (data.stats as StatsMode)
@@ -70,6 +67,7 @@ export function parseDebugSettings(raw: string | null): DebugSettings {
       categories: boolRecord(draw.categories),
     },
     wireframe: bool(data.wireframe, defaults.wireframe),
+    inputOverlay: bool(data.inputOverlay, defaults.inputOverlay),
     tunables: isObject(data.tunables) ? data.tunables : {},
   };
 }

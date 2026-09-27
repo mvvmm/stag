@@ -3,7 +3,6 @@ import type { Action, InputFrame, ShellFrame } from "@/input/actions";
 import {
   actionsByControl,
   type Control,
-  DEV_TOGGLE,
   PRESETS,
   type Preset,
   type PresetId,
@@ -17,13 +16,7 @@ type Latch = { pressed: Set<Action>; released: Set<Action> };
 
 const newLatch = (): Latch => ({ pressed: new Set(), released: new Set() });
 
-/** Keys that keep their browser meaning even in dev-keys mode (reload, devtools, fullscreen, focus). */
-const isBrowserKey = (control: Control) => /^F\d+$/.test(control) || control === "Tab";
-
-export type InputOptions = {
-  /** Whether the dev-keys toggle works at all (debug builds only). */
-  devKeys?: boolean;
-};
+const isMouseButton = (control: Control) => control.startsWith("Mouse");
 
 export type InputState = ReturnType<typeof createInputState>;
 
@@ -32,12 +25,8 @@ export type InputState = ReturnType<typeof createInputState>;
  * renderer feeds it the aim point, and two consumers read it with their own latched edges:
  * the simulation once per tick (`sampleTick`) and the shell once per frame (`sampleFrame`).
  * A press or release is reported to each consumer exactly once, however many ticks a frame runs.
- *
- * In dev-keys mode no control reaches the game: presses are collected as raw `devPressed`
- * controls for the shell's debug commands instead, and the simulation sees no input at all.
  */
-export function createInputState(initialPreset: PresetId, options: InputOptions = {}) {
-  const devKeys = options.devKeys ?? false;
+export function createInputState(initialPreset: PresetId) {
   let preset: Preset = PRESETS[initialPreset];
   let bindings = actionsByControl(preset);
   const down = new Set<Control>();
@@ -47,12 +36,8 @@ export function createInputState(initialPreset: PresetId, options: InputOptions 
   /** The pointer-move control went down since the last tick (so a click shorter than a tick still moves). */
   let moveClicked = false;
   let aim: Vec2 = { x: 0, z: 0 };
-
-  let devMode = false;
-  let devToggle = false;
-  /** Controls held down in dev-keys mode; their releases never reach the game. */
-  const devDown = new Set<Control>();
-  const devPressed = new Set<Control>();
+  /** Off while something else owns the mouse (the debug free camera): buttons are ignored. */
+  let mouseButtons = true;
 
   // Last-pressed-wins per axis: each direction remembers when it was last pressed.
   let pressOrder = 0;
@@ -93,15 +78,7 @@ export function createInputState(initialPreset: PresetId, options: InputOptions 
   };
 
   const controlDown = (control: Control): void => {
-    if (devKeys && control === DEV_TOGGLE) {
-      devToggle = true;
-      return;
-    }
-    if (devMode) {
-      if (!devDown.has(control)) devPressed.add(control);
-      devDown.add(control);
-      return;
-    }
+    if (!mouseButtons && isMouseButton(control)) return;
     if (down.has(control)) return; // key repeat or duplicate event
     down.add(control);
     const direction = directionOf(control);
@@ -117,7 +94,6 @@ export function createInputState(initialPreset: PresetId, options: InputOptions 
   };
 
   const controlUp = (control: Control): void => {
-    if (devDown.delete(control)) return;
     if (!down.delete(control)) return;
     for (const action of bindings.get(control) ?? []) {
       if (!held.has(action) || actionHeld(action)) continue;
@@ -126,9 +102,8 @@ export function createInputState(initialPreset: PresetId, options: InputOptions 
     }
   };
 
-  /** Releases every held control (window blur, tab hidden, preset switch, dev-keys mode). */
+  /** Releases every held control (window blur, tab hidden, preset switch). */
   const releaseAll = (): void => {
-    devDown.clear();
     for (const control of [...down]) controlUp(control);
   };
 
@@ -143,27 +118,26 @@ export function createInputState(initialPreset: PresetId, options: InputOptions 
     controlUp,
     releaseAll,
 
-    /** True if the control means something right now (so the DOM default can go). */
+    /** True if the control means something in the current preset (so the DOM default can go). */
     isBound(control: Control): boolean {
-      if (devKeys && control === DEV_TOGGLE) return true;
-      if (devMode) return !isBrowserKey(control);
       return bindings.has(control) || isMoveControl(control);
     },
 
-    get devMode(): boolean {
-      return devMode;
+    get mouseButtons(): boolean {
+      return mouseButtons;
     },
 
     /**
-     * Enters or leaves dev-keys mode. Entering releases everything the game holds (the next tick
-     * sees the releases), so nothing stays stuck while the game can't see the keys come back up.
+     * Stops (or resumes) feeding mouse buttons to the game, e.g. while the debug free camera uses
+     * the mouse. Held buttons are released (the next tick sees the releases); keys keep working.
      */
-    setDevMode(on: boolean): void {
-      if (on === devMode) return;
-      releaseAll();
-      moveClicked = false;
-      devPressed.clear();
-      devMode = on;
+    setMouseButtons(enabled: boolean): void {
+      if (enabled === mouseButtons) return;
+      mouseButtons = enabled;
+      if (!enabled) {
+        for (const control of [...down]) if (isMouseButton(control)) controlUp(control);
+        moveClicked = false;
+      }
     },
 
     get preset(): Preset {
@@ -208,16 +182,9 @@ export function createInputState(initialPreset: PresetId, options: InputOptions 
 
     /** Input for the shell, once per render frame (works while the loop is paused). */
     sampleFrame(): ShellFrame {
-      const frame: ShellFrame = {
-        held: new Set(held),
-        pressed: new Set(frameLatch.pressed),
-        devToggle,
-        devPressed: new Set(devPressed),
-      };
+      const frame: ShellFrame = { held: new Set(held), pressed: new Set(frameLatch.pressed) };
       frameLatch.pressed.clear();
       frameLatch.released.clear();
-      devToggle = false;
-      devPressed.clear();
       return frame;
     },
   };

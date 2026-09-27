@@ -53,22 +53,18 @@ export const inputStats = signal<InputStats>({
 export type DebugState = {
   /** The dev tools are running (dev server or `?debug`). */
   active: boolean;
-  devMode: boolean;
   stats: StatsMode;
-  help: boolean;
-  /** The Babylon Inspector is open (it docks over the page, so the stats step aside). */
+  /** Show the live input overlay (the input test's actions, move mode and aim). */
+  inputOverlay: boolean;
+  /** The Babylon Inspector is open (it docks over the page, so the overlays step aside). */
   inspector: boolean;
-  /** Dev keys for the cheat sheet, grouped. */
-  keys: { group: string; key: string; label: string }[];
 };
 
 export const debugState = signal<DebugState>({
   active: false,
-  devMode: false,
   stats: "off",
-  help: false,
+  inputOverlay: false,
   inspector: false,
-  keys: [],
 });
 
 /** Rendering and profiler numbers for the full stats view (~4 Hz, only while it's shown). */

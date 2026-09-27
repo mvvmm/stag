@@ -21,10 +21,6 @@
   color: var(--color-danger);
 }
 
-.keys {
-  color: var(--color-text-muted);
-}
-
 .muted {
   color: var(--color-text-muted);
 }

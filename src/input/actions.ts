@@ -33,10 +33,6 @@ export type InputFrame = {
 export type ShellFrame = {
   held: ReadonlySet<Action>;
   pressed: ReadonlySet<Action>;
-  /** The dev-keys toggle (`) was pressed. Only reported when dev keys are enabled. */
-  devToggle: boolean;
-  /** Raw controls pressed this frame in dev-keys mode (`KeyG`, `Space`, `Mouse0`, …). */
-  devPressed: ReadonlySet<string>;
 };
 
 export function emptyInputFrame(): InputFrame {

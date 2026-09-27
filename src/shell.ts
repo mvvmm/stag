@@ -61,7 +61,7 @@ export async function startShell(canvas: HTMLCanvasElement, seed: number): Promi
   };
 
   const simulation = createSimulation(world, rng, undefined, { around: time });
-  const input = createInputState(loadPreset(), { devKeys: DEBUG });
+  const input = createInputState(loadPreset());
   const frameListeners: ((frame: ShellFrame) => void)[] = [];
   const tickListeners: ((input: InputFrame) => void)[] = [];
   const renderPhases: { name: string; run: () => void }[] = [];

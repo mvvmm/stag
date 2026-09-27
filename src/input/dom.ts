@@ -7,7 +7,7 @@ const PRESET_STORAGE_KEY = "druid.inputPreset";
 const BUTTON_BY_BIT = [0, 2, 1, 3, 4];
 
 /** Typing into a text field (the debug pane, the Inspector) must not drive the game or dev keys. */
-function isEditable(target: EventTarget | null): boolean {
+export function isEditable(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
     target.isContentEditable ||

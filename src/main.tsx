@@ -5,7 +5,6 @@ import { DEBUG } from "@/debug/enabled";
 import { startInputTest } from "@/demo/inputTest";
 import { isWebGPUSupported } from "@/render/engine";
 import { startShell } from "@/shell";
-import { DevOverlay } from "@/ui/DevOverlay";
 import { InputStats } from "@/ui/InputStats";
 import { Stats } from "@/ui/Stats";
 import { Unsupported } from "@/ui/Unsupported";
@@ -46,7 +45,6 @@ async function bootstrap() {
     <>
       <Stats />
       <InputStats />
-      <DevOverlay />
     </>,
     uiRoot,
   );

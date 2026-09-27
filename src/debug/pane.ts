@@ -2,16 +2,17 @@ import type { BindingApi, FolderApi } from "@tweakpane/core";
 import { Pane } from "tweakpane";
 import { debugDraw } from "@/core/debugDraw";
 import { type Tunable, tuning } from "@/core/tuning";
-import { keyLabel } from "@/debug/commands";
 import type { DevTools } from "@/debug/devtools";
 import { STATS_MODES } from "@/debug/persist";
 
 const REFRESH_INTERVAL = 250;
 
 /**
- * The debug pane (Tweakpane, loaded lazily): tunables with changed markers, resets and "copy
- * changes"; loop and view controls; debug-draw categories; and a button for every command. It's a
- * debug view, so it reads and writes the tools directly instead of going through UI signals.
+ * The debug pane (Tweakpane, loaded lazily), the one place every dev tool is controlled from:
+ * loop and view controls, debug-draw categories, tunables with changed markers, resets and "copy
+ * changes", and a button for every command that asks for one. Always there in debug builds;
+ * <kbd>`</kbd> hides and shows it. It's a debug view, so it reads and writes the tools directly
+ * instead of going through UI signals.
  */
 export function createPane(tools: DevTools) {
   const { shell, state } = tools;
@@ -20,7 +21,12 @@ export function createPane(tools: DevTools) {
     "position:absolute;top:16px;right:16px;width:300px;max-height:calc(100vh - 32px);" +
     "overflow-y:auto;pointer-events:auto;z-index:10";
   document.body.append(container);
-  const pane = new Pane({ container, title: "Debug" });
+  const pane = new Pane({ container, title: "Debug", expanded: state.paneFolders.Debug ?? true });
+  pane.on("fold", (event) => {
+    state.paneFolders.Debug = event.expanded;
+    tools.save();
+  });
+  let visible = true;
 
   /** A folder whose expanded state is remembered by its title path. */
   const folder = (parent: FolderApi, title: string, path = title, expanded = false) => {
@@ -65,6 +71,12 @@ export function createPane(tools: DevTools) {
     set stats(v: (typeof STATS_MODES)[number]) {
       tools.setStats(v);
     },
+    get inputOverlay() {
+      return state.inputOverlay;
+    },
+    set inputOverlay(v: boolean) {
+      tools.setInputOverlay(v);
+    },
     get wireframe() {
       return shell.scene.forceWireframe;
     },
@@ -91,19 +103,28 @@ export function createPane(tools: DevTools) {
   loopFolder.addBinding(view, "interpolate");
   loopFolder.addBinding(view, "preset", { options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" } });
 
-  const viewFolder = folder(pane, "View");
+  const viewFolder = folder(pane, "View", "View", true);
   viewFolder.addBinding(view, "stats", {
     options: Object.fromEntries(STATS_MODES.map((mode) => [mode, mode])),
   });
+  viewFolder.addBinding(view, "inputOverlay", { label: "input overlay" });
   viewFolder.addBinding(view, "wireframe");
-  viewFolder.addBinding(view, "freeCamera", { label: "free camera" });
+  const freeCameraBinding = viewFolder.addBinding(view, "freeCamera", { label: "free camera" });
+  const freeCameraLabel = freeCameraBinding.element.querySelector(".tp-lblv_l");
+  if (freeCameraLabel instanceof HTMLElement) {
+    freeCameraLabel.title =
+      "Drag to orbit, right-drag to pan, wheel to zoom (mouse buttons skip the game)";
+  }
   viewFolder
-    .addButton({ title: "Toggle Inspector" })
-    .on("click", () => tools.commands.run("inspector.toggle"));
+    .addButton({
+      title: tools.inspector.available ? "Babylon Inspector" : "Inspector (pnpm dev only)",
+      disabled: !tools.inspector.available,
+    })
+    .on("click", () => void tools.toggleInspector());
 
   // --- Debug draw ------------------------------------------------------------------------------
 
-  const drawFolder = folder(pane, "Debug draw");
+  const drawFolder = folder(pane, "Debug draw", "Debug draw", true);
   drawFolder.addBinding(view, "draw", { label: "enabled" });
   const categoryViews = new Map<string, { shown: boolean }>();
   /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
@@ -196,22 +217,35 @@ export function createPane(tools: DevTools) {
 
   // --- Commands --------------------------------------------------------------------------------
 
-  const commandsFolder = folder(pane, "Commands");
-  const commandGroups = new Map<string, FolderApi>();
-  for (const command of tools.commands.list()) {
-    let groupFolder = commandGroups.get(command.group);
-    if (!groupFolder) {
-      groupFolder = folder(commandsFolder, command.group, `Commands/${command.group}`, true);
-      commandGroups.set(command.group, groupFolder);
+  // Only commands without a dedicated control get buttons (cheats, later); hidden while none do.
+  let commandsFolder: FolderApi | null = null;
+  const buildCommands = () => {
+    commandsFolder?.dispose();
+    commandsFolder = null;
+    const buttons = tools.commands.buttons();
+    if (!buttons.length) return;
+    commandsFolder = folder(pane, "Commands", "Commands", true);
+    const groups = new Map<string, FolderApi>();
+    for (const command of buttons) {
+      let groupFolder = groups.get(command.group);
+      if (!groupFolder) {
+        groupFolder = folder(commandsFolder, command.group, `Commands/${command.group}`, true);
+        groups.set(command.group, groupFolder);
+      }
+      groupFolder.addButton({ title: command.label }).on("click", command.run);
     }
-    const title = command.key ? `${command.label}  [${keyLabel(command.key)}]` : command.label;
-    groupFolder.addButton({ title }).on("click", command.run);
-  }
+  };
+  buildCommands();
+  const offCommands = tools.commands.onChange(buildCommands);
 
-  // Keep live values (pause, categories, …) in sync with changes made by keys or code. Step aside
-  // while the Babylon Inspector is open: it docks panels on both sides of the page.
+  // Step aside while the Babylon Inspector is open: it docks panels on both sides of the page.
+  const updateDisplay = () => {
+    container.style.display = visible && !tools.inspector.open ? "" : "none";
+  };
+
+  // Keep live values (pause, categories, …) in sync with changes made from code or the console.
   const timer = window.setInterval(() => {
-    container.style.display = tools.inspector.open ? "none" : "";
+    updateDisplay();
     syncCategories();
     pane.refresh();
   }, REFRESH_INTERVAL);
@@ -219,12 +253,18 @@ export function createPane(tools: DevTools) {
 
   return {
     refresh(): void {
+      updateDisplay();
       syncCategories();
       pane.refresh();
+    },
+    setVisible(show: boolean): void {
+      visible = show;
+      updateDisplay();
     },
     dispose(): void {
       window.clearInterval(timer);
       offTuning();
+      offCommands();
       pane.dispose();
       container.remove();
     },

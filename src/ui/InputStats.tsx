@@ -1,11 +1,14 @@
 import type { Vec2 } from "@/core/math";
 import { ACTIONS } from "@/input/actions";
-import { inputStats } from "@/ui/signals";
+import { debugState, inputStats } from "@/ui/signals";
 import styles from "./InputStats.module.css";
 
 const fmt = (v: Vec2) => `(${v.x.toFixed(2)}, ${v.z.toFixed(2)})`;
 
+/** Live input for the input test scene. A debug overlay, toggled from the debug pane. */
 export function InputStats() {
+  const { active, inputOverlay, inspector } = debugState.value;
+  if (!active || !inputOverlay || inspector) return null;
   const s = inputStats.value;
 
   return (

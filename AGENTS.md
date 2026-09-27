@@ -65,7 +65,7 @@ Create a folder when a step first needs it; don't add placeholder files.
 7. **Input is a per-tick snapshot.** Systems are `(world, dt, rng, input: InputFrame) => void` and read input only from that frame (actions by role: `primary`, `ability1`, …, never raw keys; world-space `move`, `moveCommand`, `aim`). A press is in `pressed` for exactly one tick. Bindings are data in `input/bindings.ts` (`mmo` and `moba` presets). Shell-level actions (pause) use `sampleFrame()` so they work while paused.
 8. **Tune through tunables.** Numbers worth tweaking live in `defineTunables("group", { key: { value, min, max, step } })` (`core/tuning.ts`), which returns a live object: read it every time, never cache a value. They show up in the debug pane. Code defaults stay the source of truth: "Copy changes" in the pane gives a `group.key: old → new` snippet to paste back.
 9. **Debug draw is write-only.** Any code, systems included, may call `debugDraw.line/arrow/circle/box/point/path/text` (`core/debugDraw.ts`) with a `category`. Never read from it or branch on it in the simulation. It's a no-op unless the dev tools enable it.
-10. **Dev tools are gated.** `src/debug/` loads only when `DEBUG` (`pnpm dev`, or `?debug` in a production build) as a lazy chunk, so players never download it. Dev keys are commands (`debug/commands.ts`, one `define` each). In dev-keys mode (`` ` ``) no input reaches the game.
+10. **Dev tools are gated and pane-driven.** `src/debug/` loads only when `DEBUG` (`pnpm dev`, or `?debug` in a production build) as a lazy chunk, so players never download it. There are **no dev keybinds**: the keyboard always belongs to the game, and every dev tool is controlled from the debug pane. The only dev key is <kbd>`</kbd>, which hides/shows the pane. New debug actions (cheats) are commands (`debug/commands.ts`, one `define` each), which get a pane button and `__game.run(id)`.
 
 ## Conventions
 
@@ -78,6 +78,6 @@ Create a folder when a step first needs it; don't add placeholder files.
 
 ## Dev tools
 
-- <kbd>`</kbd> toggles dev-keys mode; <kbd>H</kbd> then shows every dev key (pane, stats, debug draw, Inspector, wireframe, free camera, pause, time scale, …).
+- The debug pane (Tweakpane, top right) is always there in debug builds, and <kbd>`</kbd> hides/shows it. It covers loop control (pause, time scale, interpolation, preset), view (stats mode, input overlay, wireframe, free camera, Inspector), debug-draw categories, tunables and command buttons.
 - The Babylon Inspector is only in `pnpm dev` builds (bundling it into production pulls ~380 KB gzipped of core into the player chunks).
-- For automated checks (agent-browser `eval`), use `window.__game`: `world`, `loop`, `input`, `tunables.get/set/reset/changes`, `run("stats.cycle")`, `tools` (typed in `src/env.d.ts`). Debug settings persist in localStorage under `stag.debug`.
+- For automated checks (agent-browser `eval`), use `window.__game`: `world`, `loop`, `input`, `tunables.get/set/reset/changes`, `run("stats.cycle")`, `tools.setStats("full")` etc. (typed in `src/env.d.ts`). Debug settings persist in localStorage under `stag.debug`.

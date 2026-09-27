@@ -1,7 +1,7 @@
 import { SceneInstrumentation } from "@babylonjs/core";
 import { debugDraw } from "@/core/debugDraw";
 import { formatChanges, tuning } from "@/core/tuning";
-import { createCommandRegistry, keyLabel } from "@/debug/commands";
+import { createCommandRegistry } from "@/debug/commands";
 import { createDebugDrawRenderer } from "@/debug/debugDrawRender";
 import { createFrameStats } from "@/debug/frameStats";
 import { createFreeCamera } from "@/debug/freeCamera";
@@ -13,18 +13,21 @@ import {
   type StatsMode,
   saveDebugSettings,
 } from "@/debug/persist";
-import { savePreset } from "@/input/dom";
+import { isEditable, savePreset } from "@/input/dom";
 import type { Shell } from "@/shell";
 import { debugState, perfStats } from "@/ui/signals";
 
 const TIME_SCALES = [1, 0.25, 0.05];
 const PERF_INTERVAL = 0.25;
+/** Shows and hides the debug pane. Not a game binding: the dev tools listen for it themselves. */
+const PANE_TOGGLE = "Backquote";
 
 export type DevTools = ReturnType<typeof startDevtools>;
 
 /**
- * Starts the dev tools (only loaded when `DEBUG`): dev-keys mode, commands, stats and profiler,
- * debug draw, tunable persistence, and the lazily loaded pane and Inspector. Call before
+ * Starts the dev tools (only loaded when `DEBUG`): the debug pane (always there, <kbd>`</kbd>
+ * hides and shows it), stats and profiler, debug draw, tunable persistence, the Inspector and
+ * commands. There are no dev keybinds: the keyboard always belongs to the game. Call before
  * `shell.start()` so stored tweaks apply before the first tick.
  */
 export function startDevtools(shell: Shell) {
@@ -39,10 +42,11 @@ export function startDevtools(shell: Shell) {
   // --- State and persistence -------------------------------------------------------------------
 
   const state = {
-    paneOpen: stored.paneOpen,
+    /** Hidden with <kbd>`</kbd>; not remembered, so every load starts with the pane showing. */
+    paneVisible: true,
     paneFolders: { ...stored.paneFolders },
     stats: stored.stats,
-    help: false,
+    inputOverlay: stored.inputOverlay,
   };
 
   const dropped = tuning.apply(stored.tunables);
@@ -53,17 +57,15 @@ export function startDevtools(shell: Shell) {
     debugDraw.setCategory(category, shown);
   }
   scene.forceWireframe = stored.wireframe;
-  input.setDevMode(stored.devMode);
 
   const save = () => {
     const settings: DebugSettings = {
       v: 1,
-      devMode: input.devMode,
-      paneOpen: state.paneOpen,
       paneFolders: state.paneFolders,
       stats: state.stats,
       draw: { enabled: debugDraw.enabled, categories: Object.fromEntries(debugDraw.categories) },
       wireframe: scene.forceWireframe,
+      inputOverlay: state.inputOverlay,
       tunables: tuning.overrides(),
     };
     saveDebugSettings(settings);
@@ -73,36 +75,11 @@ export function startDevtools(shell: Shell) {
   const publish = () => {
     debugState.value = {
       active: true,
-      devMode: input.devMode,
       stats: state.stats,
-      help: state.help,
+      inputOverlay: state.inputOverlay,
       inspector: inspector.open,
-      keys: commands
-        .list()
-        .filter((command) => command.key)
-        .map(({ group, key, label }) => ({ group, key: keyLabel(key as string), label })),
     };
     pane?.refresh();
-  };
-  commands.onChange(publish);
-
-  // --- Pane (lazy) -----------------------------------------------------------------------------
-
-  let pane: { refresh(): void; dispose(): void } | null = null;
-  let paneLoading = false;
-  const syncPane = async () => {
-    if (state.paneOpen && !pane && !paneLoading) {
-      paneLoading = true;
-      try {
-        const { createPane } = await import("@/debug/pane");
-        if (state.paneOpen) pane = createPane(tools);
-      } finally {
-        paneLoading = false;
-      }
-    } else if (!state.paneOpen && pane) {
-      pane.dispose();
-      pane = null;
-    }
   };
 
   // --- Stats instrumentation (only while full stats are shown) -------------------------------
@@ -143,7 +120,9 @@ export function startDevtools(shell: Shell) {
     };
   });
 
-  // --- Actions ----------------------------------------------------------------------------------
+  // --- Actions (what the pane's controls and the commands call) --------------------------------
+
+  let pane: { refresh(): void; setVisible(visible: boolean): void } | null = null;
 
   const tools = {
     shell,
@@ -155,22 +134,18 @@ export function startDevtools(shell: Shell) {
     publish,
     timeScales: TIME_SCALES,
 
-    setDevMode(on: boolean) {
-      input.setDevMode(on);
-      // The free camera only exists in dev mode, so the game is always seen from its own camera.
-      if (!on) freeCamera.active = false;
-      if (!on) state.help = false;
-      save();
-      publish();
-    },
-    setPaneOpen(open: boolean) {
-      state.paneOpen = open;
-      save();
-      void syncPane();
+    setPaneVisible(visible: boolean) {
+      state.paneVisible = visible;
+      pane?.setVisible(visible);
     },
     setStats(mode: StatsMode) {
       state.stats = mode;
       syncInstruments();
+      save();
+      publish();
+    },
+    setInputOverlay(on: boolean) {
+      state.inputOverlay = on;
       save();
       publish();
     },
@@ -188,10 +163,17 @@ export function startDevtools(shell: Shell) {
       save();
       pane?.refresh();
     },
+    /** The free camera takes over the mouse, so the game gets no mouse buttons meanwhile. */
     setFreeCamera(on: boolean) {
-      if (on && !input.devMode) return;
       freeCamera.active = on;
+      input.setMouseButtons(!on);
       pane?.refresh();
+    },
+    async toggleInspector() {
+      const toggled = inspector.toggle();
+      publish();
+      await toggled;
+      publish();
     },
     setPaused(paused: boolean) {
       loop.paused = paused;
@@ -226,112 +208,49 @@ export function startDevtools(shell: Shell) {
   };
 
   // --- Commands --------------------------------------------------------------------------------
+  // The built-ins mirror pane controls (so they get no buttons) and exist for `__game.run(id)`.
 
   const cycle = <T>(list: readonly T[], current: T): T =>
     list[(list.indexOf(current) + 1) % list.length] as T;
 
-  const define = commands.define;
-  define({
-    id: "help",
-    label: "Dev-key cheat sheet",
-    group: "Tools",
-    key: "KeyH",
-    run: () => {
-      state.help = !state.help;
-      publish();
-    },
-  });
-  define({
-    id: "pane.toggle",
-    label: "Debug pane",
-    group: "Tools",
-    key: "KeyP",
-    run: () => tools.setPaneOpen(!state.paneOpen),
-  });
-  define({
-    id: "stats.cycle",
-    label: "Stats (off/compact/full)",
-    group: "Tools",
-    key: "KeyS",
-    run: () => tools.setStats(cycle(STATS_MODES, state.stats)),
-  });
-  define({
-    id: "draw.toggle",
-    label: "Debug draw",
-    group: "Tools",
-    key: "KeyG",
-    run: () => tools.setDraw(!debugDraw.enabled),
-  });
-  define({
-    id: "inspector.toggle",
-    label: "Babylon Inspector",
-    group: "Tools",
-    key: "KeyI",
-    run: () => {
-      void inspector.toggle().then(publish);
-      publish();
-    },
-  });
-  define({
-    id: "wireframe.toggle",
-    label: "Wireframe",
-    group: "View",
-    key: "KeyW",
-    run: () => tools.setWireframe(!scene.forceWireframe),
-  });
-  define({
-    id: "freeCamera.toggle",
-    label: "Free camera",
-    group: "View",
-    key: "KeyC",
-    run: () => tools.setFreeCamera(!freeCamera.active),
-  });
-  define({
-    id: "loop.pause",
-    label: "Pause / resume",
-    group: "Loop",
-    key: "Space",
-    run: () => tools.setPaused(!loop.paused),
-  });
-  define({
-    id: "loop.timeScale",
-    label: `Time scale (${TIME_SCALES.map((s) => `×${s}`).join(" ")})`,
-    group: "Loop",
-    key: "KeyT",
-    run: () => tools.setTimeScale(cycle(TIME_SCALES, loop.timeScale)),
-  });
-  define({
-    id: "loop.interpolate",
-    label: "Interpolation",
-    group: "Loop",
-    key: "KeyL",
-    run: () => tools.setInterpolate(!loopSettings.interpolate),
-  });
-  define({
-    id: "input.preset",
-    label: "Switch input preset",
-    group: "Loop",
-    key: "KeyB",
-    run: () => tools.setPreset(input.preset.id === "mmo" ? "moba" : "mmo"),
-  });
-  define({
-    id: "tuning.copy",
-    label: "Copy tunable changes",
-    group: "Tuning",
-    run: () => void tools.copyTunableChanges(),
-  });
-  define({
-    id: "tuning.reset",
-    label: "Reset all tunables",
-    group: "Tuning",
-    run: () => tuning.reset(),
-  });
+  const builtIns: [id: string, label: string, run: () => void][] = [
+    ["pane.toggle", "Show / hide the pane", () => tools.setPaneVisible(!state.paneVisible)],
+    [
+      "stats.cycle",
+      "Stats: off / compact / full",
+      () => tools.setStats(cycle(STATS_MODES, state.stats)),
+    ],
+    ["input.overlay", "Input overlay", () => tools.setInputOverlay(!state.inputOverlay)],
+    ["draw.toggle", "Debug draw", () => tools.setDraw(!debugDraw.enabled)],
+    ["inspector.toggle", "Babylon Inspector", () => void tools.toggleInspector()],
+    ["wireframe.toggle", "Wireframe", () => tools.setWireframe(!scene.forceWireframe)],
+    ["freeCamera.toggle", "Free camera", () => tools.setFreeCamera(!freeCamera.active)],
+    ["loop.pause", "Pause / resume", () => tools.setPaused(!loop.paused)],
+    [
+      "loop.timeScale",
+      "Cycle time scale",
+      () => tools.setTimeScale(cycle(TIME_SCALES, loop.timeScale)),
+    ],
+    ["loop.interpolate", "Interpolation", () => tools.setInterpolate(!loopSettings.interpolate)],
+    [
+      "input.preset",
+      "Switch input preset",
+      () => tools.setPreset(input.preset.id === "mmo" ? "moba" : "mmo"),
+    ],
+    ["tuning.copy", "Copy tunable changes", () => void tools.copyTunableChanges()],
+    ["tuning.reset", "Reset all tunables", () => tuning.reset()],
+  ];
+  for (const [id, label, run] of builtIns) {
+    commands.define({ id, label, group: "Built-in", button: false, run });
+  }
 
-  // --- Per frame -------------------------------------------------------------------------------
+  // --- Pane toggle (`), outside the game's input ----------------------------------------------
 
-  shell.onFrame((frame) => {
-    if (frame.devToggle) tools.setDevMode(!input.devMode);
-    for (const control of frame.devPressed) commands.byKey(control)?.run();
+  window.addEventListener("keydown", (event) => {
+    if (event.code !== PANE_TOGGLE || event.repeat) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || isEditable(event.target)) return;
+    event.preventDefault();
+    tools.setPaneVisible(!state.paneVisible);
   });
 
   const drawRenderer = createDebugDrawRenderer(debugDraw, scene, engine);
@@ -359,7 +278,11 @@ export function startDevtools(shell: Shell) {
   };
 
   syncInstruments();
-  void syncPane();
   publish();
+  // The pane is a lazy chunk (Tweakpane); it's always part of the debug UI once loaded.
+  void import("@/debug/pane").then(({ createPane }) => {
+    pane = createPane(tools);
+    pane.setVisible(state.paneVisible);
+  });
   return tools;
 }

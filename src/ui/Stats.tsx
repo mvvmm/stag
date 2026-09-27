@@ -48,7 +48,7 @@ function FrameGraph({ graph }: { graph: { avg: number; max: number }[] }) {
 }
 
 export function Stats() {
-  const { active, devMode, stats: mode, inspector } = debugState.value;
+  const { active, stats: mode, inspector } = debugState.value;
   if (!active || mode === "off" || inspector) return null;
   const s = loopStats.value;
   const state = s.paused ? "paused" : s.autoPaused ? "auto-paused" : "running";
@@ -63,7 +63,6 @@ export function Stats() {
         {!s.interpolate && <span class={styles.warn}> · interp off</span>}
       </div>
       {mode === "full" && <FullStats alpha={s.alpha} />}
-      <div class={styles.keys}>{devMode ? "[H] dev keys · [`] back to game" : "[`] dev keys"}</div>
     </div>
   );
 }
