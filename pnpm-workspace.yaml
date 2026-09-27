@@ -1,0 +1,3 @@
+# agent-browser ships its native binaries in the package; its postinstall only re-downloads them.
+allowBuilds:
+  agent-browser: false
