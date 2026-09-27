@@ -1,23 +1,19 @@
 import type { Mesh, Scene } from "@babylonjs/core";
 import type { World } from "miniplex";
 import type { Disposable } from "@/core/disposer";
-import type { Rng } from "@/core/rng";
 import type { Entity } from "@/ecs/world";
 import type { InputFrame, ShellFrame } from "@/input/actions";
 import type { InputState } from "@/input/state";
-import type { NamedSystem } from "@/systems/simulation";
+import type { SceneSim } from "@/scenes/sim";
 
 /**
- * A scene: the systems it runs and a setup that fills a fresh world. The shell tears the scene
- * down and runs `setup` again on every load, reset and restart, so setup must build everything
- * through the context (which cleans up after it) and must not keep state between runs.
+ * A scene: its simulation half (`SceneSim`: systems + `spawn`) plus a view `setup` that adds
+ * meshes, materials and UI once the world is spawned. The shell tears the scene down and runs
+ * `spawn` and `setup` again on every load, reset and restart, so setup must build everything
+ * through the context (which cleans up after it) and must not keep state between runs. Setup is
+ * view-only: it must not change the simulation (a headless replay never runs it).
  */
-export type SceneDef = {
-  /** Stable id, e.g. `input-test`; used by `?scene=` and the debug settings. */
-  id: string;
-  label: string;
-  /** Systems in run order (the transform snapshot always runs first). */
-  systems: readonly NamedSystem[];
+export type SceneDef = SceneSim & {
   setup(ctx: SceneContext): void;
 };
 
@@ -27,8 +23,8 @@ export type SceneDef = {
  * cleanup: each load gets a fresh world.
  */
 export type SceneContext = {
+  /** The freshly spawned world, to read (view-only: don't change it). */
   readonly world: World<Entity>;
-  readonly rng: Rng;
   readonly seed: number;
   readonly scene: Scene;
   readonly input: InputState;

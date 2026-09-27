@@ -11,7 +11,7 @@ import { createCommandRegistry } from "@/debug/commands";
 import { createDebugDrawRenderer } from "@/debug/debugDrawRender";
 import { createFrameStats } from "@/debug/frameStats";
 import { createFreeCamera } from "@/debug/freeCamera";
-import { type Path, setPath } from "@/debug/inspect";
+import { getPath, type Path } from "@/debug/inspect";
 import { createInspector } from "@/debug/inspector";
 import {
   type DebugSettings,
@@ -21,9 +21,19 @@ import {
   saveDebugSettings,
 } from "@/debug/persist";
 import { createPicker } from "@/debug/picker";
+import {
+  acceptDroppedReplays,
+  decodeReplay,
+  downloadReplay,
+  fetchFixture,
+  pickReplayFile,
+  saveFixture,
+} from "@/debug/replay/files";
+import { createReplaySession } from "@/debug/replay/session";
 import { resolveStartup } from "@/debug/startup";
-import { type Entity, snapTransform } from "@/ecs/world";
+import type { Entity } from "@/ecs/world";
 import { isEditable, savePreset } from "@/input/dom";
+import type { ReplayFile } from "@/replay/format";
 import { scenes } from "@/scenes";
 import type { SceneDef } from "@/scenes/scene";
 import { randomSeed, type Shell } from "@/shell";
@@ -44,7 +54,8 @@ export type DevTools = ReturnType<typeof startDevtools>;
 /**
  * Starts the dev tools (only loaded when `DEBUG`): the debug pane (always there, <kbd>`</kbd>
  * hides and shows it, or closes the Inspector while that's open), stats and profiler, debug draw, tunable persistence, the Inspector,
- * commands, scene switching/reset/frame step and the entity picker. There are no dev keybinds:
+ * commands, scene switching/reset/frame step, the entity picker and record & replay (every load
+ * is recorded; replays play back through the in-place reset). There are no dev keybinds:
  * the keyboard always belongs to the game. Call before the first `shell.load()` and
  * `shell.start()`, so stored tweaks apply before the first tick; `startup()` says which scene and
  * seed to load.
@@ -79,6 +90,14 @@ export function startDevtools(shell: Shell) {
   }
   scene.forceWireframe = stored.wireframe;
 
+  // Record & replay. Created before `save` subscribes to tunables, so a replay's tunables are
+  // already set aside when the settings are written.
+  const replay = createReplaySession(shell, {
+    commands,
+    setPaused: (paused) => tools.setPaused(paused),
+    changed: () => pane?.refresh(),
+  });
+
   const save = () => {
     const settings: DebugSettings = {
       v: 1,
@@ -87,7 +106,8 @@ export function startDevtools(shell: Shell) {
       draw: { enabled: debugDraw.enabled, categories: Object.fromEntries(debugDraw.categories) },
       wireframe: scene.forceWireframe,
       inputOverlay: state.inputOverlay,
-      tunables: tuning.overrides(),
+      // While a replay's tunables are in place, the player's own are what's remembered.
+      tunables: replay.storedOverrides() ?? tuning.overrides(),
       scene: state.scene,
     };
     saveDebugSettings(settings);
@@ -272,10 +292,70 @@ export function startDevtools(shell: Shell) {
       selected = entity && world.has(entity) ? entity : null;
       pane?.refresh();
     },
-    /** Edits a field of the selection. Transform edits snap, so the move doesn't smear. */
+    /**
+     * Edits a field of the selection. Transform edits snap, so the move doesn't smear. Edits are
+     * sim input: they're recorded, and during a replay they take over first.
+     */
     editField(path: Path, value: unknown) {
-      if (!selected || !setPath(selected, path, value)) return;
-      if (path[0] === "transform") snapTransform(selected);
+      if (!selected) return;
+      // The pane writes values back unchanged now and then; only real changes are edits.
+      if (Object.is(getPath(selected, path), value)) return;
+      const index = shell.world.entities.indexOf(selected);
+      if (index < 0) return;
+      replay.edit({ entity: index, path: [...path], value });
+    },
+
+    replay,
+    /** Downloads the current recording (or the replay being played). */
+    async saveReplay(): Promise<string | null> {
+      const file = replay.currentFile();
+      if (!file) return null;
+      const name = await downloadReplay(file);
+      replay.setNotice(`saved ${name}`);
+      return name;
+    },
+    /** Dev server only: writes the current recording into `src/replay/fixtures/` as a test. */
+    async saveReplayAsTest(name?: string): Promise<string | null> {
+      const file = replay.currentFile();
+      if (!file) return null;
+      const wanted = name ?? window.prompt("Replay test name (a-z, 0-9, -)", file.scene);
+      if (!wanted) return null;
+      try {
+        const path = await saveFixture(file, wanted);
+        if (path) replay.setNotice(`saved ${path}`);
+        return path;
+      } catch (error) {
+        replay.setNotice(String(error instanceof Error ? error.message : error), "warn");
+        return null;
+      }
+    },
+    /** Plays a replay from a file object, raw bytes or a URL (e.g. from a fixture). */
+    async playReplay(source: ReplayFile | Uint8Array | string): Promise<boolean> {
+      try {
+        const file =
+          typeof source === "string"
+            ? await decodeReplay(new Uint8Array(await (await fetch(source)).arrayBuffer()))
+            : source instanceof Uint8Array
+              ? await decodeReplay(source)
+              : source;
+        replay.play(file);
+        return true;
+      } catch (error) {
+        replay.setNotice(`can't play: ${error instanceof Error ? error.message : error}`, "warn");
+        return false;
+      }
+    },
+    async loadReplay(): Promise<boolean> {
+      const bytes = await pickReplayFile();
+      return bytes ? tools.playReplay(bytes) : false;
+    },
+    async playFixture(name: string): Promise<boolean> {
+      try {
+        return await tools.playReplay(await fetchFixture(name));
+      } catch (error) {
+        replay.setNotice(String(error instanceof Error ? error.message : error), "warn");
+        return false;
+      }
     },
     /** Picking borrows the mouse: canvas clicks select entities instead of reaching the game. */
     setPick(on: boolean) {
@@ -392,6 +472,9 @@ export function startDevtools(shell: Shell) {
     ["scene.restart", "Restart (same seed)", () => tools.restart()],
     ["scene.newSeed", "Restart with a new seed", () => tools.newSeed()],
     ["pick.toggle", "Pick entities", () => tools.setPick(!picker.active)],
+    ["replay.save", "Save replay", () => void tools.saveReplay()],
+    ["replay.takeOver", "Take over the replay", () => replay.takeOver()],
+    ["replay.exit", "Exit the replay", () => replay.exit()],
   ];
   for (const [id, label, run] of builtIns) {
     commands.define({ id, label, group: "Built-in", button: false, run });
@@ -407,6 +490,8 @@ export function startDevtools(shell: Shell) {
     if (inspector.open) void tools.toggleInspector();
     else tools.setPaneVisible(!state.paneVisible);
   });
+
+  acceptDroppedReplays((bytes) => void tools.playReplay(bytes));
 
   const drawRenderer = createDebugDrawRenderer(debugDraw, scene, engine);
   shell.addRenderPhase("debugDraw", drawRenderer.update);
@@ -446,6 +531,25 @@ export function startDevtools(shell: Shell) {
     debugDraw,
     commands,
     run: commands.run,
+    replay: {
+      recording: () => replay.currentFile(),
+      play: tools.playReplay,
+      seek: replay.seek,
+      stepBack: replay.stepBack,
+      takeOver: replay.takeOver,
+      exit: replay.exit,
+      save: tools.saveReplay,
+      get status() {
+        return {
+          mode: replay.mode,
+          tick: replay.tick,
+          ticks: replay.ticks,
+          diverged: replay.divergence,
+          seeking: replay.seeking,
+          notice: replay.notice,
+        };
+      },
+    },
     tools,
   };
 

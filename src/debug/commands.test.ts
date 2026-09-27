@@ -33,4 +33,14 @@ describe("command registry", () => {
     commands.define({ id: "a", label: "A", group: "g", run: () => {} });
     expect(changes).toBe(1);
   });
+
+  it("tells onBeforeRun listeners before running, except for replays", () => {
+    const commands = createCommandRegistry();
+    const log: string[] = [];
+    commands.define({ id: "a", label: "A", group: "g", sim: true, run: () => log.push("run") });
+    commands.onBeforeRun((command) => log.push(`before ${command.id}`));
+    commands.run("a");
+    commands.replay("a");
+    expect(log).toEqual(["before a", "run", "run"]);
+  });
 });

@@ -48,4 +48,15 @@ describe("createRng", () => {
     for (let i = 0; i < 100; i++) expect(items).toContain(rng.pick(items));
     expect(() => rng.pick([])).toThrow();
   });
+
+  it("state() follows the sequence and matches for the same seed", () => {
+    const a = createRng(9);
+    const b = createRng(9);
+    expect(a.state()).toEqual(b.state());
+    a.next();
+    expect(a.state()).not.toEqual(b.state());
+    b.next();
+    expect(a.state()).toEqual(b.state());
+    for (const word of a.state()) expect(word >>> 0).toBe(word);
+  });
 });

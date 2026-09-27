@@ -11,6 +11,8 @@ export type Rng = {
   int(min: number, max: number): number;
   /** Uniformly random element; throws on an empty array. */
   pick<T>(items: readonly T[]): T;
+  /** The generator's internal state (four uint32s), for replay checksums. Read-only. */
+  state(): [number, number, number, number];
 };
 
 function splitmix32(seed: number): () => number {
@@ -51,5 +53,6 @@ export function createRng(seed: number): Rng {
       if (items.length === 0) throw new Error("rng.pick: empty array");
       return items[Math.floor(next() * items.length)] as (typeof items)[number];
     },
+    state: () => [a, b, c, d],
   };
 }

@@ -1,5 +1,5 @@
-import { inputTestScene } from "@/demo/inputTest";
-import { stressScene } from "@/demo/stress";
+import { inputTestScene } from "@/demo/inputTest.view";
+import { stressScene } from "@/demo/stress.view";
 import { createSceneRegistry } from "@/scenes/registry";
 import type { SceneDef } from "@/scenes/scene";
 

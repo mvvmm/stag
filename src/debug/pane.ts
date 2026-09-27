@@ -1,11 +1,13 @@
 import type { BindingApi, BladeApi, FolderApi } from "@tweakpane/core";
 import { Pane } from "tweakpane";
+import { TICK_HZ } from "@/core/constants";
 import { debugDraw } from "@/core/debugDraw";
 import { type Tunable, tuning } from "@/core/tuning";
 import type { DevTools } from "@/debug/devtools";
 import { createEntityPane } from "@/debug/entityPane";
 import { entityLabel } from "@/debug/inspect";
 import { STATS_MODES } from "@/debug/persist";
+import { listFixtures } from "@/debug/replay/files";
 import { parseSeed } from "@/debug/startup";
 import type { Entity } from "@/ecs/world";
 
@@ -117,11 +119,15 @@ export function createPane(tools: DevTools) {
     get seed() {
       return String(shell.current?.seed ?? "");
     },
-    /** Enter (or leaving the field) restarts with the typed seed; anything else reverts. */
+    /**
+     * Enter (or leaving the field) restarts with a newly typed seed; anything else reverts.
+     * Tweakpane sometimes writes the shown value back, which must not restart (it would end a
+     * replay); "Restart (same seed)" is the button for that.
+     */
     set seed(text: string) {
       const seed = parseSeed(text);
-      if (seed !== null) tools.restart(seed);
-      else queueMicrotask(() => pane.refresh());
+      if (seed === null) queueMicrotask(() => pane.refresh());
+      else if (seed !== shell.current?.seed) tools.restart(seed);
     },
   };
   const sceneFolder = folder(pane, "Scene", "Scene", true);
@@ -133,6 +139,127 @@ export function createPane(tools: DevTools) {
   if (seedLabel instanceof HTMLElement) seedLabel.title = "Type a seed and press Enter to restart";
   sceneFolder.addButton({ title: "Restart (same seed)" }).on("click", () => tools.restart());
   sceneFolder.addButton({ title: "New seed" }).on("click", () => tools.newSeed());
+
+  // --- Replay ----------------------------------------------------------------------------------
+
+  const { replay } = tools;
+  const clock = (ticks: number) => {
+    const seconds = Math.floor(ticks / TICK_HZ);
+    return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+  const replayView = {
+    get recording() {
+      const mode = replay.mode;
+      if (mode === "playing" || mode === "ended") {
+        return `${clock(replay.tick)} / ${clock(replay.ticks)}`;
+      }
+      return `${clock(replay.ticks)} (${replay.ticks} ticks)`;
+    },
+    get status() {
+      const mode = replay.mode;
+      if (mode === "idle") return "–";
+      if (mode === "recording") return "● recording";
+      if (mode === "full") return "recording full (60 min)";
+      if (replay.seeking) return "seeking…";
+      if (mode === "ended") return "■ ended";
+      return shell.loop.paused ? "⏸ paused" : "▶ playing";
+    },
+    get sync() {
+      const divergence = replay.divergence;
+      return divergence
+        ? `✗ at ${divergence.tick}: ${divergence.diff.join(", ")}`
+        : "✓ in sync so far";
+    },
+    get notice() {
+      return replay.notice;
+    },
+    get tick() {
+      return replay.tick;
+    },
+    set tick(value: number) {
+      if (value !== replay.tick) void replay.seek(value);
+    },
+    get goTo() {
+      return String(replay.tick);
+    },
+    /** Enter goes to the typed tick; anything else reverts. */
+    set goTo(text: string) {
+      const tick = Number(text.trim());
+      if (text.trim() === "" || !Number.isInteger(tick)) queueMicrotask(() => pane.refresh());
+      else if (tick !== replay.tick) void replay.seek(tick);
+    },
+    fixture: "",
+  };
+
+  const replayFolder = folder(pane, "Replay", "Replay", true);
+  replayFolder.addBinding(replayView, "recording", { readonly: true, label: "length" });
+  replayFolder.addBinding(replayView, "status", { readonly: true });
+  const syncBinding = replayFolder.addBinding(replayView, "sync", { readonly: true });
+  const noticeBinding = replayFolder.addBinding(replayView, "notice", {
+    readonly: true,
+    multiline: true,
+    rows: 3,
+  });
+  const noticeText = noticeBinding.element.querySelector("textarea");
+  if (noticeText) noticeText.style.whiteSpace = "pre-wrap";
+  replayFolder.addButton({ title: "Save replay" }).on("click", () => void tools.saveReplay());
+  if (import.meta.env.DEV) {
+    replayFolder
+      .addButton({ title: "Save as test…" })
+      .on("click", () => void tools.saveReplayAsTest());
+  }
+  replayFolder.addButton({ title: "Load replay…" }).on("click", () => void tools.loadReplay());
+  void listFixtures().then((names) => {
+    if (!names.length) return;
+    replayFolder
+      .addBinding(replayView, "fixture", {
+        label: "tests",
+        options: { "(play a test…)": "", ...Object.fromEntries(names.map((n) => [n, n])) },
+      })
+      .on("change", (event) => {
+        if (!event.value) return;
+        void tools.playFixture(event.value);
+        replayView.fixture = "";
+        queueMicrotask(() => pane.refresh());
+      });
+  });
+
+  // Playback controls, rebuilt for each replay (the timeline's range is its length).
+  let playbackFolder: FolderApi | null = null;
+  let playbackFile: object | null = null;
+  let lastGoodButton: BladeApi | null = null;
+  const syncReplay = () => {
+    noticeBinding.hidden = !replay.notice;
+    syncBinding.hidden = !replay.file;
+    const file = replay.file;
+    if (file !== playbackFile) {
+      playbackFile = file;
+      playbackFolder?.dispose();
+      playbackFolder = null;
+      if (file) {
+        const index = replayFolder.children.indexOf(noticeBinding) + 1;
+        playbackFolder = replayFolder.addFolder({ title: "Playback", expanded: true, index });
+        playbackFolder.addBinding(replayView, "tick", {
+          label: "timeline",
+          min: 0,
+          max: file.ticks,
+          step: 1,
+        });
+        playbackFolder.addBinding(replayView, "goTo", { label: "go to tick" });
+        playbackFolder.addButton({ title: "Step back" }).on("click", () => void replay.stepBack());
+        playbackFolder.addButton({ title: "Step" }).on("click", () => tools.step());
+        playbackFolder.addButton({ title: "Take over" }).on("click", () => replay.takeOver());
+        lastGoodButton = playbackFolder.addButton({ title: "Jump to last good checkpoint" });
+        (lastGoodButton as ReturnType<FolderApi["addButton"]>).on(
+          "click",
+          () => void replay.jumpToLastGood(),
+        );
+        playbackFolder.addButton({ title: "Exit replay" }).on("click", () => replay.exit());
+      }
+    }
+    if (lastGoodButton && playbackFolder) lastGoodButton.hidden = !replay.divergence;
+  };
+  syncReplay();
 
   // --- Loop ------------------------------------------------------------------------------------
 
@@ -345,7 +472,9 @@ export function createPane(tools: DevTools) {
         groupFolder = folder(commandsFolder, command.group, `Commands/${command.group}`, true);
         groups.set(command.group, groupFolder);
       }
-      groupFolder.addButton({ title: command.label }).on("click", command.run);
+      groupFolder
+        .addButton({ title: command.label })
+        .on("click", () => tools.commands.run(command.id));
     }
   };
   buildCommands();
@@ -370,6 +499,7 @@ export function createPane(tools: DevTools) {
   // Keep live values (pause, categories, …) in sync with changes made from code or the console.
   const timer = window.setInterval(() => {
     updateDisplay();
+    syncReplay();
     syncCategories();
     syncEntity();
     pane.refresh();
@@ -380,6 +510,7 @@ export function createPane(tools: DevTools) {
   return {
     refresh(): void {
       updateDisplay();
+      syncReplay();
       syncCategories();
       syncEntity();
       pane.refresh();

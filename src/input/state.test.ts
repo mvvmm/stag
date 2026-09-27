@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { quantize } from "@/input/quantize";
 import { createInputState } from "@/input/state";
 
 const tap = (input: ReturnType<typeof createInputState>, control: string) => {
@@ -196,6 +197,23 @@ describe("createInputState: click to move", () => {
     const frame = input.sampleTick(0);
     input.setAim({ x: 0, z: 0 });
     expect(frame.aim).toEqual({ x: 7, z: -2 });
+  });
+
+  it("quantizes aim, move command and move direction for replays", () => {
+    const input = createInputState("moba");
+    input.setAim({ x: 1.00049, z: -2.3 });
+    input.controlDown("Mouse2");
+    const frame = input.sampleTick(0);
+    expect(frame.aim).toEqual({ x: quantize(1.00049), z: quantize(-2.3) });
+    expect(frame.moveCommand).toEqual(frame.aim);
+
+    const mmo = createInputState("mmo");
+    mmo.controlDown("KeyW");
+    mmo.controlDown("KeyD");
+    const { move } = mmo.sampleTick(0.3);
+    expect(move.x).toBe(quantize(move.x));
+    expect(move.z).toBe(quantize(move.z));
+    expect(Math.hypot(move.x, move.z)).toBeLessThanOrEqual(1);
   });
 });
 

@@ -127,4 +127,46 @@ describe("createFixedLoop", () => {
     expect(loop.paused).toBe(true);
     expect(loop.timeScale).toBe(0.25);
   });
+
+  it("counts each tick as it runs, so update sees the index of the current tick", () => {
+    const seen: number[] = [];
+    const loop = createFixedLoop({
+      tickHz: 60,
+      maxFrameDelta: 0.25,
+      maxTicksPerFrame: 5,
+      update: () => seen.push(loop.tickCount),
+    });
+    loop.advance(DT * 3);
+    loop.step();
+    expect(seen).toEqual([0, 1, 2, 3]);
+    expect(loop.tickCount).toBe(4);
+  });
+
+  it("stops the frame's remaining ticks when a tick pauses the loop", () => {
+    const loop = createFixedLoop({
+      tickHz: 60,
+      maxFrameDelta: 0.25,
+      maxTicksPerFrame: 5,
+      update: () => {
+        if (loop.tickCount === 1) loop.paused = true;
+      },
+    });
+    expect(loop.advance(DT * 4).ticks).toBe(2);
+    expect(loop.tickCount).toBe(2);
+  });
+
+  it("runs no ticks, stepped or not, while canTick says no", () => {
+    let allowed = 2;
+    const loop = createFixedLoop({
+      tickHz: 60,
+      maxFrameDelta: 0.25,
+      maxTicksPerFrame: 5,
+      update: () => allowed--,
+      canTick: () => allowed > 0,
+    });
+    expect(loop.advance(DT * 4).ticks).toBe(2);
+    loop.step();
+    expect(loop.tickCount).toBe(2);
+    expect(loop.alpha).toBeLessThan(1);
+  });
 });

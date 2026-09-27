@@ -34,7 +34,7 @@
 - [x] **0.3.1 Devlog:** per-step entries in `devlog/` (decisions and why + screenshots via agent-browser, optional compressed videos); backfill 0.1–0.3. → [plan](plans/0.3.1-devlog.md)
 - [x] **0.4 Dev tooling:** dev-keys mode, Tweakpane tuning panel with a tunables registry, stats overlay + profiler, debug-draw helpers, Babylon Inspector, commands + `window.__game`, wireframe/free camera. → [plan](plans/0.4-dev-tooling.md)
 - [x] **0.4.1 Scenes & reset:** scene registry/switcher, in-place reset, seed display + restart, frame step, entity picker. → [plan](plans/0.4.1-scenes-and-reset.md)
-- [ ] **0.4.2 Record & replay:** auto-recorded sessions, state checksums, save/load replay files, playback. (Decisions so far in the [0.4 plan](plans/0.4-dev-tooling.md#decided-for-041-and-042).)
+- [x] **0.4.2 Record & replay:** auto-recorded sessions, state checksums, save/load replay files, playback (seek, take over), headless replay tests. → [plan](plans/0.4.2-record-and-replay.md)
 - [ ] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds.
 
 ## Phase 1: Sandbox & Movement

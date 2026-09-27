@@ -1,4 +1,5 @@
 import type { World } from "miniplex";
+import { dmath } from "@/core/dmath";
 import { defineTunables } from "@/core/tuning";
 import type { Entity } from "@/ecs/world";
 
@@ -11,9 +12,9 @@ export const ORBIT = defineTunables("orbit", {
 export function orbitSystem(world: World<Entity>, dt: number): void {
   for (const { transform, orbit } of world.with("transform", "orbit")) {
     orbit.angle += orbit.speed * ORBIT.speedScale * dt;
-    transform.position.x = orbit.center.x + Math.cos(orbit.angle) * orbit.radius;
+    transform.position.x = orbit.center.x + dmath.cos(orbit.angle) * orbit.radius;
     transform.position.y = orbit.center.y;
-    transform.position.z = orbit.center.z + Math.sin(orbit.angle) * orbit.radius;
+    transform.position.z = orbit.center.z + dmath.sin(orbit.angle) * orbit.radius;
     transform.rotation.y = -orbit.angle;
   }
 }

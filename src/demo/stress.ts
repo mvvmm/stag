@@ -1,22 +1,23 @@
+import { dmath } from "@/core/dmath";
 import { defineTunables } from "@/core/tuning";
 import { cloneTransform } from "@/ecs/world";
-import type { SceneDef } from "@/scenes/scene";
+import type { SceneSim } from "@/scenes/sim";
 import { orbitSystem } from "@/systems/orbit";
 
 // Throwaway benchmark scene: lots of orbiting boxes, one mesh each (deliberately no instancing,
-// so the 9.6 performance pass has a baseline to measure against).
+// so the 9.6 performance pass has a baseline to measure against). The view restarts the scene
+// when the count changes (`stress.view.ts`).
 
 export const STRESS = defineTunables("stress", {
   /** Orbiting boxes; changing it restarts the stress scene. */
   count: { value: 500, min: 10, max: 5000, step: 10 },
 });
 
-export const stressScene: SceneDef = {
+export const stressSim: SceneSim = {
   id: "stress",
   label: "Stress (orbiting boxes)",
   systems: [{ name: "orbit", run: orbitSystem }],
-  setup(ctx) {
-    const { world, rng } = ctx;
+  spawn(world, rng) {
     const count = STRESS.count;
     for (let i = 0; i < count; i++) {
       const radius = rng.range(1, 9.5);
@@ -24,9 +25,9 @@ export const stressScene: SceneDef = {
       const center = { x: 0, y: rng.range(0.3, 3), z: 0 };
       const transform = {
         position: {
-          x: Math.cos(angle) * radius,
+          x: dmath.cos(angle) * radius,
           y: center.y,
-          z: Math.sin(angle) * radius,
+          z: dmath.sin(angle) * radius,
         },
         rotation: { x: 0, y: -angle, z: 0 },
       };
@@ -36,10 +37,5 @@ export const stressScene: SceneDef = {
         orbit: { center, radius, speed: rng.range(0.3, 2.5) * rng.pick([-1, 1]), angle },
       });
     }
-
-    // A slider drag fires many changes; restart at most once per frame, when the count differs.
-    ctx.onFrame(() => {
-      if (STRESS.count !== count) ctx.restart();
-    });
   },
 };

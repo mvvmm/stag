@@ -6,6 +6,7 @@ import { isWebGPUSupported } from "@/render/engine";
 import { scenes } from "@/scenes";
 import { randomSeed, startShell } from "@/shell";
 import { InputStats } from "@/ui/InputStats";
+import { ReplayBadge } from "@/ui/ReplayBadge";
 import { Stats } from "@/ui/Stats";
 import { Unsupported } from "@/ui/Unsupported";
 
@@ -45,6 +46,7 @@ async function bootstrap() {
     <>
       <Stats />
       <InputStats />
+      <ReplayBadge />
     </>,
     uiRoot,
   );

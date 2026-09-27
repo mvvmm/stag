@@ -11,6 +11,11 @@ export type FixedLoopOptions = {
   /** Most ticks per `advance`; past that the leftover time is dropped. */
   maxTicksPerFrame: number;
   update: (dt: number) => void;
+  /**
+   * Whether another tick may run now (default: always). A replay at its last tick says no, so
+   * neither `advance` nor `step` runs past it.
+   */
+  canTick?: () => boolean;
 };
 
 export type FixedLoop = {
@@ -24,10 +29,13 @@ export type FixedLoop = {
   readonly running: boolean;
   /** Last interpolation factor in [0, 1). Frozen while paused. */
   readonly alpha: number;
-  /** Total ticks run since creation. */
+  /**
+   * Ticks run since creation (or the last reset). Inside `update` it's the index of the tick being
+   * run; it goes up once `update` returns.
+   */
   readonly tickCount: number;
   advance(frameSeconds: number): { ticks: number; alpha: number };
-  /** Runs exactly one tick now, even while paused (frame step). */
+  /** Runs exactly one tick now, even while paused (frame step), unless `canTick` says no. */
   step(): void;
   /** Back to tick 0 with no leftover time (scene reset). `paused` and `timeScale` are kept. */
   reset(): void;
@@ -35,6 +43,7 @@ export type FixedLoop = {
 
 export function createFixedLoop(options: FixedLoopOptions): FixedLoop {
   const dt = 1 / options.tickHz;
+  const canTick = options.canTick ?? (() => true);
   let accumulator = 0;
   let tickCount = 0;
   // Set while suspended; the first frame after resuming spans the pause, so it's discarded.
@@ -67,16 +76,18 @@ export function createFixedLoop(options: FixedLoopOptions): FixedLoop {
 
       accumulator += frame * Math.max(loop.timeScale, 0);
       let ticks = 0;
-      while (accumulator >= dt && ticks < options.maxTicksPerFrame) {
+      // A tick may pause the loop (e.g. a replay diverging); the rest of the frame's ticks wait.
+      while (accumulator >= dt && ticks < options.maxTicksPerFrame && loop.running && canTick()) {
         options.update(dt);
         accumulator -= dt;
         ticks++;
+        tickCount++;
       }
       if (accumulator >= dt) accumulator %= dt;
-      tickCount += ticks;
       return { ticks, alpha: loop.alpha };
     },
     step() {
+      if (!canTick()) return;
       options.update(dt);
       tickCount++;
     },

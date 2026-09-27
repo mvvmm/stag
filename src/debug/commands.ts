@@ -15,6 +15,12 @@ export type Command = {
    * dedicated pane control, like a checkbox.
    */
   button?: boolean;
+  /**
+   * Changes the simulation (a cheat like "spawn enemy"). Such commands are recorded and replayed,
+   * so `run` must only touch the current world through the shell. View-only commands (stats,
+   * wireframe, …) leave it off.
+   */
+  sim?: boolean;
   run: () => void;
 };
 
@@ -23,6 +29,7 @@ export type CommandRegistry = ReturnType<typeof createCommandRegistry>;
 export function createCommandRegistry() {
   const commands = new Map<string, Command>();
   const listeners = new Set<() => void>();
+  const beforeRun = new Set<(command: Command) => void>();
 
   return {
     /** Adds a command, replacing one with the same id (module reloads). */
@@ -31,11 +38,26 @@ export function createCommandRegistry() {
       for (const listener of listeners) listener();
     },
 
-    /** Runs a command by id. False if there's no such command. */
+    /** Runs a command by id (after the `onBeforeRun` listeners). False if there's no such command. */
     run(id: string): boolean {
+      const command = commands.get(id);
+      if (!command) return false;
+      for (const listener of beforeRun) listener(command);
+      command.run();
+      return true;
+    },
+
+    /** Runs a command without telling `onBeforeRun` listeners (replay playback). */
+    replay(id: string): boolean {
       const command = commands.get(id);
       command?.run();
       return !!command;
+    },
+
+    /** Called right before a command runs through `run` (the replay recorder watches sim commands). */
+    onBeforeRun(listener: (command: Command) => void): () => void {
+      beforeRun.add(listener);
+      return () => beforeRun.delete(listener);
     },
 
     list(): Command[] {

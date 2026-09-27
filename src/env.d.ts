@@ -6,11 +6,19 @@ import type { Rng } from "@/core/rng";
 import type { TuningRegistry } from "@/core/tuning";
 import type { CommandRegistry } from "@/debug/commands";
 import type { DevTools } from "@/debug/devtools";
+import type { ReplayMode } from "@/debug/replay/session";
 import type { Entity } from "@/ecs/world";
 import type { InputState } from "@/input/state";
+import type { ReplayFile } from "@/replay/format";
+import type { Divergence } from "@/replay/headless";
 import type { Shell } from "@/shell";
 
 declare global {
+  /** Git commit of the build (short hash), for replay files. Set by vite.config.ts. */
+  const __COMMIT__: string;
+  /** Whether the build had uncommitted changes. */
+  const __DIRTY__: boolean;
+
   interface Window {
     /**
      * Debug handle for the browser console and agent-browser checks. Only set when the dev tools
@@ -44,6 +52,28 @@ declare global {
       commands: CommandRegistry;
       /** Runs a debug command by id, e.g. `__game.run("stats.cycle")`. */
       run(id: string): boolean;
+      /** Record & replay (every load is recorded; see `debug/replay/session.ts`). */
+      replay: {
+        /** The current recording as a replay file (or the replay being played). */
+        recording(): ReplayFile | null;
+        /** Plays a replay: a file object, gzipped/plain JSON bytes, or a URL. */
+        play(source: ReplayFile | Uint8Array | string): Promise<boolean>;
+        /** Goes to a tick of the playing replay; resolves once there. */
+        seek(tick: number): Promise<void>;
+        stepBack(): Promise<void>;
+        takeOver(): void;
+        exit(): void;
+        /** Downloads the current recording; resolves with the file name. */
+        save(): Promise<string | null>;
+        readonly status: {
+          mode: ReplayMode;
+          tick: number;
+          ticks: number;
+          diverged: Divergence | null;
+          seeking: boolean;
+          notice: string;
+        };
+      };
       tools: DevTools;
     };
   }

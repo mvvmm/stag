@@ -1,5 +1,6 @@
 import type { World } from "miniplex";
 import { debugDraw } from "@/core/debugDraw";
+import { dmath } from "@/core/dmath";
 import type { Rng } from "@/core/rng";
 import { defineTunables } from "@/core/tuning";
 import type { Entity } from "@/ecs/world";
@@ -28,7 +29,7 @@ export function pawnSystem(world: World<Entity>, dt: number, _rng: Rng, input: I
     } else if (pawn.target) {
       const dx = pawn.target.x - position.x;
       const dz = pawn.target.z - position.z;
-      const distance = Math.hypot(dx, dz);
+      const distance = dmath.hypot(dx, dz);
       if (distance <= step) {
         position.x = pawn.target.x;
         position.z = pawn.target.z;
@@ -41,10 +42,13 @@ export function pawnSystem(world: World<Entity>, dt: number, _rng: Rng, input: I
 
     const ax = input.aim.x - position.x;
     const az = input.aim.z - position.z;
-    if (Math.hypot(ax, az) > 1e-3) transform.rotation.y = Math.atan2(ax, az);
+    if (dmath.hypot(ax, az) > 1e-3) transform.rotation.y = dmath.atan2(ax, az);
 
     const facing = transform.rotation.y;
-    const tip = { x: position.x + Math.sin(facing) * 1.2, z: position.z + Math.cos(facing) * 1.2 };
+    const tip = {
+      x: position.x + dmath.sin(facing) * 1.2,
+      z: position.z + dmath.cos(facing) * 1.2,
+    };
     debugDraw.arrow(position, tip, { color: "yellow", category: "pawn" });
     if (pawn.target) debugDraw.line(position, pawn.target, { color: "cyan", category: "pawn" });
   }

@@ -16,6 +16,7 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "replay:update": "REPLAY_UPDATE=1 vitest run src/replay/fixtures.test.ts",
     "devlog:video": "node scripts/devlog-video.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "prepare": "husky"

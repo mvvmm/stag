@@ -7,6 +7,7 @@ import {
   type Preset,
   type PresetId,
 } from "@/input/bindings";
+import { quantize, quantizeDown } from "@/input/quantize";
 
 type Direction = "up" | "down" | "left" | "right";
 const DIRECTIONS: readonly Direction[] = ["up", "down", "left", "right"];
@@ -110,7 +111,7 @@ export function createInputState(initialPreset: PresetId) {
   const moveCommand = (): Vec2 | null => {
     if (preset.move.kind !== "pointer") return null;
     const active = moveClicked || down.has(preset.move.control);
-    return active ? { x: aim.x, z: aim.z } : null;
+    return active ? { x: quantize(aim.x), z: quantize(aim.z) } : null;
   };
 
   return {
@@ -177,14 +178,16 @@ export function createInputState(initialPreset: PresetId) {
 
     /**
      * Input for one simulation tick. `cameraYaw` turns the screen-relative WASD vector into a
-     * world direction. Consumes the tick latch.
+     * world direction. Positions and directions are quantized (see `quantize.ts`), so a replay
+     * feeds the sim exactly what it saw live. Consumes the tick latch.
      */
     sampleTick(cameraYaw: number): InputFrame {
       const screen = { x: axis("left", "right"), z: axis("down", "up") };
+      const move = normalizeClamp(rotateByYaw(screen, cameraYaw));
       const frame: InputFrame = {
-        move: normalizeClamp(rotateByYaw(screen, cameraYaw)),
+        move: { x: quantizeDown(move.x), z: quantizeDown(move.z) },
         moveCommand: moveCommand(),
-        aim: { x: aim.x, z: aim.z },
+        aim: { x: quantize(aim.x), z: quantize(aim.z) },
         held: new Set(held),
         pressed: new Set(tickLatch.pressed),
         released: new Set(tickLatch.released),

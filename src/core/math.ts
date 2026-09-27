@@ -1,3 +1,5 @@
+import { dmath } from "@/core/dmath";
+
 export const TAU = Math.PI * 2;
 
 export function lerp(a: number, b: number, t: number): number {
@@ -22,14 +24,14 @@ export type Vec2 = { x: number; z: number };
  * a camera with the given yaw (radians around +Y; 0 looks along +Z, left-handed like Babylon).
  */
 export function rotateByYaw(v: Vec2, yaw: number): Vec2 {
-  const cos = Math.cos(yaw);
-  const sin = Math.sin(yaw);
+  const cos = dmath.cos(yaw);
+  const sin = dmath.sin(yaw);
   return { x: v.x * cos + v.z * sin, z: -v.x * sin + v.z * cos };
 }
 
 /** Scales `v` down to length 1 if it's longer; shorter vectors are returned unchanged. */
 export function normalizeClamp(v: Vec2): Vec2 {
-  const length = Math.hypot(v.x, v.z);
+  const length = dmath.hypot(v.x, v.z);
   return length > 1 ? { x: v.x / length, z: v.z / length } : { x: v.x, z: v.z };
 }
 

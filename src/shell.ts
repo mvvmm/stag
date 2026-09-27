@@ -25,6 +25,16 @@ const STATS_INTERVAL = 0.25;
 /** The scene that's running and the seed it was loaded with. */
 export type LoadedScene = { def: SceneDef; seed: number };
 
+/**
+ * Takes over the simulation's input (replay playback): `input` gets the tick's index and the live
+ * input (sampled anyway, so no stale presses are left over when it lets go) and returns what the
+ * simulation sees. While `canTick` is false, no tick runs, not even a frame step.
+ */
+export type TickDriver = {
+  input(tick: number, live: InputFrame): InputFrame;
+  canTick(): boolean;
+};
+
 export type Shell = {
   /** The current scene's world. A new one on every load, so don't keep it around. */
   readonly world: World<Entity>;
@@ -50,6 +60,13 @@ export type Shell = {
   step(): void;
   /** Runs after every load, once the scene is set up. Returns an unsubscribe function. */
   onLoad(listener: (loaded: LoadedScene) => void): () => void;
+  /**
+   * Runs at the start of every load, before the old scene is torn down and the new one spawns
+   * (e.g. to set tunables that `spawn` reads). Returns an unsubscribe function.
+   */
+  onBeforeLoad(listener: (loaded: LoadedScene) => void): () => void;
+  /** Hands the simulation's input to a driver (replay playback), or back to the player (null). */
+  setTickDriver(driver: TickDriver | null): void;
   /** The mesh mirroring an entity, if it has one. */
   meshOf(entity: Entity): Mesh | undefined;
   /** The entity a mesh mirrors, if any (for picking). */
@@ -99,6 +116,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   const frameListeners = new Set<(frame: ShellFrame) => void>();
   const tickListeners = new Set<(input: InputFrame) => void>();
   const loadListeners = new Set<(loaded: LoadedScene) => void>();
+  const beforeLoadListeners = new Set<(loaded: LoadedScene) => void>();
+  let driver: TickDriver | null = null;
   const renderPhases: { name: string; run: () => void }[] = [];
   const frameEndListeners: ((sample: FrameSample) => void)[] = [];
 
@@ -116,12 +135,14 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     maxFrameDelta: MAX_FRAME_DELTA,
     maxTicksPerFrame: MAX_TICKS_PER_FRAME,
     update: (dt) => {
-      const tickInput = input.sampleTick(yaw);
+      const live = input.sampleTick(yaw);
+      const tickInput = driver ? driver.input(loop.tickCount, live) : live;
       debugDraw.beginTick(dt);
       simulation.step(dt, tickInput);
       debugDraw.endTick();
       for (const listener of tickListeners) listener(tickInput);
     },
+    canTick: () => !driver || driver.canTick(),
   });
   const settings = { interpolate: true };
 
@@ -158,6 +179,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   };
 
   const doLoad = (def: SceneDef, seed: number) => {
+    for (const listener of beforeLoadListeners) listener({ def, seed });
     if (current) {
       try {
         current.disposer.dispose();
@@ -179,9 +201,9 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     const disposer = createDisposer();
     const loaded = { def, seed, disposer };
     current = loaded;
+    def.spawn(world, rng);
     const ctx: SceneContext = {
       world,
-      rng,
       seed,
       scene,
       input,
@@ -303,6 +325,10 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       publishStats();
     },
     onLoad: (listener) => listen(loadListeners, listener),
+    onBeforeLoad: (listener) => listen(beforeLoadListeners, listener),
+    setTickDriver(next) {
+      driver = next;
+    },
     meshOf: (entity) => meshSync.meshOf(entity),
     entityOf: (mesh) => meshSync.entityOf(mesh),
     settings,

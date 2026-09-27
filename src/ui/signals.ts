@@ -88,3 +88,17 @@ export const perfStats = signal<PerfStats>({
   heapMb: null,
   profile: [],
 });
+
+/** Replay playback for the badge; null while not playing a replay (plain recording shows nothing). */
+export type ReplayStatus = {
+  /** Ticks played. */
+  tick: number;
+  ticks: number;
+  tickHz: number;
+  /** Tick of the first checkpoint that didn't match, or null while in sync. */
+  diverged: number | null;
+  /** Fast-forwarding to a tick (percent done), or null. */
+  seeking: number | null;
+};
+
+export const replayStatus = signal<ReplayStatus | null>(null);
