@@ -21,9 +21,14 @@ The game can now restart itself in place. A scene is a small definition (the sys
 - **Babylon removes observers lazily**, so our first leak check showed the render-observer count climbing. Re-counting a moment later showed they were all gone.
 - miniplex hands out entity ids on first request, not at spawn. The pane asks for them in world order, which keeps `#5 pawn` stable across restarts.
 - **Mesh outlines didn't work on boxes.** Babylon's `renderOutline` pushes the mesh out along its face normals, so a box got a line on only a couple of edges. The highlight layer draws a proper silhouette. It then filled whole meshes solid whenever debug draw was on, because the debug-draw layer cleared the stencil buffer the highlight uses as a mask. It now clears only depth.
+- **The first hover froze a frame and flashed the screen** (in Firefox) while the highlight layer loaded its shaders and built its render targets. It now warms up on an invisible speck of a mesh when the dev tools start.
+- **Opening the Inspector was a one-way trip**, a leftover from 0.4: the pane hides while the Inspector is open, and the pane was the only way to close it. A "Close Inspector" button over the game view and <kbd>`</kbd> now close it.
 - The input overlay kept showing stale values in the stress scene. The input test now clears it when it tears down.
 - A restart asked for mid-frame (the stress scene's count slider) now waits for the frame to end, so no frame runs half in the old world and half in the new one.
 
 ## Media
 
 ![The stress scene with 2000 boxes and full stats: one draw call per box, and only the orbit system in the profiler. The entity list shows the first 200 of 2000](02-stress-scene.png)
+
+[![Walkthrough in Firefox: switching to the stress scene and back, restarting with the same and a new seed, pausing, then picking: hovered boxes get a pale outline, a click selects one with a magenta outline and opens its entity pane, and its fields are edited live](03-walkthrough.jpg)](03-walkthrough.mp4)
+
