@@ -15,9 +15,9 @@
 
 | Area | Decision |
 |---|---|
-| Engine / language | Babylon.js + TypeScript (strict), Vite, pnpm |
+| Engine / language | Babylon.js (**WebGPU only**, no WebGL fallback) + TypeScript (strict), Vite, pnpm |
 | Movement / collision | Custom kinematic controller + simple 2D collision on the ground plane (no physics engine; Havok is optional later for props) |
-| Platform | Desktop only, keyboard + mouse |
+| Platform | Desktop only, keyboard + mouse; current browsers with WebGPU (older browsers get an Unsupported screen) |
 | UI | Hybrid: in-world UI (health bars, telegraphs, damage numbers) in Babylon; screen UI (HUD, menus, reward picks) as a light HTML overlay |
 | Rooms | Hand-built in code/data first, procedural generation later |
 | Art | Stylized asset packs (glTF) + our own lighting/post-processing; grey-box until the art pass |
@@ -29,7 +29,7 @@
 ## Phase 0: Foundation
 
 - [x] **0.1 Project scaffold:** pnpm + Vite + TS + Babylon, lint/format, Vitest, directory layout, core deps. → [plan](plans/0.1-project-scaffold.md)
-- [ ] **0.2 Game shell:** canvas/engine bootstrap, resize handling, fixed-timestep simulation loop separate from rendering.
+- [x] **0.2 Game shell:** canvas/engine bootstrap, resize handling, fixed-timestep simulation loop separate from rendering. → [plan](plans/0.2-game-shell.md)
 - [ ] **0.3 Input layer:** keyboard/mouse state, action mapping, mouse-to-ground aim point.
 - [ ] **0.4 Dev tooling:** Babylon Inspector toggle, FPS/stats overlay, live tuning panel, debug-draw helpers.
 - [ ] **0.5 Repo & Cloudflare deploy:** git repo, Workers static-asset deploy, PR preview builds.

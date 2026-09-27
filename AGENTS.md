@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Dark-fantasy druid roguelite for the browser. Babylon.js + TypeScript (strict) + Vite.
+Dark-fantasy druid roguelite for the browser. Babylon.js (WebGPU only) + TypeScript (strict) + Vite.
 
 ## Docs (`slopdocs/`)
 
@@ -29,7 +29,8 @@ Always use **pnpm** (never npm or yarn). Node 24 (`.nvmrc`).
 
 ```
 src/
-  main.tsx    entry point
+  main.tsx    entry point: WebGPU check, then the shell (or the Unsupported screen)
+  shell.ts    wires sim + fixed-step loop + renderer; the only place that reads wall-clock time
   core/       loop, time, seeded RNG, math helpers
   ecs/        miniplex World<Entity>, entity/component types
   systems/    pure simulation systems: (world, dt) => void
@@ -38,6 +39,7 @@ src/
   ui/         Preact HTML overlay (components, signals, CSS modules, styles/tokens.css)
   data/       data-driven definitions: abilities, augments, enemies, rooms
   debug/      inspector, stats, tuning panel, debug draw
+  demo/       throwaway test scenes, replaced by real content
 ```
 
 Create a folder when a step first needs it; don't add placeholder files.
@@ -48,6 +50,8 @@ Create a folder when a step first needs it; don't add placeholder files.
 2. **Babylon mirrors the ECS.** `render/` creates and disposes meshes through miniplex query `onEntityAdded` / `onEntityRemoved` events, and copies state from components each frame.
 3. **The UI reads signals.** The game writes `@preact/signals` at low frequency, and Preact components read them. The UI never reaches into the ECS directly. The `#ui` overlay has `pointer-events: none`, so interactive elements must opt back in.
 4. **Content is data.** Abilities, augments, enemies and rooms are defined as data in `data/`, not as bespoke code paths.
+5. **Fixed timestep.** The simulation advances in fixed ticks (`TICK_HZ` in `core/constants.ts`, currently 60). Systems get `dt` in seconds and must never assume a tick count. Rendering interpolates between `prevTransform` and `transform`; call `snapTransform()` after teleports/spawns.
+6. **Soft determinism.** Simulation code (`ecs/`, `systems/`, pure `core/`) uses only the `dt` it's given, takes randomness only from the seeded `Rng` passed in (never `Math.random`), and never reads wall-clock time (`Date.now`, `performance.now`).
 
 ## Conventions
 
@@ -56,3 +60,4 @@ Create a folder when a step first needs it; don't add placeholder files.
 - Tests cover pure logic only (systems, math, cooldowns, modifiers, RNG) and sit next to the code as `*.test.ts`, running in the Node environment. Keep Babylon out of tests; check rendering and feel by playing.
 - Styling: CSS Modules (`*.module.css`) plus design tokens as CSS custom properties in `src/ui/styles/tokens.css`.
 - Babylon: import from the `@babylonjs/core` root for now (deep imports may come in the 9.6 performance pass).
+- Rendering is **WebGPU only** (`WebGPUEngine`); custom shaders should be WGSL. Dev-only `?nowebgpu` previews the Unsupported screen.
