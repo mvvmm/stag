@@ -4,6 +4,7 @@ import type { Disposable } from "@/core/disposer";
 import type { Entity, Vec3 } from "@/ecs/world";
 import type { InputFrame, ShellFrame } from "@/input/actions";
 import type { InputState } from "@/input/state";
+import type { Rect } from "@/render/cameraRig";
 import type { SceneSim } from "@/scenes/sim";
 
 /**
@@ -44,6 +45,11 @@ export type SceneContext = {
    * is already interpolated). Without one, the camera looks at the origin.
    */
   setCameraTarget(target: () => Vec3): void;
+  /**
+   * The ground rect the camera's look-at point stays in (inset by the `camera.boundsInset`
+   * tunable), or null for none (the default).
+   */
+  setCameraBounds(bounds: Rect | null): void;
   /** Disposes `thing` (a mesh, material, …) at teardown and returns it. */
   own<T extends Disposable>(thing: T): T;
   /** Runs `cleanup` at teardown. */
