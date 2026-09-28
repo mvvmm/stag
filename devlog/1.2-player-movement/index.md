@@ -27,6 +27,8 @@ The throwaway demo pawn is gone, and the arena has a real player: a grey-box cap
 
 ## Media
 
+[![Playing on a 120 Hz display in Firefox: right-click-to-move around the arena and through the gaps, then with the path, trail and nav-grid debug draw on, switching movement presets (Weighty's wide turns loop the trail)](movement-walkthrough.jpg)](movement-walkthrough.mp4)
+
 ![Through the tight gap between the two east blocks: the path's corner sits in the middle of the gap, and the cyan ring pops where the path ends](02-tight-gap-and-marker.png)
 
 ![The Gameplay folder's speed graph after a run, a preset switch and a turn-around, next to the Movement presets. The trail shows Weighty's wide turn back](03-speed-graph-and-presets.png)
