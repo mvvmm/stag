@@ -95,7 +95,8 @@ function setup(ctx: SceneContext): void {
   // The camera looks at the ground under the player's interpolated mesh.
   const focus = () => ({ x: playerMesh.position.x, y: 0, z: playerMesh.position.z });
   ctx.setCameraTarget(focus);
-  ctx.setLightTarget(focus);
+  // The player light lights the world around the player, not its own body (blown out that close).
+  ctx.setLightTarget(focus, { exclude: [playerMesh] });
   // The room is centered on the origin; the camera's look-at point stays inside it.
   ctx.setCameraBounds({
     minX: -room.width / 2,

@@ -362,9 +362,16 @@ export function createAtmosphere(scene: Scene, camera: Camera) {
       fitShadows();
     },
 
-    /** What the player light hangs over (read every frame), or null for no player light. */
-    setLightTarget(target: (() => Vec3) | null): void {
+    /**
+     * What the player light hangs over (read every frame), or null for no player light. It skips
+     * `exclude` (children included): the body it hangs over would be blown out this close to it.
+     */
+    setLightTarget(
+      target: (() => Vec3) | null,
+      { exclude = [] }: { exclude?: readonly AbstractMesh[] } = {},
+    ): void {
       lightTarget = target;
+      playerLight.excludedMeshes = exclude.flatMap((mesh) => [mesh, ...mesh.getChildMeshes()]);
     },
 
     /** Forgets the last scene's casters and light target. Call on every load, before setup. */
@@ -373,6 +380,7 @@ export function createAtmosphere(scene: Scene, camera: Camera) {
       casterBox = FALLBACK_BOX;
       shadows?.getShadowMap()?.renderList?.splice(0);
       lightTarget = null;
+      playerLight.excludedMeshes = [];
       fitShadows();
     },
 

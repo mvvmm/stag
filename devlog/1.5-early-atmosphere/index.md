@@ -23,6 +23,7 @@ The grey-box stopped looking like a debug view. One atmosphere rig, built by the
 - **The post stack was silently detached.** Re-attaching after an SSAO change passed Babylon's live camera array to a detach call, which emptied it. Image processing fell back to the materials, so the image still looked roughly right. Counting the camera's post-processes in the browser caught it.
 - **ACES halved the brightness.** The lights were balanced without tonemapping, so exposure went to 2.2 and the lights were retuned by measuring mean brightness in the screenshots.
 - **Banding rings came from SSAO.** Its copy of the scene color is 8-bit by default, which bands in dark linear values. A half-float copy fixed it.
+- **The player light blew out the player's own head.** It hangs 1.3 m above the top of the capsule, and light falls off with the square of distance, so the head got several times the floor's light and bloomed to white. Playtesting on the Preview caught it. The light now skips the player's body, so it only lights the world around the player. The shots after the hero shot were taken before this fix.
 - **Headless GPU timings were too noisy to use.** The same settings measured 1 to 19 ms, so real performance numbers wait for the 9.6 pass.
 
 ## Media

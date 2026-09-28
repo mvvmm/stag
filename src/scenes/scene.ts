@@ -61,8 +61,11 @@ export type SceneContext = {
    * bounds once, so include the room's walls. Receivers set `receiveShadows` themselves.
    */
   setShadowCasters(meshes: readonly AbstractMesh[]): void;
-  /** What the player's warm light hangs over, read every frame. Without one there's no such light. */
-  setLightTarget(target: () => Vec3): void;
+  /**
+   * What the player's warm light hangs over, read every frame. Without one there's no such light.
+   * `exclude` lists meshes it doesn't light (children included), e.g. the body right under it.
+   */
+  setLightTarget(target: () => Vec3, options?: { exclude?: readonly AbstractMesh[] }): void;
   /** Disposes `thing` (a mesh, material, …) at teardown and returns it. */
   own<T extends Disposable>(thing: T): T;
   /** Runs `cleanup` at teardown. */
