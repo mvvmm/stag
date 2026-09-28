@@ -38,7 +38,7 @@ const DEG = Math.PI / 180;
 
 export const TIGER = defineTunables("tiger", {
   /** Size relative to the real tiger: 2.0 m nose to rump (plus a 1 m tail), 0.93 m at the hip.
-   * The player's footprint (`player.radius`/`length`) should match it. */
+   * The body's hit shape (`player.bodyRadius`/`bodyLength`) should match it. */
   scale: { value: 1, min: 0.2, max: 1.5, step: 0.01 },
   /** How far the model sits back from the entity, real size, m (× scale), so the body between
    * nose and rump is centered on it. */

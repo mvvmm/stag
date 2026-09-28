@@ -1,10 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { footprintCircles, halfSpine } from "@/collision/body";
+import { afterEach, describe, expect, it } from "vitest";
 import { SKIN } from "@/collision/slide";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import type { Obstacle } from "@/data/rooms/room";
-import { distanceToShape } from "@/data/rooms/room";
 import { createWorld, type Mover, type Transform } from "@/ecs/world";
 import { emptyInputFrame } from "@/input/actions";
 import { locomotionSystem, moveToward } from "@/systems/locomotion";
@@ -124,9 +122,6 @@ describe("locomotion", () => {
 });
 
 describe("locomotion against obstacles", () => {
-  // A round footprint (the pill has its own tests below).
-  beforeEach(() => tuning.set("player.length", 0));
-
   it("stops at a wall and loses the velocity into it", () => {
     const { transform, mover, step } = setup({ x: 0, z: -7 }, 0, [WALL]);
     mover.desired = { x: 0, z: -7 };
@@ -179,44 +174,5 @@ describe("locomotion against obstacles", () => {
     tuning.set("player.radius", 0.7);
     step();
     expect(transform.position.z).toBeCloseTo(-1 + 0.7 + SKIN, 9);
-  });
-});
-
-describe("a pill footprint", () => {
-  const PILL = { radius: 0.3, length: 2 };
-  beforeEach(() => {
-    tuning.set("player.radius", PILL.radius);
-    tuning.set("player.length", PILL.length);
-  });
-  const clearance = (transform: Transform) =>
-    Math.min(
-      ...footprintCircles(PILL, transform.rotation.y).map(
-        (c) =>
-          distanceToShape(
-            { x: transform.position.x + c.x, z: transform.position.z + c.z },
-            WALL.shape,
-          ) - PILL.radius,
-      ),
-    );
-
-  it("stops nose first at a wall", () => {
-    const { transform, mover, step } = setup({ x: 0, z: -4 }, Math.PI, [WALL]);
-    mover.desired = { x: 0, z: -4 };
-    for (let i = 0; i < 60; i++) step();
-    expect(transform.position.z).toBeCloseTo(-1 + halfSpine(PILL) + PILL.radius, 2);
-    expect(clearance(transform)).toBeGreaterThanOrEqual(-SKIN);
-  });
-
-  it("turning away from a wall it's lying along swings the tail clear instead of through it", () => {
-    // Side-on against the wall facing east, then off to the north: turning left swings the tail
-    // (west end) south, into the wall, so the body has to make room.
-    const { transform, mover, step } = setup({ x: 0, z: 0 }, Math.PI / 2, [WALL]);
-    transform.position.z = -1 + PILL.radius + 0.001;
-    mover.desired = { x: 0, z: 4 };
-    for (let i = 0; i < 60; i++) {
-      step();
-      expect(clearance(transform)).toBeGreaterThanOrEqual(-SKIN);
-    }
-    expect(transform.rotation.y).toBeCloseTo(0, 6);
   });
 });

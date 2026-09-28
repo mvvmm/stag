@@ -199,9 +199,8 @@ describe("record → replay (headless)", () => {
 
   it("runs sim commands (noclip) headless by default", () => {
     // Walk south, noclip through the south wall's inner face, turn it off inside the wall. At the
-    // old top speed and with a round footprint, which this was written for (recorded with the run).
+    // old top speed, which this was written for (recorded with the run).
     tuning.set("player.speed", 7);
-    tuning.set("player.length", 0);
     const south = { move: { x: 0, z: quantize(-1) } };
     const file = record(arenaSim, 4, 120, (tick) => {
       const toggle: Step["events"] = [{ kind: "command", id: "cheats.noclip" }];

@@ -106,39 +106,6 @@ export function moveAndSlide(
   };
 }
 
-/**
- * Whether a body (circles of `radius` at `circles` around `at`) is clear of every obstacle, a skin
- * of overlap allowed. Used before a long body turns: its ends swing, and it only takes a pose that
- * fits.
- */
-export function bodyFits(
-  shapes: readonly ObstacleShape[],
-  at: Vec2,
-  radius: number,
-  circles: readonly Vec2[],
-): boolean {
-  return !deepest(near(shapes, at, reachOf(circles, radius)), at, radius, circles);
-}
-
-/** Passes `fitBody` gets to push a body clear. */
-const FIT_PASSES = 8;
-
-/**
- * Fits a body among the obstacles: if some part overlaps one, the whole body is pushed straight
- * out of the deepest overlap (a skin clear), a few times over. `fits` is false when it still
- * overlaps after that (caught between obstacles). Used to wiggle a blocked long body free.
- */
-export function fitBody(
-  shapes: readonly ObstacleShape[],
-  at: Vec2,
-  radius: number,
-  circles: readonly Vec2[],
-): { position: Vec2; fits: boolean } {
-  const position = { x: at.x, z: at.z };
-  pushClear(shapes, position, radius, circles, FIT_PASSES);
-  return { position, fits: bodyFits(shapes, position, radius, circles) };
-}
-
 /** How far from the body's center an obstacle can be and still touch it. */
 function reachOf(circles: readonly Vec2[], radius: number): number {
   let far = 0;

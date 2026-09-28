@@ -7,7 +7,7 @@ import {
   Vector3,
   VertexData,
 } from "@babylonjs/core";
-import { halfSpine } from "@/collision/body";
+import { footprintCircles, halfSpine } from "@/collision/body";
 import { debugDraw } from "@/core/debugDraw";
 import type { Vec2 } from "@/core/math";
 import {
@@ -104,7 +104,7 @@ function setup(ctx: SceneContext): void {
   const tiger = createTiger(scene);
   const capsule = ctx.own(playerBody(ctx));
   ctx.onTunableChange((id) => {
-    if (id === null || id === "player.radius" || id === "player.length") {
+    if (id === null || id === "player.radius") {
       const nose = capsule.getChildMeshes()[0] as Mesh | undefined;
       if (nose) shapePlayerBody(capsule, nose);
     }
@@ -177,8 +177,8 @@ function setup(ctx: SceneContext): void {
 }
 
 /**
- * The player's grey-box body, shaped like its collision footprint: a capsule standing on its origin
- * for a circle, lying along +Z for a pill (see `shapePlayerBody`), and a nose showing the facing.
+ * The player's grey-box body: its movement collider, a capsule standing on its origin (see
+ * `shapePlayerBody`), and a nose showing the facing.
  */
 function playerBody(ctx: SceneContext): Mesh {
   const body = new Mesh("player", ctx.scene);
@@ -199,53 +199,48 @@ function playerBody(ctx: SceneContext): Mesh {
   return body;
 }
 
-/** (Re)builds the grey-box body's geometry for the current footprint tunables. */
+/** (Re)builds the grey-box body's geometry for the current movement radius. */
 function shapePlayerBody(body: Mesh, nose: Mesh): void {
   const radius = PLAYER.radius;
-  const pill = PLAYER.length > radius * 2;
-  const height = pill ? PLAYER.length : PLAYER_HEIGHT;
-  const shape = VertexData.CreateCapsule({ radius, height, tessellation: 16 });
-  // Standing on the ground; a pill lies down along +Z.
-  shape.transform(
-    pill
-      ? Matrix.RotationX(Math.PI / 2).multiply(Matrix.Translation(0, radius, 0))
-      : Matrix.Translation(0, height / 2, 0),
-  );
+  const shape = VertexData.CreateCapsule({ radius, height: PLAYER_HEIGHT, tessellation: 16 });
+  shape.transform(Matrix.Translation(0, PLAYER_HEIGHT / 2, 0));
   shape.applyToMesh(body, true);
   body.refreshBoundingInfo();
-  nose.position = pill
-    ? new Vector3(0, radius * 1.4, PLAYER.length / 2 - 0.1)
-    : new Vector3(0, PLAYER_HEIGHT * 0.7, radius + 0.08);
+  nose.position = new Vector3(0, PLAYER_HEIGHT * 0.7, radius + 0.08);
 }
 
 /**
- * The `footprint` debug category: the player's collision shape (a circle, or a pill: its two end
- * caps and the sides between them) and an arrow along its facing.
+ * The `footprint` debug category: the player's movement circle (what collides with walls and
+ * paths) in yellow with an arrow along its facing, and the body's own shape (a pill: its hit shape
+ * from 2.4) in red.
  */
 function drawFootprint(at: Vec2, facing: number): void {
-  const style = { color: "yellow", category: "footprint" } as const;
-  const radius = PLAYER.radius;
-  const half = halfSpine(PLAYER);
+  const movement = { color: "yellow", category: "footprint" } as const;
+  debugDraw.circle(at, PLAYER.radius, movement);
   const dx = Math.sin(facing);
   const dz = Math.cos(facing);
-  const front = { x: at.x + dx * half, z: at.z + dz * half };
-  const back = { x: at.x - dx * half, z: at.z - dz * half };
-  debugDraw.circle(front, radius, style);
-  if (half > 0) {
-    debugDraw.circle(back, radius, style);
-    // The sides: offset sideways (right of the facing is (dz, -dx)).
-    for (const side of [1, -1]) {
-      const ox = dz * radius * side;
-      const oz = -dx * radius * side;
-      debugDraw.line(
-        { x: front.x + ox, z: front.z + oz },
-        { x: back.x + ox, z: back.z + oz },
-        style,
-      );
-    }
+  const reach = PLAYER.radius * 1.6;
+  debugDraw.arrow(at, { x: at.x + dx * reach, z: at.z + dz * reach }, movement);
+
+  const body = { color: "red", category: "footprint" } as const;
+  const shape = { radius: PLAYER.bodyRadius, length: PLAYER.bodyLength };
+  const half = halfSpine(shape);
+  const circles = footprintCircles(shape, facing);
+  const front = circles.at(-1) ?? { x: 0, z: 0 };
+  const back = circles[0] ?? { x: 0, z: 0 };
+  debugDraw.circle({ x: at.x + front.x, z: at.z + front.z }, shape.radius, body);
+  if (half <= 0) return;
+  debugDraw.circle({ x: at.x + back.x, z: at.z + back.z }, shape.radius, body);
+  // The sides: offset sideways (right of the facing is (dz, -dx)).
+  for (const side of [1, -1]) {
+    const ox = dz * shape.radius * side;
+    const oz = -dx * shape.radius * side;
+    debugDraw.line(
+      { x: at.x + front.x + ox, z: at.z + front.z + oz },
+      { x: at.x + back.x + ox, z: at.z + back.z + oz },
+      body,
+    );
   }
-  const reach = half + radius * 1.6;
-  debugDraw.arrow(at, { x: at.x + dx * reach, z: at.z + dz * reach }, style);
 }
 
 /**

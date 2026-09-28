@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { footprintCircles } from "@/collision/body";
-import { bodyFits, moveAndSlide, SKIN } from "@/collision/slide";
+import { moveAndSlide, SKIN } from "@/collision/slide";
 import { dmath } from "@/core/dmath";
 import { createRng } from "@/core/rng";
 import { greyboxRoom } from "@/data/rooms/greybox";
@@ -39,42 +38,6 @@ describe.each([greyboxRoom, gymRoom].map((room) => [room.id, room] as const))(
         }
         expect(Math.abs(p.x)).toBeLessThan(room.width / 2);
         expect(Math.abs(p.z)).toBeLessThan(room.depth / 2);
-      }
-    });
-
-    it("a pill walking and turning at random never overlaps", () => {
-      const pill = { radius: 0.28, length: 1.9 };
-      const rng = createRng(4);
-      let p = { x: room.spawn.x, z: room.spawn.z };
-      let facing = 0;
-      let heading = 0;
-      let speed = 4;
-      for (let tick = 0; tick < 20_000; tick++) {
-        if (rng.next() < 0.03) heading = rng.range(0, Math.PI * 2);
-        if (rng.next() < 0.01) speed = rng.next() < 0.2 ? rng.range(10, 30) : rng.range(1, 8);
-        const circles = footprintCircles(pill, facing);
-        const motion = { x: dmath.sin(heading) * speed * DT, z: dmath.cos(heading) * speed * DT };
-        p = moveAndSlide(shapes, p, motion, pill.radius, circles).position;
-        // Turn toward the heading like locomotion does (9° a tick), as far as the body fits.
-        const turn = Math.atan2(Math.sin(heading - facing), Math.cos(heading - facing));
-        const step = Math.max(-0.16, Math.min(0.16, turn));
-        for (const tried of [step, step / 2, step / 4]) {
-          if (!bodyFits(shapes, p, pill.radius, footprintCircles(pill, facing + tried))) continue;
-          facing += tried;
-          break;
-        }
-        for (const c of footprintCircles(pill, facing)) {
-          const at = { x: p.x + c.x, z: p.z + c.z };
-          for (const shape of shapes) {
-            if (distanceToShape(at, shape) < pill.radius - SKIN) {
-              throw new Error(
-                `tick ${tick}: inside ${JSON.stringify(shape)} at ${JSON.stringify(p)}`,
-              );
-            }
-          }
-          expect(Math.abs(at.x)).toBeLessThan(room.width / 2);
-          expect(Math.abs(at.z)).toBeLessThan(room.depth / 2);
-        }
       }
     });
   },

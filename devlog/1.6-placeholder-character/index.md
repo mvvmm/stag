@@ -6,7 +6,7 @@
 
 ## What we built
 
-The grey-box capsule became a tiger, standing in for the Cat form until the art pass. It stands and breathes when still, then walks, trots and gallops as the player speeds up. Four clips are blended by speed on one shared stride, so the footfalls line up. On top of the clips, procedural layers bank the body into turns, tilt it when speeding up and braking, swing the tail and turn the head toward the cursor. It's all view-only and runs on the time the view shows, so pause, frame step, time scale and replays show the same motion, and every replay fixture passed untouched. A small build script turns the downloaded model into a 1.8 MB game-ready file, and the shell preloads it once. After the first playtest the tiger went to full size, the player got a pill-shaped hitbox to match its long body, and the top speed dropped from 7 to 4 m/s. A "placeholder body" switch in the pane shows the hitbox as a grey-box pill, next to the new `footprint` debug outline.
+The grey-box capsule became a tiger, standing in for the Cat form until the art pass. It stands and breathes when still, then walks, trots and gallops as the player speeds up. Four clips are blended by speed on one shared stride, so the footfalls line up. On top of the clips, procedural layers bank the body into turns, tilt it when speeding up and braking, swing the tail and turn the head toward the cursor. It's all view-only and runs on the time the view shows, so pause, frame step, time scale and replays show the same motion, and every replay fixture passed untouched. A small build script turns the downloaded model into a 1.8 MB game-ready file, and the shell preloads it once. After the first playtest the tiger went to full size, the player got a pill-shaped hitbox to match its long body, and the top speed dropped from 7 to 4 m/s. In the end the tiger moves and paths as one circle, League-style, and its pill shape waits for hits in 2.4. A "hitboxes (no models)" switch in the pane shows the grey-box collider, and the new `footprint` debug category outlines the circle and the pill.
 
 ## Key decisions
 
@@ -14,8 +14,8 @@ The grey-box capsule became a tiger, standing in for the Cat form until the art 
 - **Check the animations before committing to a model.** We picked a black panther for its looks. Reading its one 16.5 s clip frame by frame, and tracking each foot through the skeleton, showed each foot stepping only once or twice: an idle, a few shuffling steps, a crouch and a step back. There was no gait to loop, so we switched to a tiger with real walk, trot and gallop cycles.
 - **Sample the clips ourselves.** Babylon's animation groups advance on wall-clock time. Evaluating the clips by hand on `viewTime()` (the sim time the view shows, new on the scene context) freezes on pause, steps with a frame step and follows replay seeks, and made a shared stride phase across gaits easy.
 - **Built offline, committed as output.** `pnpm models:build` renames the clips, adds a held idle pose, drops a zero specular that made the fur look dead, converts the textures to WebP and quantizes the geometry: 12 MB became 1.8 MB. The original stays out of the repo and is credited in CREDITS.md.
-- **Scale to the footprint, then the footprint to the body.** We first drew the tiger at half size over the old 0.4 m circle to keep the simulation untouched. The playtest wanted it twice as big, and a 2 m cat can't be a circle, so the footprint became data: a radius (half the width) and a length. At most twice the radius it's a circle, so the human and the other forms can bring their own. Collision treats the pill as a row of overlapping circles along the spine, so the swept-circle code from 1.3 carries over unchanged.
-- **A long body has to fit its turns.** Turning swings the nose and tail, so locomotion only turns as far as the body fits: an end that swings into a wall pushes the body aside, and between two walls it turns halfway or not at all. Pathing still plans for the width.
+- **Scale to the footprint, then the footprint to the body (later undone, see below).** We first drew the tiger at half size over the old 0.4 m circle to keep the simulation untouched. The playtest wanted it twice as big, and a 2 m cat can't be a circle, so the footprint became data: a radius (half the width) and a length. At most twice the radius it's a circle, so the human and the other forms can bring their own. Collision treats the pill as a row of overlapping circles along the spine, so the swept-circle code from 1.3 carries over unchanged.
+- **A long body has to fit its turns (also undone).** Turning swings the nose and tail, so locomotion only turns as far as the body fits: an end that swings into a wall pushes the body aside, and between two walls it turns halfway or not at all. Pathing still plans for the width.
 
 ## Surprises & problems
 
@@ -28,6 +28,8 @@ The grey-box capsule became a tiger, standing in for the Cat form until the art 
 
 - **Two playtest bugs, caught on recordings.** Sliding along a wall with WASD, the long body turned its nose into the wall, got pushed off it and drifted back every three ticks: the facing now follows where the body actually went, and a moving body only turns as far as it fits. On right-click paths it got stuck at the end of a wall, once because a push-out left it exactly touching (rounding did the rest) and once because its nose caught under the wall where it could neither move nor turn: push-outs leave a skin now, and a blocked body may push itself clear to turn toward where it wants to go. Both recordings became regression tests that check the behaviour, not just the numbers.
 - **More League.** A second round of playtest notes made turning near instant (1800°/s), added `M` to switch control schemes, and gave the right-click scheme League's camera: the cursor locked in the window, the camera panning at the screen edges, Space to center it.
+
+- **Then we put the pill back where it belongs.** A third recording showed the tiger walking round wall ends tail first and stalling on the corner. Pathing planned for the body's width, and a 2 m body can't swing round the corners those paths hug. Looking at how others do it settled it: League and Dota move every unit as one circle whatever its model, and action games keep body-shaped capsules for damage. The tiger now moves and paths as a 0.4 m circle and turns freely, and the pill waits for hits in 2.4. We spent a day learning why the genre does it that way.
 
 ## Media
 
@@ -43,9 +45,9 @@ With the stand-in threats, in color and in the value view: the tiger stays the b
 
 ![The tiger next to the stand-in telegraphs, in color and in greyscale](04-value-view.png)
 
-The pill footprint under the tiger and the grey-box body the "placeholder body" switch shows instead. The tiger looks shifted up the screen only because its body is up to a meter off the ground; its hind feet are in the pill's back cap.
+The `footprint` debug category under the tiger: the 0.4 m circle it moves and paths as (yellow, with its facing) and its body's pill, kept for hits (red). The tiger looks shifted up the screen only because its body is up to a meter off the ground.
 
-![The tiger and the grey-box pill over the same footprint](05-footprint.png)
+![The movement circle and the body pill under the tiger](05-footprint.png)
 
 Why the panther didn't make it: one clip, and frame by frame it's an idle, a few shuffling steps, a crouch and a step back.
 

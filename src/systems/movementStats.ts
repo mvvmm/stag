@@ -13,11 +13,14 @@ export const PLAYER = defineTunables("player", {
   turnAccel: { value: 90, min: 1, max: 1000, step: 1 },
   /** How fast the facing turns toward the movement direction, degrees per second. */
   turnRate: { value: 1800, min: 90, max: 3600, step: 10 },
-  /** Footprint half-width, m (collision and pathing). */
-  radius: { value: 0.28, min: 0.1, max: 0.8, step: 0.01 },
-  /** Footprint length, nose to tail end, m: a pill along the facing (the Cat's long body). At most
-   * 2 × radius it's a circle. */
-  length: { value: 1.9, min: 0, max: 4, step: 0.05 },
+  /** Movement and pathing radius, m: one circle whatever the body's shape (like League's pathing
+   * radius), so every path fits the body that follows it and the facing turns freely. */
+  radius: { value: 0.4, min: 0.1, max: 0.8, step: 0.01 },
+  /** The body's own shape, for hits (2.4): half its width, m. */
+  bodyRadius: { value: 0.28, min: 0.1, max: 0.8, step: 0.01 },
+  /** The body's length nose to rump, m: a pill along the facing (at most 2 × `bodyRadius`, a
+   * circle). */
+  bodyLength: { value: 1.9, min: 0, max: 4, step: 0.05 },
 });
 
 export type MovementStats = {
@@ -27,10 +30,8 @@ export type MovementStats = {
   turnAccel: number;
   /** Radians per second. */
   turnRate: number;
-  /** Footprint half-width, m. */
+  /** Movement and pathing radius, m. */
   radius: number;
-  /** Footprint length, m (at most 2 × radius: a circle). */
-  length: number;
 };
 
 /**
@@ -45,6 +46,5 @@ export function movementStats(_entity: Entity): MovementStats {
     turnAccel: PLAYER.turnAccel,
     turnRate: (PLAYER.turnRate * Math.PI) / 180,
     radius: PLAYER.radius,
-    length: PLAYER.length,
   };
 }
