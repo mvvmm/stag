@@ -53,7 +53,7 @@ export function createPane(tools: DevTools) {
     return result;
   };
 
-  // --- Loop ------------------------------------------------------------------------------------
+  // --- Live values -----------------------------------------------------------------------------
 
   const view = {
     get paused() {
@@ -293,12 +293,12 @@ export function createPane(tools: DevTools) {
   };
   syncReplay();
 
-  // --- Loop ------------------------------------------------------------------------------------
+  // --- Time ------------------------------------------------------------------------------------
 
-  const loopFolder = folder(pane, "Loop", "Loop");
-  loopFolder.addBinding(view, "paused");
-  loopFolder.addButton({ title: "Step one tick" }).on("click", () => tools.step());
-  loopFolder.addBinding(
+  const timeFolder = folder(pane, "Time", "Time");
+  timeFolder.addBinding(view, "paused");
+  timeFolder.addButton({ title: "Step one tick" }).on("click", () => tools.step());
+  timeFolder.addBinding(
     {
       get tick() {
         return shell.loop.tickCount;
@@ -307,10 +307,21 @@ export function createPane(tools: DevTools) {
     "tick",
     { readonly: true, format: (v: number) => v.toFixed(0) },
   );
-  loopFolder.addBinding(view, "timeScale", { label: "time scale", min: 0.05, max: 2, step: 0.05 });
-  loopFolder.addBinding(view, "interpolate");
-  loopFolder.addBinding(view, "preset", { options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" } });
+  timeFolder.addBinding(view, "timeScale", { label: "time scale", min: 0.05, max: 2, step: 0.05 });
+  timeFolder.addBinding(view, "interpolate");
 
+  // --- Gameplay --------------------------------------------------------------------------------
+
+  // How the game plays (controls now; cheats like infinite health later).
+  const gameplayFolder = folder(pane, "Gameplay", "Gameplay");
+  gameplayFolder.addBinding(view, "preset", {
+    label: "controls",
+    options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" },
+  });
+
+  // --- View ------------------------------------------------------------------------------------
+
+  // Everything that paints on the screen: stats, overlays, cameras and debug draw.
   const viewFolder = folder(pane, "View", "View");
   viewFolder.addBinding(view, "stats", {
     options: Object.fromEntries(STATS_MODES.map((mode) => [mode, mode])),
@@ -329,6 +340,24 @@ export function createPane(tools: DevTools) {
       disabled: !tools.inspector.available,
     })
     .on("click", () => void tools.toggleInspector());
+
+  const drawFolder = folder(viewFolder, "Debug draw", "View/Debug draw");
+  drawFolder.addBinding(view, "draw", { label: "enabled" });
+  const categoryViews = new Map<string, { shown: boolean }>();
+  /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
+  const syncCategories = () => {
+    for (const [category, shown] of debugDraw.categories) {
+      if (categoryViews.has(category)) continue;
+      const categoryView = { shown };
+      categoryViews.set(category, categoryView);
+      drawFolder
+        .addBinding(categoryView, "shown", { label: category })
+        .on("change", (event) => tools.setCategory(category, event.value));
+    }
+    for (const [category, categoryView] of categoryViews) {
+      categoryView.shown = debugDraw.categories.get(category) ?? true;
+    }
+  };
 
   // --- Entity ----------------------------------------------------------------------------------
 
@@ -392,26 +421,6 @@ export function createPane(tools: DevTools) {
   const syncEntity = () => {
     syncEntityList();
     entityPane.sync(visible && !tools.inspector.open);
-  };
-
-  // --- Debug draw ------------------------------------------------------------------------------
-
-  const drawFolder = folder(pane, "Debug draw", "Debug draw");
-  drawFolder.addBinding(view, "draw", { label: "enabled" });
-  const categoryViews = new Map<string, { shown: boolean }>();
-  /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
-  const syncCategories = () => {
-    for (const [category, shown] of debugDraw.categories) {
-      if (categoryViews.has(category)) continue;
-      const categoryView = { shown };
-      categoryViews.set(category, categoryView);
-      drawFolder
-        .addBinding(categoryView, "shown", { label: category })
-        .on("change", (event) => tools.setCategory(category, event.value));
-    }
-    for (const [category, categoryView] of categoryViews) {
-      categoryView.shown = debugDraw.categories.get(category) ?? true;
-    }
   };
 
   // --- Tunables --------------------------------------------------------------------------------
