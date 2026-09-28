@@ -123,6 +123,24 @@ export function createPane(tools: DevTools) {
     set wireframe(v: boolean) {
       tools.setWireframe(v);
     },
+    get atmosphere() {
+      return shell.atmosphere.view.enabled;
+    },
+    set atmosphere(v: boolean) {
+      tools.setAtmosphere(v);
+    },
+    get valueView() {
+      return shell.atmosphere.view.valueView;
+    },
+    set valueView(v: boolean) {
+      tools.setValueView(v);
+    },
+    get standIns() {
+      return tools.standIns.on;
+    },
+    set standIns(v: boolean) {
+      tools.setStandIns(v);
+    },
     get freeCamera() {
       return tools.freeCamera.active;
     },
@@ -377,6 +395,9 @@ export function createPane(tools: DevTools) {
   });
   viewFolder.addBinding(view, "inputOverlay", { label: "input overlay" });
   viewFolder.addBinding(view, "wireframe");
+  viewFolder.addBinding(view, "atmosphere");
+  viewFolder.addBinding(view, "valueView", { label: "value view" });
+  viewFolder.addBinding(view, "standIns", { label: "stand-in threats" });
   const freeCameraBinding = viewFolder.addBinding(view, "freeCamera", { label: "free camera" });
   const freeCameraLabel = freeCameraBinding.element.querySelector(".tp-lblv_l");
   if (freeCameraLabel instanceof HTMLElement) {
@@ -517,13 +538,15 @@ export function createPane(tools: DevTools) {
         const params =
           "options" in spec
             ? { options: Object.fromEntries(spec.options.map((option) => [option, option])) }
-            : typeof spec.value === "number"
-              ? {
-                  min: "min" in spec ? spec.min : undefined,
-                  max: "max" in spec ? spec.max : undefined,
-                  step: "step" in spec ? spec.step : undefined,
-                }
-              : {};
+            : "color" in spec
+              ? { view: "color" }
+              : typeof spec.value === "number"
+                ? {
+                    min: "min" in spec ? spec.min : undefined,
+                    max: "max" in spec ? spec.max : undefined,
+                    step: "step" in spec ? spec.step : undefined,
+                  }
+                : {};
         const api = groupFolder.addBinding(proxy, tunable.key, params);
         // Double-click a label to reset that one value.
         const label = api.element.querySelector(".tp-lblv_l");

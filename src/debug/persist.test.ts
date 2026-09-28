@@ -18,6 +18,9 @@ describe("parseDebugSettings", () => {
       draw: { categories: { pawn: false } },
       wireframe: true,
       inputOverlay: false,
+      atmosphere: false,
+      valueView: true,
+      standIns: true,
       tunables: { "pawn.speed": 7.5 },
       scene: "stress",
     };
@@ -29,6 +32,7 @@ describe("parseDebugSettings", () => {
       JSON.stringify({
         v: 1,
         inputOverlay: "yes",
+        atmosphere: 0,
         stats: "huge",
         paneFolders: { a: true, b: 3 },
         draw: { enabled: true, categories: "x" },

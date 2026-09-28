@@ -1,7 +1,8 @@
-import { Color3, type Mesh, MeshBuilder, type Scene, StandardMaterial } from "@babylonjs/core";
+import { Color3, type Mesh, MeshBuilder, type Scene } from "@babylonjs/core";
 import type { World } from "miniplex";
 import { lerp, lerpAngle } from "@/core/math";
 import type { Entity } from "@/ecs/world";
+import { greyboxMaterial } from "@/render/materials";
 
 /**
  * Mirrors ECS entities with a transform into Babylon meshes. Call `sync(alpha)` once per frame;
@@ -17,8 +18,7 @@ export function createMeshSync(world: World<Entity>, scene: Scene) {
   const bound = new Set<Mesh>();
   const renderable = world.with("transform");
 
-  const material = new StandardMaterial("box", scene);
-  material.diffuseColor = new Color3(0.5, 0.64, 0.42);
+  const material = greyboxMaterial("box", scene, new Color3(0.5, 0.64, 0.42));
 
   const addMesh = (entity: Entity) => {
     const mesh = MeshBuilder.CreateBox("box", { width: 0.6, height: 0.6, depth: 1.2 }, scene);

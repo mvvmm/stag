@@ -2,8 +2,6 @@ import {
   type AbstractEngine,
   type Camera,
   Color4,
-  DirectionalLight,
-  HemisphericLight,
   Scene,
   UniversalCamera,
   Vector3,
@@ -54,18 +52,13 @@ export function updateCamera(camera: Camera, target: Vec3): void {
   if (camera instanceof UniversalCamera) camera.setTarget(lookAt.set(target.x, target.y, target.z));
 }
 
-/** Scene, angled top-down camera and lights. Scenes add their own ground. */
+/** Scene and angled top-down camera. The atmosphere rig adds lights; scenes add their own ground. */
 export function createScene(engine: AbstractEngine): Scene {
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.03, 0.03, 0.04, 1);
 
   const camera = new UniversalCamera("camera", Vector3.Zero(), scene);
   updateCamera(camera, Vector3.Zero());
-
-  const ambient = new HemisphericLight("ambient", new Vector3(0, 1, 0), scene);
-  ambient.intensity = 0.35;
-  const sun = new DirectionalLight("sun", new Vector3(-1, -2, 1), scene);
-  sun.intensity = 0.9;
 
   return scene;
 }

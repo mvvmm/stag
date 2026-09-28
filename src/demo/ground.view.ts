@@ -1,11 +1,10 @@
-import { Color3, MeshBuilder, StandardMaterial } from "@babylonjs/core";
+import { Color3, MeshBuilder } from "@babylonjs/core";
+import { greyboxMaterial } from "@/render/materials";
 import type { SceneContext } from "@/scenes/scene";
 
 /** The plain 20×20 ground the demo scenes stand on (the arena builds its own floor). */
 export function addDemoGround(ctx: SceneContext): void {
   const ground = ctx.own(MeshBuilder.CreateGround("ground", { width: 20, height: 20 }, ctx.scene));
-  const material = ctx.own(new StandardMaterial("ground", ctx.scene));
-  material.diffuseColor = new Color3(0.12, 0.13, 0.12);
-  material.specularColor = Color3.Black();
-  ground.material = material;
+  ground.material = ctx.own(greyboxMaterial("ground", ctx.scene, new Color3(0.2, 0.21, 0.2)));
+  ground.receiveShadows = true;
 }

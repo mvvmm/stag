@@ -14,6 +14,7 @@ import type { InputFrame, ShellFrame } from "@/input/actions";
 import { attachInputDom, loadPreset } from "@/input/dom";
 import { createInputState, type InputState } from "@/input/state";
 import { cameraYaw, createGroundAim } from "@/render/aim";
+import { type Atmosphere, createAtmosphere } from "@/render/atmosphere";
 import { clampToRect, createCameraRig, lookAheadOffset, type Rect } from "@/render/cameraRig";
 import { createEngine, fitCanvas } from "@/render/engine";
 import { createMeshSync } from "@/render/meshSync";
@@ -52,6 +53,8 @@ export type Shell = {
   scene: Scene;
   /** The camera the game aims and moves with (a debug camera may be rendering instead). */
   gameCamera: Camera;
+  /** Lights, shadows, fog and post-processing, shared by every scene; and the overlay scene. */
+  atmosphere: Atmosphere;
   input: InputState;
   /** The running scene and its seed; null before the first load. */
   readonly current: LoadedScene | null;
@@ -162,6 +165,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   const scene = createScene(engine);
   const camera = scene.activeCamera;
   if (!camera) throw new Error("scene has no camera");
+  // Before mesh sync builds its material, so the rig's material plugins apply to it.
+  const atmosphere = createAtmosphere(scene, camera);
   let meshSync = createMeshSync(world, scene);
   const dom = attachInputDom(input, canvas);
   const groundAim = createGroundAim(scene);
@@ -212,6 +217,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     cameraTarget = () => ORIGIN;
     cameraBounds = null;
     cameraRig.snap();
+    atmosphere.reset();
 
     const disposer = createDisposer();
     const loaded = { def, seed, disposer };
@@ -231,6 +237,9 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       setCameraBounds: (bounds) => {
         cameraBounds = bounds;
       },
+      overlay: atmosphere.overlay,
+      setShadowCasters: atmosphere.setShadowCasters,
+      setLightTarget: atmosphere.setLightTarget,
       own: disposer.own,
       onDispose: disposer.add,
       onTick: (listener) => disposer.add(listen(tickListeners, listener)),
@@ -294,6 +303,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     time("meshSync", () => meshSync.sync(settings.interpolate ? alpha : 1));
     // After mesh sync, so it follows an interpolated mesh without a frame of lag.
     placeCamera(frameSeconds, pointer);
+    atmosphere.update(frameSeconds);
     for (const phase of renderPhases) time(phase.name, phase.run);
     time("render", () => scene.render());
     debugDraw.endFrame();
@@ -399,6 +409,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     engine,
     scene,
     gameCamera: camera,
+    atmosphere,
     input,
     get current() {
       return current && { def: current.def, seed: current.seed };

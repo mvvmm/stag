@@ -1,4 +1,4 @@
-import type { Camera, Mesh, Scene } from "@babylonjs/core";
+import type { AbstractMesh, Camera, Mesh, Scene } from "@babylonjs/core";
 import type { World } from "miniplex";
 import type { Disposable } from "@/core/disposer";
 import type { Entity, Vec3 } from "@/ecs/world";
@@ -50,6 +50,22 @@ export type SceneContext = {
    * tunable), or null for none (the default).
    */
   setCameraBounds(bounds: Rect | null): void;
+  /**
+   * A scene drawn on top of the game after post-processing, through the same camera: for markers
+   * that must keep their true colors (no lighting, fog, grading or bloom). Meshes built in it are
+   * still owned with `own`.
+   */
+  readonly overlay: Scene;
+  /**
+   * The meshes that cast moon shadows (children included); the shadow frustum is fit to their
+   * bounds once, so include the room's walls. Receivers set `receiveShadows` themselves.
+   */
+  setShadowCasters(meshes: readonly AbstractMesh[]): void;
+  /**
+   * What the player's warm light hangs over, read every frame. Without one there's no such light.
+   * `exclude` lists meshes it doesn't light (children included), e.g. the body right under it.
+   */
+  setLightTarget(target: () => Vec3, options?: { exclude?: readonly AbstractMesh[] }): void;
   /** Disposes `thing` (a mesh, material, …) at teardown and returns it. */
   own<T extends Disposable>(thing: T): T;
   /** Runs `cleanup` at teardown. */
