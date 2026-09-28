@@ -9,10 +9,12 @@ import {
 } from "@/data/rooms/room";
 import type { Entity } from "@/ecs/world";
 import { type NavGraph, navGraphOf } from "@/nav/graph";
+import { bodyView } from "@/render/bodyView";
 import { createClickMarker } from "@/render/clickMarker";
 import { createFloorMaterial } from "@/render/floorMaterial";
 import { greyboxMaterial } from "@/render/materials";
 import { createOcclusionFader } from "@/render/occlusion";
+import { createTiger } from "@/render/tiger";
 import { arenaSim, gymSim } from "@/scenes/arena";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
 import type { SceneSim } from "@/scenes/sim";
@@ -88,15 +90,37 @@ function setup(ctx: SceneContext): void {
     obstacleMeshes.push(mesh);
   }
 
-  const playerMesh = ctx.own(playerBody(ctx));
+  // The player's body: the tiger (1.6), or the grey-box capsule (the pane's "placeholder body", or
+  // if the model didn't load). The capsule hangs under the tiger's root, so either one follows it.
+  const tiger = createTiger(scene);
+  const capsule = ctx.own(playerBody(ctx));
+  const playerMesh = tiger ? tiger.root : capsule;
+  if (tiger) {
+    ctx.onDispose(() => {
+      // The capsule is owned (and disposed) on its own.
+      capsule.parent = null;
+      tiger.dispose();
+    });
+    capsule.parent = tiger.root;
+    ctx.onTick((input) => tiger.tick(player, input));
+  }
+  const showBody = () => {
+    const useCapsule = !tiger || bodyView.capsule;
+    capsule.setEnabled(useCapsule);
+    for (const node of tiger?.root.getChildren() ?? []) {
+      if (node !== capsule) node.setEnabled(!useCapsule);
+    }
+  };
+  showBody();
   ctx.bindMesh(player, playerMesh);
   ctx.setShadowCasters([...obstacleMeshes, playerMesh]);
 
   // The camera looks at the ground under the player's interpolated mesh.
   const focus = () => ({ x: playerMesh.position.x, y: 0, z: playerMesh.position.z });
   ctx.setCameraTarget(focus);
-  // The player light lights the world around the player, not its own body (blown out that close).
-  ctx.setLightTarget(focus, { exclude: [playerMesh] });
+  // The player light lights the world around the player, not the capsule (blown out that close);
+  // the tiger is low enough under it to take its warm light.
+  ctx.setLightTarget(focus, { exclude: [capsule] });
   // The room is centered on the origin; the camera's look-at point stays inside it.
   ctx.setCameraBounds({
     minX: -room.width / 2,
@@ -110,6 +134,8 @@ function setup(ctx: SceneContext): void {
   ctx.onDispose(() => marker.dispose());
   let orders = player.player.orders;
   ctx.onBeforeRender(() => {
+    showBody();
+    tiger?.update(ctx.viewTime());
     const seconds = scene.getEngine().getDeltaTime() / 1000;
     fader.update(seconds);
     // A new click: pop the marker where its path ends (or where the player already stands).
@@ -128,6 +154,19 @@ function setup(ctx: SceneContext): void {
       if (shape.kind === "circle") debugDraw.circle(shape, shape.r, options);
       else debugDraw.path(boxCorners(shape), { ...options, closed: true });
     }
+    // The player's collision circle and facing, to compare with the body.
+    const footprint = { color: "yellow", category: "footprint" } as const;
+    const at = player.transform.position;
+    const facing = player.transform.rotation.y;
+    debugDraw.circle(at, PLAYER.radius, footprint);
+    debugDraw.arrow(
+      at,
+      {
+        x: at.x + Math.sin(facing) * PLAYER.radius * 1.6,
+        z: at.z + Math.cos(facing) * PLAYER.radius * 1.6,
+      },
+      footprint,
+    );
     const nav = navGraphOf(world, PLAYER.radius);
     if (nav) drawNavGraph(nav);
   });

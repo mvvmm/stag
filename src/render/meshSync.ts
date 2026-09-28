@@ -1,4 +1,4 @@
-import { Color3, type Mesh, MeshBuilder, type Scene } from "@babylonjs/core";
+import { Color3, type Mesh, MeshBuilder, type Node, type Scene } from "@babylonjs/core";
 import type { World } from "miniplex";
 import { lerp, lerpAngle } from "@/core/math";
 import type { Entity } from "@/ecs/world";
@@ -61,9 +61,16 @@ export function createMeshSync(world: World<Entity>, scene: Scene) {
       bound.add(mesh);
     },
 
-    /** The entity a mesh mirrors, if it's one of ours (e.g. for picking). */
+    /**
+     * The entity a mesh mirrors, if it's one of ours or a descendant of one (e.g. for picking a
+     * part of a model hanging under a bound mesh).
+     */
     entityOf(mesh: Mesh): Entity | undefined {
-      return entities.get(mesh);
+      for (let node: Node | null = mesh; node; node = node.parent) {
+        const entity = entities.get(node as Mesh);
+        if (entity) return entity;
+      }
+      return undefined;
     },
 
     sync(alpha: number) {

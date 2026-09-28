@@ -19,6 +19,8 @@ export type DebugSettings = {
   valueView: boolean;
   /** View-only stand-in threats in room scenes, to judge readability. */
   standIns: boolean;
+  /** The grey-box capsule instead of the player's model. */
+  placeholderBody: boolean;
   /** Tunable overrides by id (`player.speed`). */
   tunables: Record<string, unknown>;
   /** The scene that was running last (reloads return to it). */
@@ -38,6 +40,7 @@ export function defaultDebugSettings(): DebugSettings {
     atmosphere: true,
     valueView: false,
     standIns: false,
+    placeholderBody: false,
     tunables: {},
   };
 }
@@ -82,6 +85,7 @@ export function parseDebugSettings(raw: string | null): DebugSettings {
     atmosphere: bool(data.atmosphere, defaults.atmosphere),
     valueView: bool(data.valueView, defaults.valueView),
     standIns: bool(data.standIns, defaults.standIns),
+    placeholderBody: bool(data.placeholderBody, defaults.placeholderBody),
     tunables: isObject(data.tunables) ? data.tunables : {},
     ...(typeof data.scene === "string" && data.scene ? { scene: data.scene } : {}),
   };

@@ -11,6 +11,7 @@ import { STATS_MODES } from "@/debug/persist";
 import { listFixtures } from "@/debug/replay/files";
 import { parseSeed } from "@/debug/startup";
 import type { Entity } from "@/ecs/world";
+import { bodyView } from "@/render/bodyView";
 
 const REFRESH_INTERVAL = 250;
 /** The speed graph samples every tick-ish and shows the last 3 s. */
@@ -140,6 +141,12 @@ export function createPane(tools: DevTools) {
     },
     set standIns(v: boolean) {
       tools.setStandIns(v);
+    },
+    get placeholderBody() {
+      return bodyView.capsule;
+    },
+    set placeholderBody(v: boolean) {
+      tools.setPlaceholderBody(v);
     },
     get freeCamera() {
       return tools.freeCamera.active;
@@ -398,6 +405,7 @@ export function createPane(tools: DevTools) {
   viewFolder.addBinding(view, "atmosphere");
   viewFolder.addBinding(view, "valueView", { label: "value view" });
   viewFolder.addBinding(view, "standIns", { label: "stand-in threats" });
+  viewFolder.addBinding(view, "placeholderBody", { label: "placeholder body" });
   const freeCameraBinding = viewFolder.addBinding(view, "freeCamera", { label: "free camera" });
   const freeCameraLabel = freeCameraBinding.element.querySelector(".tp-lblv_l");
   if (freeCameraLabel instanceof HTMLElement) {

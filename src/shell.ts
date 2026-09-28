@@ -18,6 +18,7 @@ import { type Atmosphere, createAtmosphere } from "@/render/atmosphere";
 import { clampToRect, createCameraRig, lookAheadOffset, type Rect } from "@/render/cameraRig";
 import { createEngine, fitCanvas } from "@/render/engine";
 import { createMeshSync } from "@/render/meshSync";
+import { preloadModels } from "@/render/models";
 import { CAMERA, createScene, updateCamera } from "@/render/scene";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
 import { createSimulation } from "@/systems/simulation";
@@ -168,6 +169,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   // Before mesh sync builds its material, so the rig's material plugins apply to it.
   const atmosphere = createAtmosphere(scene, camera);
   let meshSync = createMeshSync(world, scene);
+  // After the rig too (its plugins apply to the models' materials), before the first scene.
+  await preloadModels(scene);
   const dom = attachInputDom(input, canvas);
   const groundAim = createGroundAim(scene);
 
@@ -237,6 +240,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       setCameraBounds: (bounds) => {
         cameraBounds = bounds;
       },
+      viewTime: () => (loop.tickCount - 1 + (settings.interpolate ? loop.alpha : 1)) / TICK_HZ,
       overlay: atmosphere.overlay,
       setShadowCasters: atmosphere.setShadowCasters,
       setLightTarget: atmosphere.setLightTarget,
