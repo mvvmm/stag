@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
-import { inputTestSim } from "@/demo/inputTest";
+import { greyboxRoom } from "@/data/rooms/greybox";
 import { createWorld } from "@/ecs/world";
 import { type Action, emptyInputFrame, type InputFrame } from "@/input/actions";
 import { quantize } from "@/input/quantize";
@@ -14,9 +14,10 @@ import { runReplay } from "@/replay/headless";
 import { createPlayer } from "@/replay/player";
 import { createRecorder, recorderFromReplay } from "@/replay/recorder";
 import { snapshotWorld } from "@/replay/snapshot";
+import { arenaSim } from "@/scenes/arena";
 import type { SceneSim } from "@/scenes/sim";
 import { sims } from "@/scenes/sims";
-import { PAWN } from "@/systems/pawn";
+import { PLAYER } from "@/systems/movementStats";
 import { createSimulation, type System } from "@/systems/simulation";
 
 const HZ = 60;
@@ -55,17 +56,22 @@ function record(
 
 const pressed = (...actions: Action[]) => new Set<Action>(actions);
 
+/** The player's index in `world.entities`: after the room and its obstacles. */
+const PLAYER_ENTITY = 1 + greyboxRoom.obstacles.length;
+
 /** WASD for a second, a click-to-move, a speed change, a pane edit, a stop. */
 const session = (tick: number): Step => {
   const aim = { x: quantize(Math.sin(tick / 10) * 4), z: quantize(Math.cos(tick / 13) * 3) };
   if (tick < 60) return { input: { move: { x: quantize(0.6), z: quantize(-0.8) }, aim } };
   if (tick === 70) return { input: { moveCommand: { x: 5, z: 2 }, aim } };
   if (tick === 90)
-    return { input: { aim }, events: [{ kind: "tunable", id: "pawn.speed", value: 11 }] };
+    return { input: { aim }, events: [{ kind: "tunable", id: "player.speed", value: 11 }] };
   if (tick === 130) {
     return {
       input: { aim },
-      events: [{ kind: "edit", entity: 5, path: ["transform", "position", "x"], value: -3 }],
+      events: [
+        { kind: "edit", entity: PLAYER_ENTITY, path: ["transform", "position", "x"], value: -3 },
+      ],
     };
   }
   if (tick === 150) return { input: { aim, pressed: pressed("stop"), held: pressed("stop") } };
@@ -75,8 +81,8 @@ const session = (tick: number): Step => {
 afterEach(() => tuning.reset());
 
 describe("record → replay (headless)", () => {
-  it("replays a scripted input-test session in sync at every checkpoint", () => {
-    const file = record(inputTestSim, 1234, 200, session);
+  it("replays a scripted arena session in sync at every checkpoint", () => {
+    const file = record(arenaSim, 1234, 200, session);
     expect(file.ticks).toBe(200);
     // Every 60 ticks, before each event tick (90, 130), and the end.
     expect(file.checksums.map((c) => c.tick)).toEqual([60, 90, 120, 130, 180, 200]);
@@ -86,38 +92,38 @@ describe("record → replay (headless)", () => {
   });
 
   it("survives saving as gzipped JSON", async () => {
-    const file = record(inputTestSim, 99, 200, session);
+    const file = record(arenaSim, 99, 200, session);
     const text = await readText(await gzip(JSON.stringify(file)));
     expect(runReplay(parseReplay(JSON.parse(text), HZ), sims).divergence).toBeNull();
   });
 
   it("puts the recorded tunables in place for the run and restores the game's after", () => {
-    const file = record(inputTestSim, 5, 120, session);
-    tuning.set("pawn.speed", 2);
+    const file = record(arenaSim, 5, 120, session);
+    tuning.set("player.speed", 2);
     expect(runReplay(file, sims).divergence).toBeNull();
-    expect(PAWN.speed).toBe(2);
+    expect(PLAYER.speed).toBe(2);
   });
 
   it("reports where and in what a nondeterministic system diverges", () => {
-    const file = record(inputTestSim, 7, 200, session);
+    const file = record(arenaSim, 7, 200, session);
     let ticks = 0;
     const flaky: System = (world) => {
       if (++ticks < 100) return;
-      for (const { transform } of world.with("pawn", "transform")) {
+      for (const { transform } of world.with("player", "transform")) {
         transform.position.x += Math.random() * 1e-9;
       }
     };
     const sim = {
-      ...inputTestSim,
-      systems: [...inputTestSim.systems, { name: "flaky", run: flaky }],
+      ...arenaSim,
+      systems: [...arenaSim.systems, { name: "flaky", run: flaky }],
     };
     const result = runReplay(file, { get: () => sim });
-    expect(result.divergence).toEqual({ tick: 120, diff: ["transform"] });
+    expect(result.divergence).toEqual({ tick: 120, diff: ["mover", "transform"] });
   });
 
   it("rewrites checkpoints at the standard ticks for replay:update", () => {
-    const file = record(inputTestSim, 3, 200, session);
-    const changed = { ...file, tunables: { ...file.tunables, "pawn.speed": 3 } };
+    const file = record(arenaSim, 3, 200, session);
+    const changed = { ...file, tunables: { ...file.tunables, "player.speed": 3 } };
     const stale = runReplay(changed, sims);
     expect(stale.divergence?.tick).toBe(60);
     const fresh = runReplay(changed, sims, { rewrite: true });
@@ -126,7 +132,7 @@ describe("record → replay (headless)", () => {
   });
 
   it("stops recording at the cap and still replays", () => {
-    const file = record(inputTestSim, 11, 150, session, 100);
+    const file = record(arenaSim, 11, 150, session, 100);
     expect(file.ticks).toBe(100);
     expect(file.checksums.at(-1)?.tick).toBe(100);
     expect(file.events.every((event) => event.tick < 100)).toBe(true);
@@ -134,14 +140,14 @@ describe("record → replay (headless)", () => {
   });
 
   it("continues a replay live after a take over", () => {
-    const original = record(inputTestSim, 21, 200, session);
+    const original = record(arenaSim, 21, 200, session);
     const takeOverAt = 100;
     // Play the replay like the browser does: player events + input, verifying checkpoints.
     tuning.apply(original.tunables);
     const world = createWorld();
     const rng = createRng(original.seed);
-    inputTestSim.spawn(world, rng);
-    const simulation = createSimulation(world, rng, inputTestSim.systems);
+    arenaSim.spawn(world, rng);
+    const simulation = createSimulation(world, rng, arenaSim.systems);
     const player = createPlayer(original);
     const fingerprints = [];
     while (player.position < takeOverAt) {
@@ -158,7 +164,12 @@ describe("record → replay (headless)", () => {
     const recorder = recorderFromReplay(original, takeOverAt, fingerprints);
     for (let tick = takeOverAt; tick < 160; tick++) {
       if (tick === 120) {
-        const edit = { kind: "edit" as const, entity: 5, path: ["pawn", "target"], value: null };
+        const edit = {
+          kind: "edit" as const,
+          entity: PLAYER_ENTITY,
+          path: ["player", "order"],
+          value: null,
+        };
         recorder.event(edit, world, rng);
         applyEvent(world, { ...edit, tick }, () => {});
       }
@@ -175,7 +186,7 @@ describe("record → replay (headless)", () => {
   });
 
   it("drops events after the last tick and fails headless on commands without a runner", () => {
-    const file = record(inputTestSim, 2, 30, (tick) =>
+    const file = record(arenaSim, 2, 30, (tick) =>
       tick === 10 ? { events: [{ kind: "command", id: "spawn.enemy" }] } : {},
     );
     expect(() => runReplay(file, sims)).toThrow('"spawn.enemy" can\'t run headless');
@@ -187,8 +198,8 @@ describe("record → replay (headless)", () => {
   it("records from the middle of a run and replays from its snapshot", async () => {
     const world = createWorld();
     const rng = createRng(31);
-    inputTestSim.spawn(world, rng);
-    const simulation = createSimulation(world, rng, inputTestSim.systems);
+    arenaSim.spawn(world, rng);
+    const simulation = createSimulation(world, rng, arenaSim.systems);
     const step = (tick: number) => {
       const { input, events = [] } = session(tick);
       for (const event of events) applyEvent(world, { ...event, tick } as never, () => {});
@@ -198,7 +209,7 @@ describe("record → replay (headless)", () => {
     for (let tick = 0; tick < 100; tick++) step(tick);
     const recorder = createRecorder(
       {
-        scene: inputTestSim.id,
+        scene: arenaSim.id,
         seed: 31,
         tunables: tunableValues(),
         start: snapshotWorld(world, rng, 100),
@@ -232,18 +243,18 @@ describe("record → replay (headless)", () => {
   });
 
   it("stops recording by hand and replays up to there", () => {
-    const recorder = createRecorder({ scene: inputTestSim.id, seed: 8, tunables: tunableValues() });
+    const recorder = createRecorder({ scene: arenaSim.id, seed: 8, tunables: tunableValues() });
     const world = createWorld();
     const rng = createRng(8);
-    inputTestSim.spawn(world, rng);
-    const simulation = createSimulation(world, rng, inputTestSim.systems);
+    arenaSim.spawn(world, rng);
+    const simulation = createSimulation(world, rng, arenaSim.systems);
     for (let tick = 0; tick < 150; tick++) {
       if (tick === 75) recorder.stop(world, rng);
       const frame = { ...emptyInputFrame(), move: { x: 1, z: 0 } };
       simulation.step(1 / HZ, frame);
       recorder.tick(frame, world, rng);
       if (tick === 100) {
-        expect(recorder.event({ kind: "tunable", id: "pawn.speed", value: 2 }, world, rng)).toBe(
+        expect(recorder.event({ kind: "tunable", id: "player.speed", value: 2 }, world, rng)).toBe(
           false,
         );
       }

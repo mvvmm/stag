@@ -34,7 +34,9 @@ export type SceneContext = {
   meshOf(entity: Entity): Mesh | undefined;
   /**
    * Links a mesh the scene built itself (e.g. a static obstacle) to its entity, so `meshOf` and
-   * picking know it. Dispose the mesh with `own` as usual; the link goes with the scene.
+   * picking know it. For an entity with a transform it replaces the placeholder box and follows the
+   * entity (so its origin is the entity's position). Dispose the mesh with `own` as usual; the link
+   * goes with the scene.
    */
   bindMesh(entity: Entity, mesh: Mesh): void;
   /**

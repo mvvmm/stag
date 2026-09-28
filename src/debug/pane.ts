@@ -13,6 +13,9 @@ import { parseSeed } from "@/debug/startup";
 import type { Entity } from "@/ecs/world";
 
 const REFRESH_INTERVAL = 250;
+/** The speed graph samples every tick-ish and shows the last 3 s. */
+const SPEED_INTERVAL = 1000 / TICK_HZ;
+const SPEED_SAMPLES = 3 * TICK_HZ;
 /** The entity dropdown lists at most this many entities; picking reaches the rest. */
 const MAX_LISTED = 200;
 const NONE = -1;
@@ -220,7 +223,6 @@ export function createPane(tools: DevTools) {
   const noticeBinding = replayFolder.addBinding(replayView, "notice", {
     readonly: true,
     multiline: true,
-    rows: 3,
   });
   const noticeText = noticeBinding.element.querySelector("textarea");
   if (noticeText) noticeText.style.whiteSpace = "pre-wrap";
@@ -333,6 +335,27 @@ export function createPane(tools: DevTools) {
   gameplayFolder.addBinding(view, "preset", {
     label: "controls",
     options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" },
+  });
+  // The player's speed over the last few seconds, to see the accel/decel ramps while tuning.
+  const playerSpeed = {
+    get speed() {
+      const velocity = shell.world.with("player", "mover").first?.mover.velocity;
+      return velocity ? Math.hypot(velocity.x, velocity.z) : 0;
+    },
+  };
+  gameplayFolder.addBinding(playerSpeed, "speed", {
+    readonly: true,
+    format: (v: number) => `${v.toFixed(2)} m/s`,
+    interval: SPEED_INTERVAL,
+  });
+  gameplayFolder.addBinding(playerSpeed, "speed", {
+    label: "",
+    readonly: true,
+    view: "graph",
+    min: 0,
+    max: 12,
+    interval: SPEED_INTERVAL,
+    bufferSize: SPEED_SAMPLES,
   });
 
   // --- View ------------------------------------------------------------------------------------

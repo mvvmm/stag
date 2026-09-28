@@ -5,7 +5,7 @@ import { createWorld } from "@/ecs/world";
 import { arenaSim } from "@/scenes/arena";
 
 describe("arena spawn", () => {
-  it("turns the room into a room entity, one obstacle entity each, and the pawn at the spawn", () => {
+  it("turns the room into a room entity, one obstacle entity each, and the player at the spawn", () => {
     const world = createWorld();
     arenaSim.spawn(world, createRng(1));
 
@@ -18,9 +18,11 @@ describe("arena spawn", () => {
     // Copies, so editing an entity never changes the room data.
     expect(obstacles[0]?.obstacle).not.toBe(greyboxRoom.obstacles[0]);
 
-    const pawns = [...world.with("pawn", "transform")];
-    expect(pawns).toHaveLength(1);
-    expect(pawns[0]?.transform.position).toMatchObject(greyboxRoom.spawn);
+    const players = [...world.with("player", "mover", "transform")];
+    expect(players).toHaveLength(1);
+    expect(players[0]?.transform.position).toEqual({ ...greyboxRoom.spawn, y: 0 });
+    expect(players[0]?.mover.velocity).toEqual({ x: 0, z: 0 });
+    expect(players[0]?.player).toEqual({ order: null, orders: 0, click: null });
   });
 
   it("spawns the same world regardless of the seed", () => {

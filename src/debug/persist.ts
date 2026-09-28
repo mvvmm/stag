@@ -13,7 +13,7 @@ export type DebugSettings = {
   wireframe: boolean;
   /** The live input overlay (actions, move mode and aim, in every scene). */
   inputOverlay: boolean;
-  /** Tunable overrides by id (`pawn.speed`). */
+  /** Tunable overrides by id (`player.speed`). */
   tunables: Record<string, unknown>;
   /** The scene that was running last (reloads return to it). */
   scene?: string;

@@ -39,7 +39,7 @@ export type InputStats = {
   flashing: Action[];
 };
 
-/** Written by the input test scene; null while no scene publishes input stats. */
+/** Written by the dev tools' input overlay; null while it's off. */
 export const inputStats = signal<InputStats | null>(null);
 
 /** Debug-tool state for the overlays; only written when the dev tools run. */

@@ -15,6 +15,7 @@ import { createFreeCamera } from "@/debug/freeCamera";
 import { attachInputOverlay } from "@/debug/inputOverlay";
 import { getPath, type Path } from "@/debug/inspect";
 import { createInspector } from "@/debug/inspector";
+import { defineMovementPresets } from "@/debug/movementPresets";
 import {
   type DebugSettings,
   loadDebugSettings,
@@ -478,6 +479,7 @@ export function startDevtools(shell: Shell) {
   for (const [id, label, run] of builtIns) {
     commands.define({ id, label, group: "Built-in", button: false, run });
   }
+  defineMovementPresets(commands);
 
   // --- Pane toggle (`), outside the game's input ----------------------------------------------
 

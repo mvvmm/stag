@@ -69,12 +69,13 @@ describe("dmath", () => {
 // --- Determinism guard ------------------------------------------------------------------------
 
 const SRC = fileURLToPath(new URL("..", import.meta.url));
-/** Simulation code: systems, ECS, content data, scene sims (demo files except views), pure math. */
+/** Simulation code: systems, ECS, content data, nav, scene sims (demo files except views), pure math. */
 const SIM_PATHS = [
   "systems",
   "ecs",
   "data",
   "demo",
+  "nav",
   "core/math.ts",
   "scenes/sim.ts",
   "scenes/sims.ts",

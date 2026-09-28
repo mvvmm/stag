@@ -83,7 +83,7 @@ export function formatValue(value: unknown): string {
   return text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT - 1)}…` : text;
 }
 
-/** `#5 pawn` or `#3 orbit`: the id and the components that say what the entity is. */
+/** `#17 mover player` or `#3 orbit`: the id and the components that say what the entity is. */
 export function entityLabel(id: number, entity: object): string {
   const keys = Object.keys(entity).filter(
     (key) => (entity as Record<string, unknown>)[key] !== undefined,
