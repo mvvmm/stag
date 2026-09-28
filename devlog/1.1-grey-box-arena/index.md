@@ -21,9 +21,12 @@ The game has its first real place to stand in. The arena is a 30×20 m grey-box 
 
 - **Outside looked like inside.** Once the camera followed the pawn to an edge, the grid past the walls looked like more room. The shader now knows the room's size and draws the floor outside darker, with only faint 5 m lines.
 - **Mesh sync would have boxed the walls.** It gives every entity with a `transform` the demo box. Obstacles never move, so they have no transform. Their footprint says where they are, and the scene links the meshes it builds itself (`ctx.bindMesh`) so picking still works.
+- **A key stuck down after touching a dropdown.** Playing with the pane open, D stayed held after it was released, and the replay showed it. On macOS a dropdown's list is a native menu that swallows every key event while it's open, so the keyup never arrived. Opening a dropdown now releases held keys. The same playtest reorganised the pane: Loop became Time, the control preset moved to a new Gameplay folder, and each debug-draw category became its own toggle under View. It also brought the input overlay back in every scene and stopped pane controls from holding on to the keyboard.
 - **4 m pillars towered.** With the perspective camera, pillars near the bottom of the screen leaned in and covered half the view, so they dropped to 3 m.
 
 ## Media
+
+[![Walking the arena on a 120 Hz display: the camera follows the pawn, a pillar fades while the pawn is behind it, and the east wall fades as the pawn walks through it (no collision until 1.3)](arena-walkthrough.jpg)](arena-walkthrough.mp4)
 
 ![From higher up with debug draw on: the green `obstacles` footprints (circles and rotated rectangles) sit exactly under every mesh, and the pawn's axes show +X east and +Z north](02-footprints.png)
 

@@ -11,7 +11,7 @@ export type DebugSettings = {
   /** Debug-draw categories by name, true when shown. */
   draw: { categories: Record<string, boolean> };
   wireframe: boolean;
-  /** The live input overlay (the input test's actions, move mode and aim). */
+  /** The live input overlay (actions, move mode and aim, in every scene). */
   inputOverlay: boolean;
   /** Tunable overrides by id (`pawn.speed`). */
   tunables: Record<string, unknown>;
