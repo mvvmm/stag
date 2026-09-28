@@ -17,6 +17,7 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 0.4.1 | [Scenes & reset](0.4.1-scenes-and-reset/index.md) | 2026-09-27 |
 | 0.4.2 | [Record & replay](0.4.2-record-and-replay/index.md) | 2026-09-27 |
 | 0.5 | [Repo & Cloudflare deploy](0.5-repo-and-cloudflare-deploy/index.md) | 2026-09-27 |
+| 1.1 | [Grey-box arena](1.1-grey-box-arena/index.md) | 2026-09-27 |
 
 ## Layout
 

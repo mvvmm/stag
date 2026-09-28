@@ -69,8 +69,17 @@ describe("dmath", () => {
 // --- Determinism guard ------------------------------------------------------------------------
 
 const SRC = fileURLToPath(new URL("..", import.meta.url));
-/** Simulation code: systems, ECS, scene sims (demo files except views), pure math. */
-const SIM_PATHS = ["systems", "ecs", "demo", "core/math.ts", "scenes/sim.ts", "scenes/sims.ts"];
+/** Simulation code: systems, ECS, content data, scene sims (demo files except views), pure math. */
+const SIM_PATHS = [
+  "systems",
+  "ecs",
+  "data",
+  "demo",
+  "core/math.ts",
+  "scenes/sim.ts",
+  "scenes/sims.ts",
+  "scenes/arena.ts",
+];
 const FORBIDDEN =
   /Math\.(random|sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh|atanh|exp|expm1|log|log1p|log2|log10|pow|cbrt|hypot)\b|[\w)\]]\s*\*\*\s*[\w(]/;
 

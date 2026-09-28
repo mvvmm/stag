@@ -15,7 +15,7 @@ describe("parseDebugSettings", () => {
       ...defaultDebugSettings(),
       paneFolders: { Debug: false, Tunables: true },
       stats: "full" as const,
-      draw: { enabled: true, categories: { pawn: false } },
+      draw: { categories: { pawn: false } },
       wireframe: true,
       inputOverlay: false,
       tunables: { "pawn.speed": 7.5 },
@@ -39,7 +39,7 @@ describe("parseDebugSettings", () => {
     expect(parsed).toEqual({
       ...defaultDebugSettings(),
       paneFolders: { a: true },
-      draw: { enabled: true, categories: {} },
+      draw: { categories: {} },
     });
   });
 });

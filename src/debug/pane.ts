@@ -20,7 +20,7 @@ const NONE = -1;
 /**
  * The debug pane (Tweakpane, loaded lazily), the one place every dev tool is controlled from:
  * scene switching, seed and restart, loop and view controls with frame step, the entity picker
- * (the selection's components get their own pane, see `entityPane.ts`), debug-draw categories, tunables with changed markers, resets
+ * (the selection's components get their own pane, see `entityPane.ts`), debug-draw category toggles (in View), tunables with changed markers, resets
  * and "copy changes", and a button for every command that asks for one. Always there in debug builds;
  * <kbd>`</kbd> hides and shows it. It's a debug view, so it reads and writes the tools directly
  * instead of going through UI signals.
@@ -32,6 +32,28 @@ export function createPane(tools: DevTools) {
     "position:absolute;top:16px;right:16px;width:300px;max-height:calc(100vh - 32px);" +
     "overflow-y:auto;pointer-events:auto;z-index:10";
   document.body.append(container);
+  // Hand the keyboard back to the game after using a control: a focused checkbox, button or
+  // dropdown would otherwise keep WASD (the input layer ignores keys aimed at form fields, and a
+  // focused dropdown would even pick options by letter). Text fields keep focus until Enter.
+  const isTextField = (el: Element | null) =>
+    el instanceof HTMLInputElement && !["checkbox", "button", "range"].includes(el.type);
+  const release = () => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && container.contains(el) && !isTextField(el)) el.blur();
+  };
+  container.addEventListener("click", (event) => {
+    // A dropdown blurs once it has a value (clicking it only opens it).
+    if (!(event.target instanceof HTMLSelectElement)) release();
+  });
+  container.addEventListener("change", (event) => {
+    if (event.target instanceof HTMLSelectElement) event.target.blur();
+  });
+  container.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && isTextField(event.target as Element)) {
+      // After Tweakpane has read the value.
+      setTimeout(() => (event.target as HTMLElement).blur());
+    }
+  });
   const pane = new Pane({
     container,
     title: `Debug · ${BUILD}`,
@@ -53,7 +75,7 @@ export function createPane(tools: DevTools) {
     return result;
   };
 
-  // --- Loop ------------------------------------------------------------------------------------
+  // --- Live values -----------------------------------------------------------------------------
 
   const view = {
     get paused() {
@@ -103,12 +125,6 @@ export function createPane(tools: DevTools) {
     },
     set freeCamera(v: boolean) {
       tools.setFreeCamera(v);
-    },
-    get draw() {
-      return debugDraw.enabled;
-    },
-    set draw(v: boolean) {
-      tools.setDraw(v);
     },
   };
 
@@ -293,12 +309,12 @@ export function createPane(tools: DevTools) {
   };
   syncReplay();
 
-  // --- Loop ------------------------------------------------------------------------------------
+  // --- Time ------------------------------------------------------------------------------------
 
-  const loopFolder = folder(pane, "Loop", "Loop");
-  loopFolder.addBinding(view, "paused");
-  loopFolder.addButton({ title: "Step one tick" }).on("click", () => tools.step());
-  loopFolder.addBinding(
+  const timeFolder = folder(pane, "Time", "Time");
+  timeFolder.addBinding(view, "paused");
+  timeFolder.addButton({ title: "Step one tick" }).on("click", () => tools.step());
+  timeFolder.addBinding(
     {
       get tick() {
         return shell.loop.tickCount;
@@ -307,10 +323,21 @@ export function createPane(tools: DevTools) {
     "tick",
     { readonly: true, format: (v: number) => v.toFixed(0) },
   );
-  loopFolder.addBinding(view, "timeScale", { label: "time scale", min: 0.05, max: 2, step: 0.05 });
-  loopFolder.addBinding(view, "interpolate");
-  loopFolder.addBinding(view, "preset", { options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" } });
+  timeFolder.addBinding(view, "timeScale", { label: "time scale", min: 0.05, max: 2, step: 0.05 });
+  timeFolder.addBinding(view, "interpolate");
 
+  // --- Gameplay --------------------------------------------------------------------------------
+
+  // How the game plays (controls now; cheats like infinite health later).
+  const gameplayFolder = folder(pane, "Gameplay", "Gameplay");
+  gameplayFolder.addBinding(view, "preset", {
+    label: "controls",
+    options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" },
+  });
+
+  // --- View ------------------------------------------------------------------------------------
+
+  // Everything that paints on the screen: stats, overlays, cameras and debug draw.
   const viewFolder = folder(pane, "View", "View");
   viewFolder.addBinding(view, "stats", {
     options: Object.fromEntries(STATS_MODES.map((mode) => [mode, mode])),
@@ -323,12 +350,33 @@ export function createPane(tools: DevTools) {
     freeCameraLabel.title =
       "Drag to orbit, right-drag to pan, wheel to zoom (mouse buttons skip the game)";
   }
+
+  // Debug-draw categories, one toggle each, between two separators (they appear as code first
+  // draws), then the Inspector at the bottom.
+  viewFolder.addBlade({ view: "separator" });
+  const inspectorSeparator = viewFolder.addBlade({ view: "separator" });
   viewFolder
     .addButton({
       title: tools.inspector.available ? "Babylon Inspector" : "Inspector (pnpm dev only)",
       disabled: !tools.inspector.available,
     })
     .on("click", () => void tools.toggleInspector());
+  const categoryViews = new Map<string, { shown: boolean }>();
+  /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
+  const syncCategories = () => {
+    for (const [category, shown] of debugDraw.categories) {
+      if (categoryViews.has(category)) continue;
+      const categoryView = { shown };
+      categoryViews.set(category, categoryView);
+      const index = viewFolder.children.indexOf(inspectorSeparator);
+      viewFolder
+        .addBinding(categoryView, "shown", { label: category, index })
+        .on("change", (event) => tools.setCategory(category, event.value));
+    }
+    for (const [category, categoryView] of categoryViews) {
+      categoryView.shown = debugDraw.categories.get(category) ?? true;
+    }
+  };
 
   // --- Entity ----------------------------------------------------------------------------------
 
@@ -392,26 +440,6 @@ export function createPane(tools: DevTools) {
   const syncEntity = () => {
     syncEntityList();
     entityPane.sync(visible && !tools.inspector.open);
-  };
-
-  // --- Debug draw ------------------------------------------------------------------------------
-
-  const drawFolder = folder(pane, "Debug draw", "Debug draw");
-  drawFolder.addBinding(view, "draw", { label: "enabled" });
-  const categoryViews = new Map<string, { shown: boolean }>();
-  /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
-  const syncCategories = () => {
-    for (const [category, shown] of debugDraw.categories) {
-      if (categoryViews.has(category)) continue;
-      const categoryView = { shown };
-      categoryViews.set(category, categoryView);
-      drawFolder
-        .addBinding(categoryView, "shown", { label: category })
-        .on("change", (event) => tools.setCategory(category, event.value));
-    }
-    for (const [category, categoryView] of categoryViews) {
-      categoryView.shown = debugDraw.categories.get(category) ?? true;
-    }
   };
 
   // --- Tunables --------------------------------------------------------------------------------

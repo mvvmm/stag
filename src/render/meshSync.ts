@@ -7,11 +7,13 @@ import type { Entity } from "@/ecs/world";
  * Mirrors ECS entities with a transform into Babylon meshes. Call `sync(alpha)` once per frame;
  * entities with a `prevTransform` are drawn `alpha` of the way from the previous tick to the
  * current one (pass 1 to show the latest tick as-is). One per world: `dispose()` removes every
- * mesh it made when the world is dropped (scene reset).
+ * mesh it made when the world is dropped (scene reset). Meshes a scene builds itself (static
+ * obstacles) can be `bind`-ed so `meshOf`/`entityOf` (picking) know them; their owner disposes them.
  */
 export function createMeshSync(world: World<Entity>, scene: Scene) {
   const meshes = new Map<Entity, Mesh>();
   const entities = new Map<Mesh, Entity>();
+  const bound = new Set<Mesh>();
   const renderable = world.with("transform");
 
   const material = new StandardMaterial("box", scene);
@@ -38,6 +40,13 @@ export function createMeshSync(world: World<Entity>, scene: Scene) {
     /** The mesh mirroring `entity`, if it has one (e.g. for demo tinting). */
     meshOf(entity: Entity): Mesh | undefined {
       return meshes.get(entity);
+    },
+
+    /** Links a mesh built elsewhere to its entity, for `meshOf`/`entityOf`. Not synced or disposed. */
+    bind(entity: Entity, mesh: Mesh): void {
+      meshes.set(entity, mesh);
+      entities.set(mesh, entity);
+      bound.add(mesh);
     },
 
     /** The entity a mesh mirrors, if it's one of ours (e.g. for picking). */
@@ -67,13 +76,14 @@ export function createMeshSync(world: World<Entity>, scene: Scene) {
       }
     },
 
-    /** Stops listening to the world and disposes every mesh (and the shared material). */
+    /** Stops listening to the world and disposes every mesh it made (and the shared material). */
     dispose(): void {
       offAdded();
       offRemoved();
-      for (const mesh of meshes.values()) mesh.dispose();
+      for (const mesh of meshes.values()) if (!bound.has(mesh)) mesh.dispose();
       meshes.clear();
       entities.clear();
+      bound.clear();
       material.dispose();
     },
   };

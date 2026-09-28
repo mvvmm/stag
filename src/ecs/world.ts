@@ -1,5 +1,6 @@
 import { World } from "miniplex";
 import type { Vec2 } from "@/core/math";
+import type { Obstacle } from "@/data/rooms/room";
 
 export type Vec3 = { x: number; y: number; z: number };
 
@@ -28,12 +29,18 @@ export type Pawn = {
   target: Vec2 | null;
 };
 
+export type RoomInfo = { id: string; width: number; depth: number };
+
 export type Entity = {
   transform?: Transform;
   /** Transform at the start of the current tick; the renderer interpolates from it. */
   prevTransform?: Transform;
   orbit?: Orbit;
   pawn?: Pawn;
+  /** A static obstacle from the room data. Has no `transform`: its footprint says where it is. */
+  obstacle?: Obstacle;
+  /** The room being played: its size, for the floor and later camera bounds. One per world. */
+  room?: RoomInfo;
 };
 
 export function createWorld(): World<Entity> {

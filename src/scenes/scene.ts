@@ -1,7 +1,7 @@
-import type { Mesh, Scene } from "@babylonjs/core";
+import type { Camera, Mesh, Scene } from "@babylonjs/core";
 import type { World } from "miniplex";
 import type { Disposable } from "@/core/disposer";
-import type { Entity } from "@/ecs/world";
+import type { Entity, Vec3 } from "@/ecs/world";
 import type { InputFrame, ShellFrame } from "@/input/actions";
 import type { InputState } from "@/input/state";
 import type { SceneSim } from "@/scenes/sim";
@@ -27,9 +27,21 @@ export type SceneContext = {
   readonly world: World<Entity>;
   readonly seed: number;
   readonly scene: Scene;
+  /** The camera the game aims and moves with (a debug camera may be rendering instead). */
+  readonly camera: Camera;
   readonly input: InputState;
   /** The mesh mirroring an entity, if it has one. */
   meshOf(entity: Entity): Mesh | undefined;
+  /**
+   * Links a mesh the scene built itself (e.g. a static obstacle) to its entity, so `meshOf` and
+   * picking know it. Dispose the mesh with `own` as usual; the link goes with the scene.
+   */
+  bindMesh(entity: Entity, mesh: Mesh): void;
+  /**
+   * What the game camera looks at, read every frame after mesh sync (so an entity's mesh position
+   * is already interpolated). Without one, the camera looks at the origin.
+   */
+  setCameraTarget(target: () => Vec3): void;
   /** Disposes `thing` (a mesh, material, …) at teardown and returns it. */
   own<T extends Disposable>(thing: T): T;
   /** Runs `cleanup` at teardown. */

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createDebugDraw, DEBUG_COLORS, DEFAULT_Y } from "@/core/debugDraw";
 
+/** Enabled, with the default category shown. */
 const enabled = () => {
   const draw = createDebugDraw();
   draw.enabled = true;
+  draw.setCategory("general", true);
   return draw;
 };
 
@@ -53,17 +55,21 @@ describe("debugDraw", () => {
   });
 
   it("filters by category and remembers categories", () => {
-    const draw = enabled();
+    const draw = createDebugDraw();
+    draw.enabled = true;
     draw.line({ x: 0, z: 0 }, { x: 1, z: 0 }, { category: "pawn" });
     draw.text({ x: 0, z: 0 }, "hi");
 
-    draw.setCategory("pawn", false);
-    expect(draw.collect().segments).toHaveLength(0);
-    expect(draw.collect().labels).toHaveLength(1);
+    // New categories start hidden.
     expect([...draw.categories]).toEqual([
       ["pawn", false],
-      ["general", true],
+      ["general", false],
     ]);
+    expect(draw.collect().segments).toHaveLength(0);
+
+    draw.setCategory("general", true);
+    expect(draw.collect().segments).toHaveLength(0);
+    expect(draw.collect().labels).toHaveLength(1);
 
     draw.setCategory("pawn", true);
     expect(draw.collect().segments).toHaveLength(1);

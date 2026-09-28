@@ -1,54 +1,59 @@
 import {
   type AbstractEngine,
   type Camera,
-  Color3,
   Color4,
   DirectionalLight,
   HemisphericLight,
-  MeshBuilder,
   Scene,
-  StandardMaterial,
   UniversalCamera,
   Vector3,
 } from "@babylonjs/core";
 import { defineTunables } from "@/core/tuning";
+import type { Vec3 } from "@/ecs/world";
 
-/** The game camera. The real follow camera comes in 1.4. */
+/** The game camera. Smoothing, look-ahead and bounds come in 1.4. */
 export const CAMERA = defineTunables("camera", {
   /** Angle above the ground, in degrees (90 = straight down). */
   pitch: { value: 52, min: 20, max: 89, step: 1 },
+  /** Heading around the vertical, in degrees (0 looks north along +Z, walls line up with the screen). */
+  yaw: { value: 0, min: -180, max: 180, step: 1 },
   /** Distance from the target. */
   distance: { value: 17.8, min: 5, max: 50, step: 0.1 },
   /** Vertical field of view, in degrees. */
   fov: { value: 46, min: 15, max: 100, step: 1 },
 });
 
-/** Places the game camera from the `camera` tunables. Call every frame, before aiming. */
-export function updateCamera(camera: Camera): void {
+const lookAt = new Vector3();
+
+/**
+ * Places the game camera from the `camera` tunables, looking at `target` from `distance` away,
+ * `pitch` above the ground and facing along `yaw`. Call every frame right before rendering.
+ */
+export function updateCamera(camera: Camera, target: Vec3): void {
   const pitch = (CAMERA.pitch * Math.PI) / 180;
-  camera.position.set(0, Math.sin(pitch) * CAMERA.distance, -Math.cos(pitch) * CAMERA.distance);
+  const yaw = (CAMERA.yaw * Math.PI) / 180;
+  const flat = Math.cos(pitch) * CAMERA.distance;
+  camera.position.set(
+    target.x - Math.sin(yaw) * flat,
+    target.y + Math.sin(pitch) * CAMERA.distance,
+    target.z - Math.cos(yaw) * flat,
+  );
   camera.fov = (CAMERA.fov * Math.PI) / 180;
-  if (camera instanceof UniversalCamera) camera.setTarget(Vector3.Zero());
+  if (camera instanceof UniversalCamera) camera.setTarget(lookAt.set(target.x, target.y, target.z));
 }
 
-/** Scene, angled top-down camera, lights and a ground plane. The real arena comes in 1.1. */
+/** Scene, angled top-down camera and lights. Scenes add their own ground. */
 export function createScene(engine: AbstractEngine): Scene {
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.03, 0.03, 0.04, 1);
 
   const camera = new UniversalCamera("camera", Vector3.Zero(), scene);
-  updateCamera(camera);
+  updateCamera(camera, Vector3.Zero());
 
   const ambient = new HemisphericLight("ambient", new Vector3(0, 1, 0), scene);
   ambient.intensity = 0.35;
   const sun = new DirectionalLight("sun", new Vector3(-1, -2, 1), scene);
   sun.intensity = 0.9;
-
-  const ground = MeshBuilder.CreateGround("ground", { width: 20, height: 20 }, scene);
-  const groundMaterial = new StandardMaterial("ground", scene);
-  groundMaterial.diffuseColor = new Color3(0.12, 0.13, 0.12);
-  groundMaterial.specularColor = Color3.Black();
-  ground.material = groundMaterial;
 
   return scene;
 }

@@ -8,9 +8,10 @@ export type DebugSettings = {
   /** Pane folders by title path (the pane itself is `Debug`), true when expanded. */
   paneFolders: Record<string, boolean>;
   stats: StatsMode;
-  draw: { enabled: boolean; categories: Record<string, boolean> };
+  /** Debug-draw categories by name, true when shown. */
+  draw: { categories: Record<string, boolean> };
   wireframe: boolean;
-  /** The live input overlay (the input test's actions, move mode and aim). */
+  /** The live input overlay (actions, move mode and aim, in every scene). */
   inputOverlay: boolean;
   /** Tunable overrides by id (`pawn.speed`). */
   tunables: Record<string, unknown>;
@@ -25,7 +26,7 @@ export function defaultDebugSettings(): DebugSettings {
     v: 1,
     paneFolders: {},
     stats: "compact",
-    draw: { enabled: false, categories: {} },
+    draw: { categories: {} },
     wireframe: false,
     inputOverlay: true,
     tunables: {},
@@ -65,7 +66,6 @@ export function parseDebugSettings(raw: string | null): DebugSettings {
       ? (data.stats as StatsMode)
       : defaults.stats,
     draw: {
-      enabled: bool(draw.enabled, defaults.draw.enabled),
       categories: boolRecord(draw.categories),
     },
     wireframe: bool(data.wireframe, defaults.wireframe),

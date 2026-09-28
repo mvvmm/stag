@@ -47,7 +47,7 @@ export type DebugState = {
   /** The dev tools are running (dev server or `?debug`). */
   active: boolean;
   stats: StatsMode;
-  /** Show the live input overlay (the input test's actions, move mode and aim). */
+  /** Show the live input overlay (actions, move mode and aim, in every scene). */
   inputOverlay: boolean;
   /** The Babylon Inspector is open (it docks over the page, so the overlays step aside). */
   inspector: boolean;

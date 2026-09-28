@@ -80,6 +80,8 @@ export function createDebugDrawRenderer(draw: DebugDraw, scene: Scene, engine: W
   // The grid is static and depth-tested (a separate mesh), unlike on-top debug shapes; it's
   // still toggled by the `grid` category. The axes and labels go through the buffer.
   const grid = createGrid(scene);
+  // Listed from the start (it only draws while shown), unless a stored setting already has it.
+  if (!draw.categories.has("grid")) draw.setCategory("grid", false);
   const drawAxes = () => {
     const options = { category: "grid" } as const;
     draw.arrow({ x: 0, z: 0, y: 0.02 }, { x: 2, z: 0, y: 0.02 }, { ...options, color: "red" });
@@ -131,7 +133,7 @@ export function createDebugDrawRenderer(draw: DebugDraw, scene: Scene, engine: W
   return {
     /** Draws the current buffer. Call each frame after mesh sync, before rendering. */
     update(): void {
-      const showGrid = draw.enabled && draw.categories.get("grid") !== false;
+      const showGrid = draw.enabled && draw.categories.get("grid") === true;
       grid.setEnabled(showGrid);
       if (showGrid) drawAxes();
       const { segments, labels: items } = draw.enabled
