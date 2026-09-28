@@ -23,10 +23,13 @@ The grey-box stopped looking like a debug view. One atmosphere rig, built by the
 - **The post stack was silently detached.** Re-attaching after an SSAO change passed Babylon's live camera array to a detach call, which emptied it. Image processing fell back to the materials, so the image still looked roughly right. Counting the camera's post-processes in the browser caught it.
 - **ACES halved the brightness.** The lights were balanced without tonemapping, so exposure went to 2.2 and the lights were retuned by measuring mean brightness in the screenshots.
 - **Banding rings came from SSAO.** Its copy of the scene color is 8-bit by default, which bands in dark linear values. A half-float copy fixed it.
-- **The player light blew out the player's own head.** It hangs 1.3 m above the top of the capsule, and light falls off with the square of distance, so the head got several times the floor's light and bloomed to white. Playtesting on the Preview caught it. The light now skips the player's body, so it only lights the world around the player. The shots after the hero shot were taken before this fix.
-- **Headless GPU timings were too noisy to use.** The same settings measured 1 to 19 ms, so real performance numbers wait for the 9.6 pass.
+- **The player light blew out the player's own head.** It hangs 1.3 m above the top of the capsule, and light falls off with the square of distance, so the head got several times the floor's light and bloomed to white. Playtesting on the Preview caught it. The light now skips the player's body, so it only lights the world around the player.
+- **Then the floor felt dull.** Without the white head blooming in the middle of it, the pool of light looked flat and the breathing was invisible. The floor was the least reflective surface in the room. A lighter floor brightened the whole room under the moon, and a glowing wisp at the light floated detached above the head. What worked was a slight sheen (roughness 0.92 to 0.7), twice the light, and ±12% breathing. The shots after the hero shot were taken before these two fixes.
+- **Headless Chrome was no guide to performance.** It was capped at 30 fps, and the same settings measured 1 to 19 ms of GPU time. In Firefox on a real machine, the full stack runs at 120 fps with about 6 ms of GPU time.
 
 ## Media
+
+[![Playing the greybox in Firefox at 120 fps: running around in the warm light, turning up its breathing, then recoloring the moon red from the pane](arena-atmosphere.jpg)](arena-atmosphere.mp4)
 
 ![Before: the same spot on main, flat lighting and the unlit grid](02-before.png)
 
