@@ -143,14 +143,19 @@ function playerBody(ctx: SceneContext): Mesh {
   return body;
 }
 
-/** The grown obstacle outlines, and (only while the category is shown) the graph's tangents. */
+/**
+ * The grown obstacle outlines (`navgraph`) and, in their own `navedges` category, the graph's
+ * tangents, drawn only while that one is shown (there are thousands).
+ */
 function drawNavGraph(nav: NavGraph): void {
   const options = { color: "cyan", category: "navgraph" } as const;
   for (const shape of nav.shapes) {
     debugDraw.path(grownOutline(shape, nav.pad), { ...options, closed: true });
   }
-  if (!debugDraw.categories.get("navgraph")) return;
-  const grey = { color: "grey", category: "navgraph" } as const;
+  // Drawing is what lists a category in the pane; this one is skipped while hidden, so list it.
+  if (!debugDraw.categories.has("navedges")) debugDraw.setCategory("navedges", false);
+  if (!debugDraw.categories.get("navedges")) return;
+  const grey = { color: "grey", category: "navedges" } as const;
   // Each tangent adds four nodes (both ends, both ways); draw it once, from its first node.
   for (let node = 0; node < nav.tangentTo.length; node += 4) {
     const to = nav.tangentTo[node] as number;
