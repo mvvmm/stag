@@ -23,6 +23,8 @@ export const FLOOR = defineTunables("floor", {
   outside: { value: 0.25, min: 0, max: 1, step: 0.01 },
   /** Over how many meters past the room's edge it darkens. */
   outsideFade: { value: 3, min: 0.1, max: 15, step: 0.1 },
+  /** Surface roughness (lower = a soft sheen where light hits it). */
+  roughness: { value: 0.7, min: 0.2, max: 1, step: 0.01 },
   /** Floor color (sRGB). */
   color: { value: "#383a3a", color: true },
 });
@@ -130,11 +132,11 @@ class FloorPlugin extends MaterialPluginBase {
 export function createFloorMaterial(scene: Scene, width: number, depth: number): PBRMaterial {
   const material = new PBRMaterial("floor", scene);
   material.metallic = 0;
-  material.roughness = 0.92;
   new FloorPlugin(material, width / 2, depth / 2);
-  // The color is a material property; the plugin's uniforms are read on every bind anyway.
+  // Color and roughness are material properties; the plugin's uniforms are read on every bind.
   let applied = "";
   const syncColor = () => {
+    material.roughness = FLOOR.roughness;
     if (applied === FLOOR.color) return;
     applied = FLOOR.color;
     material.albedoColor = Color3.FromHexString(applied).toLinearSpace();

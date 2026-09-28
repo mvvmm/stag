@@ -42,13 +42,13 @@ export const LIGHT = defineTunables("light", {
   ambientIntensity: { value: 0.55, min: 0, max: 3, step: 0.01 },
   /** The warm light over the player (sRGB). */
   playerColor: { value: "#ffb36b", color: true },
-  playerIntensity: { value: 35, min: 0, max: 200, step: 0.5 },
+  playerIntensity: { value: 70, min: 0, max: 200, step: 0.5 },
   /** Meters until the player light fades to nothing. */
   playerRange: { value: 10, min: 1, max: 30, step: 0.1 },
   /** Height above the player's feet. */
   playerHeight: { value: 2.5, min: 0.2, max: 6, step: 0.05 },
   /** How far the player light's intensity breathes (fraction) and how fast (cycles per second). */
-  playerPulse: { value: 0.06, min: 0, max: 0.5, step: 0.01 },
+  playerPulse: { value: 0.12, min: 0, max: 0.5, step: 0.01 },
   playerPulseSpeed: { value: 0.25, min: 0, max: 2, step: 0.01 },
 });
 
