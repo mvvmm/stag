@@ -23,6 +23,8 @@ The camera stopped being a plain hard follow. It now leans toward the cursor by 
 
 ## Media
 
+[![Playing the greybox arena at 120 Hz in Firefox: the view leans toward the cursor as it circles the player, and the player stays put on screen while running](arena-look-ahead.jpg)](arena-look-ahead.mp4)
+
 ![The same spot with the cursor at the center: no lean, the player is centered](02-centered.png)
 
 ![Against the south wall with the cursor pulling further south: the look-at point stops on the bounds (the yellow arrowhead on the cyan edge), and the wall between the camera and the player fades](03-clamped.png)
