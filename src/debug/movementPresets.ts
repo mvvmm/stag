@@ -15,6 +15,7 @@ const PRESETS: [id: string, label: string, values: Feel | null][] = [
   ["movement.instant", "Instant", { accel: 1000, decel: 1000, turnAccel: 1000, turnRate: 3600 }],
   ["movement.snappy", "Snappy", { accel: 120, decel: 175, turnAccel: 175, turnRate: 720 }],
   ["movement.balanced", "Balanced (defaults)", null],
+  ["movement.steady", "Steady", { accel: 40, decel: 50, turnAccel: 60, turnRate: 450 }],
   ["movement.weighty", "Weighty", { accel: 25, decel: 30, turnAccel: 40, turnRate: 360 }],
 ];
 
