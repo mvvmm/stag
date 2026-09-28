@@ -32,6 +32,28 @@ export function createPane(tools: DevTools) {
     "position:absolute;top:16px;right:16px;width:300px;max-height:calc(100vh - 32px);" +
     "overflow-y:auto;pointer-events:auto;z-index:10";
   document.body.append(container);
+  // Hand the keyboard back to the game after using a control: a focused checkbox, button or
+  // dropdown would otherwise keep WASD (the input layer ignores keys aimed at form fields, and a
+  // focused dropdown would even pick options by letter). Text fields keep focus until Enter.
+  const isTextField = (el: Element | null) =>
+    el instanceof HTMLInputElement && !["checkbox", "button", "range"].includes(el.type);
+  const release = () => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && container.contains(el) && !isTextField(el)) el.blur();
+  };
+  container.addEventListener("click", (event) => {
+    // A dropdown blurs once it has a value (clicking it only opens it).
+    if (!(event.target instanceof HTMLSelectElement)) release();
+  });
+  container.addEventListener("change", (event) => {
+    if (event.target instanceof HTMLSelectElement) event.target.blur();
+  });
+  container.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && isTextField(event.target as Element)) {
+      // After Tweakpane has read the value.
+      setTimeout(() => (event.target as HTMLElement).blur());
+    }
+  });
   const pane = new Pane({
     container,
     title: `Debug · ${BUILD}`,
@@ -328,15 +350,17 @@ export function createPane(tools: DevTools) {
     freeCameraLabel.title =
       "Drag to orbit, right-drag to pan, wheel to zoom (mouse buttons skip the game)";
   }
+
+  // Debug-draw categories, one toggle each, between two separators (they appear as code first
+  // draws), then the Inspector at the bottom.
+  viewFolder.addBlade({ view: "separator" });
+  const inspectorSeparator = viewFolder.addBlade({ view: "separator" });
   viewFolder
     .addButton({
       title: tools.inspector.available ? "Babylon Inspector" : "Inspector (pnpm dev only)",
       disabled: !tools.inspector.available,
     })
     .on("click", () => void tools.toggleInspector());
-
-  // Debug-draw categories, one toggle each, below a separator (they appear as code first draws).
-  viewFolder.addBlade({ view: "separator" });
   const categoryViews = new Map<string, { shown: boolean }>();
   /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
   const syncCategories = () => {
@@ -344,8 +368,9 @@ export function createPane(tools: DevTools) {
       if (categoryViews.has(category)) continue;
       const categoryView = { shown };
       categoryViews.set(category, categoryView);
+      const index = viewFolder.children.indexOf(inspectorSeparator);
       viewFolder
-        .addBinding(categoryView, "shown", { label: category })
+        .addBinding(categoryView, "shown", { label: category, index })
         .on("change", (event) => tools.setCategory(category, event.value));
     }
     for (const [category, categoryView] of categoryViews) {

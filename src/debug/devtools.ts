@@ -12,6 +12,7 @@ import { createCommandRegistry } from "@/debug/commands";
 import { createDebugDrawRenderer } from "@/debug/debugDrawRender";
 import { createFrameStats } from "@/debug/frameStats";
 import { createFreeCamera } from "@/debug/freeCamera";
+import { attachInputOverlay } from "@/debug/inputOverlay";
 import { getPath, type Path } from "@/debug/inspect";
 import { createInspector } from "@/debug/inspector";
 import {
@@ -493,6 +494,7 @@ export function startDevtools(shell: Shell) {
 
   const drawRenderer = createDebugDrawRenderer(debugDraw, scene, engine);
   shell.addRenderPhase("debugDraw", drawRenderer.update);
+  attachInputOverlay(shell);
 
   // --- Console / agent handle ------------------------------------------------------------------
 
