@@ -8,7 +8,8 @@ import type { Entity } from "@/ecs/world";
  * entities with a `prevTransform` are drawn `alpha` of the way from the previous tick to the
  * current one (pass 1 to show the latest tick as-is). One per world: `dispose()` removes every
  * mesh it made when the world is dropped (scene reset). Meshes a scene builds itself (static
- * obstacles) can be `bind`-ed so `meshOf`/`entityOf` (picking) know them; their owner disposes them.
+ * obstacles, the player) can be `bind`-ed so `meshOf`/`entityOf` (picking) know them; their owner
+ * disposes them.
  */
 export function createMeshSync(world: World<Entity>, scene: Scene) {
   const meshes = new Map<Entity, Mesh>();
@@ -30,6 +31,8 @@ export function createMeshSync(world: World<Entity>, scene: Scene) {
     if (!mesh) return;
     entities.delete(mesh);
     meshes.delete(entity);
+    // A bound mesh belongs to whoever built it.
+    if (bound.delete(mesh)) return;
     mesh.dispose();
   };
   for (const entity of renderable) addMesh(entity);
@@ -42,8 +45,17 @@ export function createMeshSync(world: World<Entity>, scene: Scene) {
       return meshes.get(entity);
     },
 
-    /** Links a mesh built elsewhere to its entity, for `meshOf`/`entityOf`. Not synced or disposed. */
+    /**
+     * Links a mesh built elsewhere to its entity, for `meshOf`/`entityOf`. It replaces (and
+     * disposes) the placeholder box of an entity with a transform, and is then moved like one.
+     * Never disposed here: its owner does that.
+     */
     bind(entity: Entity, mesh: Mesh): void {
+      const placeholder = meshes.get(entity);
+      if (placeholder && !bound.has(placeholder)) {
+        entities.delete(placeholder);
+        placeholder.dispose();
+      }
       meshes.set(entity, mesh);
       entities.set(mesh, entity);
       bound.add(mesh);

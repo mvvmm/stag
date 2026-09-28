@@ -20,13 +20,30 @@ export type Orbit = {
   angle: number;
 };
 
-/**
- * Moves at constant speed (the `pawn.speed` tunable) from the input (WASD direction or click-to-move target) and faces the
- * aim point. Throwaway demo component; the real player controller comes in 1.2.
- */
-export type Pawn = {
-  /** Click-to-move destination; cleared on arrival, on `stop`, or by WASD input. */
-  target: Vec2 | null;
+/** A click-to-move order: the path the player is walking. */
+export type MoveOrder = {
+  /** Where the path ends (the click, or the closest reachable point to it). */
+  goal: Vec2;
+  /** Corners still to walk through, next first, ending with `goal`. */
+  waypoints: Vec2[];
+};
+
+/** The player character's controller state (movement numbers come from `movementStats`). */
+export type Player = {
+  /** The click-to-move order being walked, if any; cleared on arrival, by `stop` or by WASD. */
+  order: MoveOrder | null;
+  /** Counts new clicks (not ticks the button is held), so the view can pop a marker per click. */
+  orders: number;
+  /** The last click-to-move point while the button is held, else null. */
+  click: Vec2 | null;
+};
+
+/** Kinematic movement on the ground plane (the player now, enemies later). */
+export type Mover = {
+  /** Meters per second. */
+  velocity: Vec2;
+  /** The velocity a controller asks for this tick; `locomotion` accelerates toward it. */
+  desired: Vec2;
 };
 
 export type RoomInfo = { id: string; width: number; depth: number };
@@ -36,7 +53,8 @@ export type Entity = {
   /** Transform at the start of the current tick; the renderer interpolates from it. */
   prevTransform?: Transform;
   orbit?: Orbit;
-  pawn?: Pawn;
+  player?: Player;
+  mover?: Mover;
   /** A static obstacle from the room data. Has no `transform`: its footprint says where it is. */
   obstacle?: Obstacle;
   /** The room being played: its size, for the floor and later camera bounds. One per world. */

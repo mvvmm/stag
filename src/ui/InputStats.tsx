@@ -5,7 +5,7 @@ import styles from "./InputStats.module.css";
 
 const fmt = (v: Vec2) => `(${v.x.toFixed(2)}, ${v.z.toFixed(2)})`;
 
-/** Live input for the input test scene. A debug overlay, toggled from the debug pane. */
+/** Live input in every scene. A debug overlay, toggled from the debug pane. */
 export function InputStats() {
   const { active, inputOverlay, inspector } = debugState.value;
   const s = inputStats.value;

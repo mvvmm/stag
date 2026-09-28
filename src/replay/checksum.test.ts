@@ -8,7 +8,7 @@ const transform = (x = 0) => ({ position: { x, y: 0, z: 0 }, rotation: { x: 0, y
 const build = () => {
   const world = createWorld();
   const a = world.add({ transform: transform(1), prevTransform: transform(1) });
-  const b = world.add({ transform: transform(2), pawn: { target: null } });
+  const b = world.add({ transform: transform(2), player: { order: null, orders: 0, click: null } });
   return { world, a, b, rng: createRng(7) };
 };
 
@@ -20,7 +20,7 @@ describe("checksumWorld", () => {
     expect(first).toEqual(checksumWorld(two.world, two.rng, 5));
     expect(first.tick).toBe(5);
     expect(first.entities).toBe(2);
-    expect(Object.keys(first.components)).toEqual(["pawn", "transform"]);
+    expect(Object.keys(first.components)).toEqual(["player", "transform"]);
   });
 
   it("names the component that changed", () => {
@@ -29,8 +29,8 @@ describe("checksumWorld", () => {
     a.transform.position.x += 1e-12;
     expect(diffCheckpoints(before, checksumWorld(world, rng, 0))).toEqual(["transform"]);
     a.transform.position.x -= 1e-12;
-    b.pawn.target = { x: 0, z: 0 } as never;
-    expect(diffCheckpoints(before, checksumWorld(world, rng, 0))).toEqual(["pawn"]);
+    b.player.click = { x: 0, z: 0 } as never;
+    expect(diffCheckpoints(before, checksumWorld(world, rng, 0))).toEqual(["player"]);
   });
 
   it("notices the RNG advancing and entities coming and going", () => {
@@ -62,8 +62,8 @@ describe("checksumWorld", () => {
   it("tells 0 from -0 and 1 from true", () => {
     const hash = (value: unknown) => {
       const world = createWorld();
-      world.add({ pawn: { target: value } as never });
-      return checksumWorld(world, createRng(1), 0).components.pawn;
+      world.add({ player: { click: value } as never });
+      return checksumWorld(world, createRng(1), 0).components.player;
     };
     expect(hash(0)).not.toBe(hash(-0));
     expect(hash(1)).not.toBe(hash(true));

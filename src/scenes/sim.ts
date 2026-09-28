@@ -9,7 +9,7 @@ import type { NamedSystem } from "@/systems/simulation";
  * top and must not change the simulation.
  */
 export type SceneSim = {
-  /** Stable id, e.g. `input-test`; used by `?scene=`, the debug settings and replay files. */
+  /** Stable id, e.g. `arena`; used by `?scene=`, the debug settings and replay files. */
   id: string;
   label: string;
   /** Systems in run order (the transform snapshot always runs first). */
