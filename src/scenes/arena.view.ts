@@ -8,15 +8,16 @@ import {
   WALL_THICKNESS,
 } from "@/data/rooms/room";
 import type { Entity } from "@/ecs/world";
-import { cellCenter, type NavGrid, navGridOf } from "@/nav/grid";
+import { type NavGraph, navGraphOf } from "@/nav/graph";
 import { createClickMarker } from "@/render/clickMarker";
 import { createGridMaterial } from "@/render/gridMaterial";
 import { createOcclusionFader } from "@/render/occlusion";
-import { arenaSim } from "@/scenes/arena";
+import { arenaSim, gymSim } from "@/scenes/arena";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
+import type { SceneSim } from "@/scenes/sim";
 import { PLAYER } from "@/systems/movementStats";
 
-// The arena's view: gridded floor, grey-box obstacle meshes, the player, the click-to-move marker,
+// The view of every room scene: gridded floor, grey-box obstacle meshes, the player, the click-to-move marker,
 // the camera following the player, and obstacles fading while they hide it.
 
 /** The grey-box player: a capsule this tall, with a nose showing where it faces. */
@@ -33,13 +34,17 @@ const OBSTACLE_COLORS: Record<ObstacleType, Color3> = {
   pillar: new Color3(0.42, 0.39, 0.35),
 };
 
-export const arenaScene: SceneDef = { ...arenaSim, setup };
+/** A room scene's sim plus the shared room view. */
+export const roomScene = (sim: SceneSim): SceneDef => ({ ...sim, setup });
+
+export const arenaScene = roomScene(arenaSim);
+export const gymScene = roomScene(gymSim);
 
 function setup(ctx: SceneContext): void {
   const { world, scene } = ctx;
   const room = world.with("room").first?.room;
   const player = world.with("player", "transform").first;
-  if (!room || !player) throw new Error("arena: no room or player spawned");
+  if (!room || !player) throw new Error(`${room?.id ?? "room"}: no room or player spawned`);
 
   const floor = ctx.own(
     MeshBuilder.CreateGround(
@@ -107,8 +112,8 @@ function setup(ctx: SceneContext): void {
       if (shape.kind === "circle") debugDraw.circle(shape, shape.r, options);
       else debugDraw.path(boxCorners(shape), { ...options, closed: true });
     }
-    const nav = navGridOf(world, PLAYER.radius);
-    if (nav) drawNavGrid(nav);
+    const nav = navGraphOf(world, PLAYER.radius);
+    if (nav) drawNavGraph(nav);
   });
 }
 
@@ -138,36 +143,27 @@ function playerBody(ctx: SceneContext): Mesh {
   return body;
 }
 
-/** Cache of the walkable area's edge for the `navgrid` debug draw, per grid. */
-const edgeCells = new WeakMap<NavGrid, Vec2[]>();
-
-/** The grown obstacle outlines and the blocked cells along the walkable area's edge. */
-function drawNavGrid(nav: NavGrid): void {
-  const options = { color: "cyan", category: "navgrid" } as const;
-  for (const shape of nav.shapes)
+/**
+ * The grown obstacle outlines (`navgraph`) and, in their own `navedges` category, the graph's
+ * tangents, drawn only while that one is shown (there are thousands).
+ */
+function drawNavGraph(nav: NavGraph): void {
+  const options = { color: "cyan", category: "navgraph" } as const;
+  for (const shape of nav.shapes) {
     debugDraw.path(grownOutline(shape, nav.pad), { ...options, closed: true });
-
-  let cells = edgeCells.get(nav);
-  if (!cells) {
-    cells = [];
-    const { cols, rows, blocked } = nav;
-    for (let index = 0; index < cols * rows; index++) {
-      if (!blocked[index]) continue;
-      const col = index % cols;
-      const row = (index - col) / cols;
-      const free = (c: number, r: number) =>
-        c >= 0 && c < cols && r >= 0 && r < rows && !blocked[r * cols + c];
-      if (free(col + 1, row) || free(col - 1, row) || free(col, row + 1) || free(col, row - 1)) {
-        cells.push(cellCenter(nav, index));
-      }
-    }
-    edgeCells.set(nav, cells);
   }
-  const s = nav.cell * 0.3;
-  const grey = { color: "grey", category: "navgrid" } as const;
-  for (const c of cells) {
-    debugDraw.line({ x: c.x - s, z: c.z - s }, { x: c.x + s, z: c.z + s }, grey);
-    debugDraw.line({ x: c.x - s, z: c.z + s }, { x: c.x + s, z: c.z - s }, grey);
+  // Drawing is what lists a category in the pane; this one is skipped while hidden, so list it.
+  if (!debugDraw.categories.has("navedges")) debugDraw.setCategory("navedges", false);
+  if (!debugDraw.categories.get("navedges")) return;
+  const grey = { color: "grey", category: "navedges" } as const;
+  // Each tangent adds four nodes (both ends, both ways); draw it once, from its first node.
+  for (let node = 0; node < nav.tangentTo.length; node += 4) {
+    const to = nav.tangentTo[node] as number;
+    debugDraw.line(
+      { x: nav.nodeX[node] as number, z: nav.nodeZ[node] as number },
+      { x: nav.nodeX[to] as number, z: nav.nodeZ[to] as number },
+      grey,
+    );
   }
 }
 

@@ -1,127 +1,104 @@
-import type { NavGrid } from "@/nav/grid";
+// A* over any graph of numbered nodes. Every tie is broken the same way (lowest f, then highest g,
+// then lowest node), so the same graph always gives the same path.
 
-// A* over the nav grid: 8-connected, no cutting past a blocked corner, octile distances. Every
-// tie is broken the same way (lowest f, then highest g, then lowest cell index), so the same grid
-// and cells always give the same path.
+export type AstarGraph = {
+  /** Calls `visit` for every edge leaving `node`, with its cost. */
+  neighbors(node: number, visit: (to: number, cost: number) => void): void;
+  /** An estimate of the cost from `node` to the goal that never overestimates. */
+  heuristic(node: number): number;
+};
 
-const DIAGONAL = Math.SQRT2;
+export type AstarResult = {
+  /** Nodes from the start to the goal, both included; null if the goal can't be reached. */
+  path: number[] | null;
+  /** Every node whose shortest cost was settled (the reachable set, when the goal wasn't found). */
+  settled: number[];
+  /** The node each settled node was reached from (-1 for the start). */
+  parent: Map<number, number>;
+};
 
-const NEIGHBORS = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [1, 1],
-  [1, -1],
-  [-1, 1],
-  [-1, -1],
-] as const;
+export function astar(graph: AstarGraph, start: number, goal: number): AstarResult {
+  const g = new Map<number, number>([[start, 0]]);
+  const f = new Map<number, number>([[start, graph.heuristic(start)]]);
+  const parent = new Map<number, number>([[start, -1]]);
+  const closed = new Set<number>();
+  const settled: number[] = [];
 
-/**
- * Cells from `start` to `goal` (both included). If the goal can't be reached, the path ends at the
- * reached cell closest to it. `start` must be walkable.
- */
-export function astar(grid: NavGrid, start: number, goal: number): number[] {
-  const { cols, rows, blocked } = grid;
-  const size = cols * rows;
-  const g = new Float64Array(size).fill(Infinity);
-  const f = new Float64Array(size);
-  const from = new Int32Array(size).fill(-1);
-  const closed = new Uint8Array(size);
-  const goalCol = goal % cols;
-  const goalRow = (goal - goalCol) / cols;
-  const heuristic = (index: number) => {
-    const col = index % cols;
-    const dx = Math.abs(col - goalCol);
-    const dz = Math.abs((index - col) / cols - goalRow);
-    return dx + dz + (DIAGONAL - 2) * Math.min(dx, dz);
-  };
-
-  // Binary min-heap of cell indices.
+  // Binary min-heap of nodes; a node can be in it more than once (stale entries are skipped).
   const heap: number[] = [];
-  const before = (a: number, b: number) => {
-    const fa = f[a] as number;
-    const fb = f[b] as number;
-    if (fa !== fb) return fa < fb;
-    const ga = g[a] as number;
-    const gb = g[b] as number;
-    if (ga !== gb) return ga > gb;
-    return a < b;
+  const heapF: number[] = [];
+  const heapG: number[] = [];
+  const before = (a: number, b: number) =>
+    heapF[a] !== heapF[b]
+      ? (heapF[a] as number) < (heapF[b] as number)
+      : heapG[a] !== heapG[b]
+        ? (heapG[a] as number) > (heapG[b] as number)
+        : (heap[a] as number) < (heap[b] as number);
+  const swap = (a: number, b: number) => {
+    [heap[a], heap[b]] = [heap[b] as number, heap[a] as number];
+    [heapF[a], heapF[b]] = [heapF[b] as number, heapF[a] as number];
+    [heapG[a], heapG[b]] = [heapG[b] as number, heapG[a] as number];
   };
-  const push = (index: number) => {
-    heap.push(index);
+  const push = (node: number, nodeF: number, nodeG: number) => {
+    heap.push(node);
+    heapF.push(nodeF);
+    heapG.push(nodeG);
     let i = heap.length - 1;
     while (i > 0) {
-      const parent = (i - 1) >> 1;
-      if (!before(heap[i] as number, heap[parent] as number)) break;
-      [heap[i], heap[parent]] = [heap[parent] as number, heap[i] as number];
-      i = parent;
+      const up = (i - 1) >> 1;
+      if (!before(i, up)) break;
+      swap(i, up);
+      i = up;
     }
   };
-  const pop = (): number => {
-    const top = heap[0] as number;
-    const last = heap.pop() as number;
-    if (heap.length) {
-      heap[0] = last;
-      let i = 0;
-      for (;;) {
-        const left = i * 2 + 1;
-        const right = left + 1;
-        let smallest = i;
-        if (left < heap.length && before(heap[left] as number, heap[smallest] as number)) {
-          smallest = left;
-        }
-        if (right < heap.length && before(heap[right] as number, heap[smallest] as number)) {
-          smallest = right;
-        }
-        if (smallest === i) break;
-        [heap[i], heap[smallest]] = [heap[smallest] as number, heap[i] as number];
-        i = smallest;
-      }
+  const pop = (): [number, number] => {
+    const node = heap[0] as number;
+    const nodeG = heapG[0] as number;
+    const last = heap.length - 1;
+    swap(0, last);
+    heap.pop();
+    heapF.pop();
+    heapG.pop();
+    let i = 0;
+    for (;;) {
+      const l = i * 2 + 1;
+      const r = l + 1;
+      let best = i;
+      if (l < heap.length && before(l, best)) best = l;
+      if (r < heap.length && before(r, best)) best = r;
+      if (best === i) break;
+      swap(i, best);
+      i = best;
     }
-    return top;
+    return [node, nodeG];
   };
 
-  g[start] = 0;
-  f[start] = heuristic(start);
-  push(start);
-  let closest = start;
-  let closestH = f[start] as number;
-
+  push(start, f.get(start) as number, 0);
   while (heap.length) {
-    const current = pop();
-    if (closed[current]) continue; // a stale heap entry
-    closed[current] = 1;
-    if (current === goal) {
-      closest = goal;
-      break;
-    }
-    const h = (f[current] as number) - (g[current] as number);
-    if (h < closestH || (h === closestH && current < closest)) {
-      closest = current;
-      closestH = h;
-    }
-    const col = current % cols;
-    const row = (current - col) / cols;
-    for (const [dc, dr] of NEIGHBORS) {
-      const c = col + dc;
-      const r = row + dr;
-      if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
-      const next = r * cols + c;
-      if (blocked[next] || closed[next]) continue;
-      const diagonal = dc !== 0 && dr !== 0;
-      // No squeezing diagonally past a blocked corner.
-      if (diagonal && (blocked[row * cols + c] || blocked[r * cols + col])) continue;
-      const cost = (g[current] as number) + (diagonal ? DIAGONAL : 1);
-      if (cost >= (g[next] as number)) continue;
-      g[next] = cost;
-      f[next] = cost + heuristic(next);
-      from[next] = current;
-      push(next);
-    }
+    const [node, nodeG] = pop();
+    if (closed.has(node) || nodeG !== g.get(node)) continue;
+    closed.add(node);
+    settled.push(node);
+    if (node === goal) break;
+    graph.neighbors(node, (to, cost) => {
+      if (closed.has(to)) return;
+      const tentative = nodeG + cost;
+      const known = g.get(to);
+      if (known !== undefined && tentative >= known) return;
+      g.set(to, tentative);
+      parent.set(to, node);
+      const toF = tentative + graph.heuristic(to);
+      f.set(to, toF);
+      push(to, toF, tentative);
+    });
   }
 
+  return { path: closed.has(goal) ? pathTo(parent, goal) : null, settled, parent };
+}
+
+/** The nodes from the start to `node`, following `parent`. */
+export function pathTo(parent: Map<number, number>, node: number): number[] {
   const path: number[] = [];
-  for (let at = closest; at !== -1; at = from[at] as number) path.push(at);
+  for (let at = node; at !== -1; at = parent.get(at) as number) path.push(at);
   return path.reverse();
 }

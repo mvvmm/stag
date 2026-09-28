@@ -1,12 +1,14 @@
+import type { World } from "miniplex";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
-import { createWorld } from "@/ecs/world";
+import { createWorld, type Entity } from "@/ecs/world";
 import { type Checkpoint, checksumWorld, diffCheckpoints } from "@/replay/checksum";
 import { applyEvent, replayTunables, tunableValues } from "@/replay/events";
 import { CHECKPOINT_TICKS, type ReplayFile } from "@/replay/format";
 import { createPlayer } from "@/replay/player";
 import { restoreSnapshot } from "@/replay/snapshot";
 import type { SceneSim } from "@/scenes/sim";
+import { simCommands } from "@/systems/cheats";
 import { createSimulation } from "@/systems/simulation";
 
 export type Divergence = { tick: number; diff: string[] };
@@ -19,8 +21,11 @@ export type HeadlessResult = {
 };
 
 export type HeadlessOptions = {
-  /** Runs a `sim: true` debug command; without it, a replay with commands fails. */
-  runCommand?: (id: string) => void;
+  /**
+   * Runs a `sim: true` debug command. Defaults to the Babylon-free `simCommands`; a replay with a
+   * command that isn't one of them fails.
+   */
+  runCommand?: (id: string, world: World<Entity>) => void;
   /**
    * Don't compare: take fresh checkpoints where a recording would (every `CHECKPOINT_TICKS`,
    * before each event tick, at the end), for `pnpm replay:update`.
@@ -42,8 +47,10 @@ export function runReplay(
   if (!sim) throw new Error(`replay scene "${file.scene}" doesn't exist`);
   const command =
     runCommand ??
-    ((id: string) => {
-      throw new Error(`replay command "${id}" can't run headless`);
+    ((id: string, world: World<Entity>) => {
+      const sim = simCommands[id];
+      if (!sim) throw new Error(`replay command "${id}" can't run headless`);
+      sim.run(world);
     });
 
   const saved = tunableValues();

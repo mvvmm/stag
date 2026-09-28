@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
+import type { Obstacle } from "@/data/rooms/room";
 import { createWorld, type Mover, type Transform } from "@/ecs/world";
 import { emptyInputFrame } from "@/input/actions";
 import { locomotionSystem, moveToward } from "@/systems/locomotion";
@@ -8,17 +9,25 @@ import { PLAYER } from "@/systems/movementStats";
 
 const DT = 1 / 60;
 
-function setup(velocity = { x: 0, z: 0 }, facing = 0) {
+/** A wall along the X axis whose north face is at z = -1. */
+const WALL: Obstacle = {
+  type: "wall",
+  shape: { kind: "box", x: 0, z: -1.5, w: 40, d: 1, yaw: 0 },
+  height: 3,
+};
+
+function setup(velocity = { x: 0, z: 0 }, facing = 0, obstacles: Obstacle[] = []) {
   const world = createWorld();
+  for (const obstacle of obstacles) world.add({ obstacle: structuredClone(obstacle) });
   const transform: Transform = {
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: facing, z: 0 },
   };
   const mover: Mover = { velocity: { ...velocity }, desired: { x: 0, z: 0 } };
-  world.add({ transform, mover });
+  const entity = world.add({ transform, mover });
   const rng = createRng(1);
   const step = (dt = DT) => locomotionSystem(world, dt, rng, emptyInputFrame());
-  return { transform, mover, step };
+  return { world, entity, transform, mover, step };
 }
 
 afterEach(() => tuning.reset());
@@ -108,5 +117,61 @@ describe("locomotion", () => {
     const { transform, step } = setup({ x: 0, z: 0 }, 1.2);
     for (let i = 0; i < 10; i++) step();
     expect(transform.rotation.y).toBe(1.2);
+  });
+});
+
+describe("locomotion against obstacles", () => {
+  it("stops at a wall and loses the velocity into it", () => {
+    const { transform, mover, step } = setup({ x: 0, z: -7 }, 0, [WALL]);
+    mover.desired = { x: 0, z: -7 };
+    for (let i = 0; i < 30; i++) step();
+    expect(transform.position.z).toBeCloseTo(-1 + PLAYER.radius, 2);
+    expect(transform.position.z).toBeGreaterThan(-1 + PLAYER.radius);
+    expect(mover.velocity.z).toBeCloseTo(0, 9);
+  });
+
+  it("slides along a wall at the projected speed", () => {
+    const { transform, mover, step } = setup({ x: 0, z: 0 }, 0, [WALL]);
+    transform.position.z = -1 + PLAYER.radius;
+    const d = PLAYER.speed * Math.SQRT1_2;
+    mover.desired = { x: d, z: -d }; // 45° into the wall
+    // Clipped every tick, the velocity closes in on the along-wall part of the desired one.
+    for (let i = 0; i < 60; i++) step();
+    expect(mover.velocity.x).toBeCloseTo(d, 3);
+    expect(mover.velocity.z).toBeCloseTo(0, 9);
+    const x = transform.position.x;
+    step();
+    expect(transform.position.x - x).toBeCloseTo(mover.velocity.x * DT, 12);
+    expect(transform.position.z).toBeGreaterThanOrEqual(-1 + PLAYER.radius - 1e-9);
+  });
+
+  it("lets go of a wall without sticking", () => {
+    const { transform, mover, step } = setup({ x: 0, z: 0 }, 0, [WALL]);
+    transform.position.z = -1 + PLAYER.radius;
+    mover.desired = { x: 0, z: 7 };
+    step();
+    expect(mover.velocity.z).toBeCloseTo(PLAYER.accel * DT, 9);
+    expect(transform.position.z).toBeGreaterThan(-1 + PLAYER.radius);
+  });
+
+  it("walks through walls with noclip, and gets pushed out once it's off", () => {
+    const { world, entity, transform, mover, step } = setup({ x: 0, z: -7 }, 0, [WALL]);
+    world.addComponent(entity, "noclip", true);
+    mover.desired = { x: 0, z: -7 };
+    for (let i = 0; i < 12; i++) step(); // 1.4 m: into the wall
+    expect(transform.position.z).toBeLessThan(-1.3);
+    world.removeComponent(entity, "noclip");
+    mover.desired = { x: 0, z: 0 };
+    mover.velocity = { x: 0, z: 0 };
+    step();
+    expect(Math.abs(transform.position.z + 1.5)).toBeGreaterThanOrEqual(0.5 + PLAYER.radius - 1e-9);
+  });
+
+  it("pushes out when the radius grows against a wall", () => {
+    const { transform, step } = setup({ x: 0, z: 0 }, 0, [WALL]);
+    transform.position.z = -1 + PLAYER.radius;
+    tuning.set("player.radius", 0.7);
+    step();
+    expect(transform.position.z).toBeCloseTo(-1 + 0.7, 9);
   });
 });

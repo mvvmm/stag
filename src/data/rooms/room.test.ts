@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { greyboxRoom } from "@/data/rooms/greybox";
+import { gymRoom } from "@/data/rooms/gym";
 import {
   boxCorners,
   distanceToShape,
@@ -64,7 +65,7 @@ describe("room shapes", () => {
 });
 
 /** Checks every hand-built room against the basic rules. */
-const rooms: Room[] = [greyboxRoom];
+const rooms: Room[] = [greyboxRoom, gymRoom];
 
 describe.each(rooms.map((room) => [room.id, room] as const))("room %s", (_id, room) => {
   it("has finite shapes with positive sizes", () => {

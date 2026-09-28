@@ -3,7 +3,8 @@ import type { Vec2 } from "@/core/math";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import { greyboxRoom } from "@/data/rooms/greybox";
-import { distanceToShape } from "@/data/rooms/room";
+import { gymRoom } from "@/data/rooms/gym";
+import { distanceToShape, type Room } from "@/data/rooms/room";
 import { createWorld } from "@/ecs/world";
 import { type Action, emptyInputFrame, type InputFrame } from "@/input/actions";
 import { spawnRoom } from "@/scenes/arena";
@@ -13,9 +14,9 @@ import { playerControlSystem } from "@/systems/playerControl";
 
 const DT = 1 / 60;
 
-function setup(at: Vec2 = greyboxRoom.spawn) {
+function setup(at: Vec2 = greyboxRoom.spawn, room: Room = greyboxRoom) {
   const world = createWorld();
-  spawnRoom(world, greyboxRoom);
+  spawnRoom(world, room);
   const entity = world.with("player", "mover", "transform").first;
   if (!entity) throw new Error("no player");
   entity.transform.position.x = at.x;
@@ -68,17 +69,18 @@ describe("playerControl", () => {
     expect(player.orders).toBe(2);
   });
 
-  it("repaths while held only when the cursor changes nav cell", () => {
-    const { player, tick } = setup({ x: 4.5, z: 0.5 });
-    tick({ moveCommand: { x: 4.5, z: 6 } }); // behind the pillar: a path with corners
+  it("repaths from scratch whenever the held cursor moves", () => {
+    const { player, tick } = setup({ x: 4, z: 0.5 });
+    tick({ moveCommand: { x: 4.5, z: 6 } }); // behind the pillar: a path round it
     const waypoints = player.order?.waypoints;
     expect(waypoints?.length).toBeGreaterThan(1);
-    tick({ moveCommand: { x: 4.52, z: 6.01 } }); // same 0.25 m cell
-    expect(player.order?.waypoints).toBe(waypoints);
-    expect(player.order?.goal).toEqual({ x: 4.52, z: 6.01 });
-    expect(player.order?.waypoints.at(-1)).toEqual({ x: 4.52, z: 6.01 });
-    tick({ moveCommand: { x: -6, z: 0 } });
+    tick({ moveCommand: { x: 4.3, z: 6.1 } });
     expect(player.order?.waypoints).not.toBe(waypoints);
+    expect(player.order?.goal).toEqual({ x: 4.3, z: 6.1 });
+    expect(player.order?.waypoints.at(-1)).toEqual({ x: 4.3, z: 6.1 });
+    // Dragged to open ground: straight there, no leftover detour round the pillar.
+    tick({ moveCommand: { x: 0, z: 0.5 } });
+    expect(player.order?.waypoints).toEqual([{ x: 0, z: 0.5 }]);
   });
 
   it("does nothing new while the button is held still on the spot it reached", () => {
@@ -128,8 +130,8 @@ describe("playerControl", () => {
       }
     }
     expect(position(entity)).toEqual(goal);
-    // Steering arcs may cut a corner a little before collision (1.3) exists.
-    expect(clearance).toBeGreaterThan(PLAYER.radius - 0.1);
+    // Collision keeps the body out of every obstacle, even where steering cuts a corner.
+    expect(clearance).toBeGreaterThan(PLAYER.radius - 0.002);
   });
 
   it("stops outside an obstacle when clicked into it", () => {
@@ -138,5 +140,18 @@ describe("playerControl", () => {
     for (let i = 0; i < 300 && player.order; i++) tick();
     const pillar = { kind: "circle", x: 4.5, z: 3.5, r: 0.9 } as const;
     expect(distanceToShape(position(entity), pillar)).toBeGreaterThanOrEqual(PLAYER.radius);
+  });
+
+  it("clicks into the gym's pillar pocket and out again, through the gap WASD fits", () => {
+    // The pocket's way in is the 0.836 m gap between two pillars: 3.6 cm to spare at radius 0.4.
+    const pocket = { x: 6.77, z: -4.53 };
+    const outside = { x: 5.6, z: -6.6 };
+    const { entity, player, tick } = setup(outside, gymRoom);
+    for (const goal of [pocket, outside]) {
+      tick({ moveCommand: goal });
+      for (let i = 0; i < 600 && player.order; i++) tick();
+      expect(player.order).toBeNull();
+      expect(position(entity)).toEqual(goal);
+    }
   });
 });

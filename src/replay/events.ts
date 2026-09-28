@@ -25,7 +25,7 @@ export function applyEdit(world: World<Entity>, { entity, path, value }: Edit): 
 export function applyEvent(
   world: World<Entity>,
   event: ReplayEvent,
-  runCommand: (id: string) => void,
+  runCommand: (id: string, world: World<Entity>) => void,
 ): void {
   switch (event.kind) {
     case "tunable":
@@ -35,7 +35,7 @@ export function applyEvent(
       applyEdit(world, event);
       break;
     case "command":
-      runCommand(event.id);
+      runCommand(event.id, world);
       break;
   }
 }

@@ -8,6 +8,7 @@ import {
 import { debugDraw } from "@/core/debugDraw";
 import { formatChanges, tuning } from "@/core/tuning";
 import { BUILD } from "@/debug/build";
+import { defineCheats } from "@/debug/cheats";
 import { createCommandRegistry } from "@/debug/commands";
 import { createDebugDrawRenderer } from "@/debug/debugDrawRender";
 import { createFrameStats } from "@/debug/frameStats";
@@ -480,6 +481,7 @@ export function startDevtools(shell: Shell) {
     commands.define({ id, label, group: "Built-in", button: false, run });
   }
   defineMovementPresets(commands);
+  defineCheats(commands, shell);
 
   // --- Pane toggle (`), outside the game's input ----------------------------------------------
 

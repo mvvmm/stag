@@ -5,15 +5,15 @@ import type { Vec2 } from "@/core/math";
 import type { Rng } from "@/core/rng";
 import type { Entity, MoveOrder } from "@/ecs/world";
 import type { InputFrame } from "@/input/actions";
-import { cellIndex, navGridOf } from "@/nav/grid";
-import { findPath, resolveGoal } from "@/nav/path";
+import { navGraphOf } from "@/nav/graph";
+import { findPath } from "@/nav/path";
 import { movementStats } from "@/systems/movementStats";
 
 /**
  * Turns input into the player's desired velocity for `locomotion`:
  * - WASD asks for `move · speed` and drops any click-to-move order.
- * - A move command (right-click) paths around obstacles to the cursor. Holding the button steers:
- *   it repaths when the cursor moves to another nav cell, and within a cell it only moves the goal.
+ * - A move command (right-click) paths around obstacles to the cursor. Holding the button steers: it
+ *   repaths whenever the cursor moves (a query is well under a millisecond).
  * - Following an order runs at full speed through the corners and brakes on the last leg just in
  *   time (`√(2·decel·distance)`) to land on the goal, where it stops dead.
  * - `stop` drops the order, so the player brakes.
@@ -39,14 +39,7 @@ export function playerControlSystem(
       if (fresh) player.orders++;
       const last = player.click;
       if (fresh || !last || last.x !== command.x || last.z !== command.z) {
-        player.order = order(
-          world,
-          stats.radius,
-          position,
-          command,
-          fresh ? null : last,
-          player.order,
-        );
+        player.order = order(world, stats.radius, position, command);
       }
     }
     player.click = command ? { x: command.x, z: command.z } : null;
@@ -93,26 +86,11 @@ export function playerControlSystem(
   }
 }
 
-/**
- * The order for a move command to `click`. A held button that stays in the same nav cell only moves
- * the end of the current path; anything else paths from scratch.
- */
-function order(
-  world: World<Entity>,
-  radius: number,
-  from: Vec2,
-  click: Vec2,
-  held: Vec2 | null,
-  current: MoveOrder | null,
-): MoveOrder {
-  const grid = navGridOf(world, radius);
-  if (!grid) return { goal: { x: click.x, z: click.z }, waypoints: [{ x: click.x, z: click.z }] };
-  if (held && current && cellIndex(grid, held) === cellIndex(grid, click)) {
-    const goal = resolveGoal(grid, click);
-    current.waypoints[current.waypoints.length - 1] = goal;
-    return { goal: { ...goal }, waypoints: current.waypoints };
-  }
-  return findPath(grid, { x: from.x, z: from.z }, click);
+/** The order for a move command to `click`: the path there (or as close as it gets). */
+function order(world: World<Entity>, radius: number, from: Vec2, click: Vec2): MoveOrder {
+  const graph = navGraphOf(world, radius);
+  if (!graph) return { goal: { x: click.x, z: click.z }, waypoints: [{ x: click.x, z: click.z }] };
+  return findPath(graph, { x: from.x, z: from.z }, click);
 }
 
 const distance = (a: Vec2, b: Vec2) => dmath.hypot(b.x - a.x, b.z - a.z);
