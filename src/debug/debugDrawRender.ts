@@ -13,8 +13,6 @@ import {
 import { DEBUG_COLORS, type DebugDraw } from "@/core/debugDraw";
 
 const GRID_HALF = 10;
-/** Rendering group drawn after the scene with a cleared depth buffer, so debug lines sit on top. */
-const DEBUG_GROUP = 1;
 
 /** A ground grid at 1-unit spacing, skipping the axis lines. */
 function createGrid(scene: Scene): LinesMesh {
@@ -34,10 +32,16 @@ function createGrid(scene: Scene): LinesMesh {
 
 /**
  * Draws the debug-draw buffer each frame: all segments as one vertex-colored line system (grown
- * as needed, updated in place, drawn on top of the scene) and text as pooled HTML labels. Also
- * draws the `grid` category: a depth-tested ground grid with the world axes.
+ * as needed, updated in place) in the `overlay` scene, which renders on top of the game after
+ * post-processing (so lines keep their true colors), and text as pooled HTML labels. Also draws the
+ * `grid` category: a depth-tested ground grid in the game scene, with the world axes.
  */
-export function createDebugDrawRenderer(draw: DebugDraw, scene: Scene, engine: WebGPUEngine) {
+export function createDebugDrawRenderer(
+  draw: DebugDraw,
+  scene: Scene,
+  overlay: Scene,
+  engine: WebGPUEngine,
+) {
   let capacity = 0;
   let mesh: LinesMesh | null = null;
   let positions = new Float32Array(0);
@@ -62,9 +66,8 @@ export function createDebugDrawRenderer(draw: DebugDraw, scene: Scene, engine: W
         updatable: true,
         useVertexAlpha: false,
       },
-      scene,
+      overlay,
     );
-    mesh.renderingGroupId = DEBUG_GROUP;
     mesh.isPickable = false;
     // The bounding box never follows the updated vertices, so never frustum-cull it.
     mesh.alwaysSelectAsActiveMesh = true;
@@ -72,10 +75,6 @@ export function createDebugDrawRenderer(draw: DebugDraw, scene: Scene, engine: W
     positions = new Float32Array(capacity * 6);
     colors = new Float32Array(capacity * 8);
   };
-
-  // The debug group clears depth (so shapes sit on top) but keeps the stencil, which the entity
-  // highlight layer uses to keep its glow off the mesh itself.
-  scene.setRenderingAutoClearDepthStencil(DEBUG_GROUP, true, true, false);
 
   // The grid is static and depth-tested (a separate mesh), unlike on-top debug shapes; it's
   // still toggled by the `grid` category. The axes and labels go through the buffer.

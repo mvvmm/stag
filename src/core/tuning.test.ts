@@ -7,6 +7,7 @@ const setup = () => {
     speed: { value: 6, min: 0, max: 20, step: 0.1 },
     ghost: { value: false },
     mode: { value: "walk", options: ["walk", "run"] },
+    tint: { value: "#ff8800", color: true },
   });
   return { tuning, pawn };
 };
@@ -35,6 +36,19 @@ describe("tuning registry", () => {
     expect(tuning.set("pawn.nope", 1)).toBe(false);
     expect(tuning.set("nope.speed", 1)).toBe(false);
     expect(pawn.mode).toBe("walk");
+  });
+
+  it("validates colors as #rrggbb and stores them lowercase", () => {
+    const { tuning, pawn } = setup();
+    const tint: string = pawn.tint;
+    expect(tint).toBe("#ff8800");
+    expect(tuning.set("pawn.tint", "#AABBCC")).toBe(true);
+    expect(pawn.tint).toBe("#aabbcc");
+    for (const bad of ["red", "#abc", "#aabbccdd", "aabbcc", 0xaabbcc]) {
+      expect(tuning.set("pawn.tint", bad)).toBe(false);
+    }
+    expect(tuning.apply({ "pawn.tint": "#12345" })).toEqual(["pawn.tint"]);
+    expect(pawn.tint).toBe("#aabbcc");
   });
 
   it("applies stored overrides and drops stale ones", () => {

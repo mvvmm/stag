@@ -13,6 +13,12 @@ export type DebugSettings = {
   wireframe: boolean;
   /** The live input overlay (actions, move mode and aim, in every scene). */
   inputOverlay: boolean;
+  /** The atmosphere rig (off = flat grey-box lighting). */
+  atmosphere: boolean;
+  /** The final image in greyscale, to check values. */
+  valueView: boolean;
+  /** View-only stand-in threats in room scenes, to judge readability. */
+  standIns: boolean;
   /** Tunable overrides by id (`player.speed`). */
   tunables: Record<string, unknown>;
   /** The scene that was running last (reloads return to it). */
@@ -29,6 +35,9 @@ export function defaultDebugSettings(): DebugSettings {
     draw: { categories: {} },
     wireframe: false,
     inputOverlay: true,
+    atmosphere: true,
+    valueView: false,
+    standIns: false,
     tunables: {},
   };
 }
@@ -70,6 +79,9 @@ export function parseDebugSettings(raw: string | null): DebugSettings {
     },
     wireframe: bool(data.wireframe, defaults.wireframe),
     inputOverlay: bool(data.inputOverlay, defaults.inputOverlay),
+    atmosphere: bool(data.atmosphere, defaults.atmosphere),
+    valueView: bool(data.valueView, defaults.valueView),
+    standIns: bool(data.standIns, defaults.standIns),
     tunables: isObject(data.tunables) ? data.tunables : {},
     ...(typeof data.scene === "string" && data.scene ? { scene: data.scene } : {}),
   };

@@ -34,6 +34,7 @@ import {
   saveFixture,
 } from "@/debug/replay/files";
 import { createReplaySession } from "@/debug/replay/session";
+import { createStandIns } from "@/debug/standIns";
 import { resolveStartup } from "@/debug/startup";
 import type { Entity } from "@/ecs/world";
 import { isEditable, savePreset } from "@/input/dom";
@@ -94,6 +95,11 @@ export function startDevtools(shell: Shell) {
     debugDraw.setCategory(category, shown);
   }
   scene.forceWireframe = stored.wireframe;
+  const atmosphere = shell.atmosphere.view;
+  atmosphere.enabled = stored.atmosphere;
+  atmosphere.valueView = stored.valueView;
+  const standIns = createStandIns(shell);
+  standIns.on = stored.standIns;
 
   // Record & replay. Created before `save` subscribes to tunables, so a replay's tunables are
   // already set aside when the settings are written.
@@ -111,6 +117,9 @@ export function startDevtools(shell: Shell) {
       draw: { categories: Object.fromEntries(debugDraw.categories) },
       wireframe: scene.forceWireframe,
       inputOverlay: state.inputOverlay,
+      atmosphere: atmosphere.enabled,
+      valueView: atmosphere.valueView,
+      standIns: standIns.on,
       // While a replay's tunables are in place, the player's own are what's remembered.
       tunables: replay.storedOverrides() ?? tuning.overrides(),
       scene: state.scene,
@@ -387,6 +396,23 @@ export function startDevtools(shell: Shell) {
       debugDraw.setCategory(category, shown);
       save();
     },
+    /** Off: flat grey-box lighting, no fog, shadows or post effects (A/B, collision/nav work). */
+    setAtmosphere(on: boolean) {
+      atmosphere.enabled = on;
+      save();
+      pane?.refresh();
+    },
+    setValueView(on: boolean) {
+      atmosphere.valueView = on;
+      save();
+      pane?.refresh();
+    },
+    setStandIns(on: boolean) {
+      standIns.on = on;
+      save();
+      pane?.refresh();
+    },
+    standIns,
     setWireframe(on: boolean) {
       scene.forceWireframe = on;
       save();
@@ -452,6 +478,9 @@ export function startDevtools(shell: Shell) {
     ["input.overlay", "Input overlay", () => tools.setInputOverlay(!state.inputOverlay)],
     ["inspector.toggle", "Babylon Inspector", () => void tools.toggleInspector()],
     ["wireframe.toggle", "Wireframe", () => tools.setWireframe(!scene.forceWireframe)],
+    ["atmosphere.toggle", "Atmosphere", () => tools.setAtmosphere(!atmosphere.enabled)],
+    ["valueView.toggle", "Value view", () => tools.setValueView(!atmosphere.valueView)],
+    ["standIns.toggle", "Stand-in threats", () => tools.setStandIns(!standIns.on)],
     ["freeCamera.toggle", "Free camera", () => tools.setFreeCamera(!freeCamera.active)],
     ["loop.pause", "Pause / resume", () => tools.setPaused(!loop.paused)],
     [
@@ -496,7 +525,7 @@ export function startDevtools(shell: Shell) {
 
   acceptDroppedReplays((bytes) => void tools.playReplay(bytes));
 
-  const drawRenderer = createDebugDrawRenderer(debugDraw, scene, engine);
+  const drawRenderer = createDebugDrawRenderer(debugDraw, scene, shell.atmosphere.overlay, engine);
   shell.addRenderPhase("debugDraw", drawRenderer.update);
   attachInputOverlay(shell);
 

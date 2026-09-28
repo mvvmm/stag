@@ -43,7 +43,7 @@
 - [x] **1.2 Player movement:** kinematic controller with acceleration/deceleration, facing, precise stops; prototype both WASD and right-click-to-move (moba needs basic player pathing around obstacles). → [plan](plans/1.2-player-movement.md)
 - [x] **1.3 Collision:** player vs walls/obstacles with sliding. → [plan](plans/1.3-collision.md)
 - [x] **1.4 Camera follow:** smoothing, aim look-ahead, bounds. → [plan](plans/1.4-camera-follow.md)
-- [ ] **1.5 Early atmosphere:** dark lighting, fog, shadows, player light, bloom/grading/vignette; readability check.
+- [x] **1.5 Early atmosphere:** dark lighting, fog, shadows, player light, bloom/grading/vignette; readability check. → [plan](plans/1.5-early-atmosphere.md)
 - [ ] **1.6 Placeholder character:** pack model with idle/run animations driven by movement.
 - [ ] **1.7 Movement feel pass:** tune until running around the empty arena is fun on its own (gate); pick the control scheme (WASD vs right-click-to-move, or keep both as a setting).
 

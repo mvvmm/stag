@@ -9,7 +9,9 @@ type Base = { label?: string };
 export type NumberSpec = Base & { value: number; min?: number; max?: number; step?: number };
 export type BooleanSpec = Base & { value: boolean };
 export type SelectSpec = Base & { value: string; options: readonly string[] };
-export type TunableSpec = NumberSpec | BooleanSpec | SelectSpec;
+/** An sRGB color as a lowercase `#rrggbb` string (a color picker in the pane). */
+export type ColorSpec = Base & { value: string; color: true };
+export type TunableSpec = NumberSpec | BooleanSpec | SelectSpec | ColorSpec;
 
 export type TunableValue = number | boolean | string;
 
@@ -43,6 +45,8 @@ type Group = {
 
 const isNumberSpec = (spec: TunableSpec): spec is NumberSpec => typeof spec.value === "number";
 const isSelectSpec = (spec: TunableSpec): spec is SelectSpec => "options" in spec;
+export const isColorSpec = (spec: TunableSpec): spec is ColorSpec => "color" in spec;
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 /** Drops float noise from slider steps (0.30000000000000004 → 0.3). */
 const tidy = (value: number): number => Number(value.toPrecision(6));
@@ -62,6 +66,9 @@ function validate(spec: TunableSpec, value: unknown, clamp: boolean): TunableVal
   }
   if (isSelectSpec(spec)) {
     return typeof value === "string" && spec.options.includes(value) ? value : undefined;
+  }
+  if (isColorSpec(spec)) {
+    return typeof value === "string" && HEX_COLOR.test(value) ? value.toLowerCase() : undefined;
   }
   return typeof value === "boolean" ? value : undefined;
 }

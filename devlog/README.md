@@ -21,6 +21,7 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 1.2 | [Player movement](1.2-player-movement/index.md) | 2026-09-27 |
 | 1.3 | [Collision](1.3-collision/index.md) | 2026-09-27 |
 | 1.4 | [Camera follow](1.4-camera-follow/index.md) | 2026-09-27 |
+| 1.5 | [Early atmosphere](1.5-early-atmosphere/index.md) | 2026-09-28 |
 
 ## Layout
 
