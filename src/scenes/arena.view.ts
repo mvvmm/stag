@@ -8,7 +8,7 @@ import {
   WALL_THICKNESS,
 } from "@/data/rooms/room";
 import type { Entity } from "@/ecs/world";
-import { cellCenter, type NavGrid, navGridOf } from "@/nav/grid";
+import { type NavGraph, navGraphOf } from "@/nav/graph";
 import { createClickMarker } from "@/render/clickMarker";
 import { createGridMaterial } from "@/render/gridMaterial";
 import { createOcclusionFader } from "@/render/occlusion";
@@ -112,8 +112,8 @@ function setup(ctx: SceneContext): void {
       if (shape.kind === "circle") debugDraw.circle(shape, shape.r, options);
       else debugDraw.path(boxCorners(shape), { ...options, closed: true });
     }
-    const nav = navGridOf(world, PLAYER.radius);
-    if (nav) drawNavGrid(nav);
+    const nav = navGraphOf(world, PLAYER.radius);
+    if (nav) drawNavGraph(nav);
   });
 }
 
@@ -143,36 +143,22 @@ function playerBody(ctx: SceneContext): Mesh {
   return body;
 }
 
-/** Cache of the walkable area's edge for the `navgrid` debug draw, per grid. */
-const edgeCells = new WeakMap<NavGrid, Vec2[]>();
-
-/** The grown obstacle outlines and the blocked cells along the walkable area's edge. */
-function drawNavGrid(nav: NavGrid): void {
-  const options = { color: "cyan", category: "navgrid" } as const;
-  for (const shape of nav.shapes)
+/** The grown obstacle outlines, and (only while the category is shown) the graph's tangents. */
+function drawNavGraph(nav: NavGraph): void {
+  const options = { color: "cyan", category: "navgraph" } as const;
+  for (const shape of nav.shapes) {
     debugDraw.path(grownOutline(shape, nav.pad), { ...options, closed: true });
-
-  let cells = edgeCells.get(nav);
-  if (!cells) {
-    cells = [];
-    const { cols, rows, blocked } = nav;
-    for (let index = 0; index < cols * rows; index++) {
-      if (!blocked[index]) continue;
-      const col = index % cols;
-      const row = (index - col) / cols;
-      const free = (c: number, r: number) =>
-        c >= 0 && c < cols && r >= 0 && r < rows && !blocked[r * cols + c];
-      if (free(col + 1, row) || free(col - 1, row) || free(col, row + 1) || free(col, row - 1)) {
-        cells.push(cellCenter(nav, index));
-      }
-    }
-    edgeCells.set(nav, cells);
   }
-  const s = nav.cell * 0.3;
-  const grey = { color: "grey", category: "navgrid" } as const;
-  for (const c of cells) {
-    debugDraw.line({ x: c.x - s, z: c.z - s }, { x: c.x + s, z: c.z + s }, grey);
-    debugDraw.line({ x: c.x - s, z: c.z + s }, { x: c.x + s, z: c.z - s }, grey);
+  if (!debugDraw.categories.get("navgraph")) return;
+  const grey = { color: "grey", category: "navgraph" } as const;
+  // Each tangent adds four nodes (both ends, both ways); draw it once, from its first node.
+  for (let node = 0; node < nav.tangentTo.length; node += 4) {
+    const to = nav.tangentTo[node] as number;
+    debugDraw.line(
+      { x: nav.nodeX[node] as number, z: nav.nodeZ[node] as number },
+      { x: nav.nodeX[to] as number, z: nav.nodeZ[to] as number },
+      grey,
+    );
   }
 }
 

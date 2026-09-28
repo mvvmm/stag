@@ -63,7 +63,6 @@ export const gymRoom: Room = {
     // North: a V between a box leaning 25° and the north wall.
     arm({ x: 1, z: 8 }, 205 * DEG, 4),
     // North-east: a corridor that just fits (0.82 m) and one that just doesn't (0.79 m), 4 m long.
-    // The nav grid's 0.25 m cells can't see the 0.82 m one, so only WASD gets through it.
     box(3.5, 3.5, 1, 4),
     box(4 + 0.82 + 0.5, 3.5, 1, 4),
     box(4 + 0.82 + 1 + 0.79 + 0.5, 3.5, 1, 4),

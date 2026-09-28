@@ -64,7 +64,7 @@ src/
   debug/      dev tools (lazy, DEBUG only): commands, pane, stats/profiler, debug-draw renderer, Inspector, replay session (debug/replay/)
   replay/     record & replay core, Babylon-free: file format, checksums, recorder, player, headless runner; fixtures/ are regression tests
   scenes/     SceneSim (sim.ts, Babylon-free) + SceneDef/SceneContext (scene.ts), registries (sims.ts headless, index.ts full), room scenes (arena.ts: `roomSim(id, label, room)` → `arena` (greybox, the default scene) and `gym`; arena.view.ts: the shared room view with player body, click marker, occluder fading)
-  nav/        pathfinding (Babylon-free): obstacles grown by a radius (shapes.ts), nav grid cached per world (grid.ts), A* (astar.ts), findPath with string pulling (path.ts)
+  nav/        pathfinding (Babylon-free): obstacles grown by a radius (shapes.ts), exact tangent graph over the grown shapes cached per world (graph.ts: circles = pillars and rounded box corners, edges = clear tangents + free arcs), generic deterministic A* (astar.ts), findPath (path.ts: start/goal tangents, arcs walked as a polygon 1 mm outside, closest reachable point when blocked). It fits exactly the gaps collision lets through
   collision/  2D collision (Babylon-free): swept circle vs grown obstacle shapes (cast.ts), moveAndSlide with projected sliding + safety-net push-out and clipVelocity (slide.ts); rooms.test.ts runs random walks through every room
   demo/       throwaway test scenes (stress), replaced by real content: `<name>.ts` is the sim half, `<name>.view.ts` the view
 ```
