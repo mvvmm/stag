@@ -24,7 +24,7 @@ export type TunableValues<S extends Record<string, TunableSpec>> = {
 };
 
 export type Tunable = {
-  /** `group.key`, e.g. `pawn.speed`. */
+  /** `group.key`, e.g. `player.speed`. */
   id: string;
   group: string;
   key: string;
