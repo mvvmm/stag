@@ -69,7 +69,8 @@ export function createDebugDraw() {
 
   const add = (segments: DebugSegment[], options: DrawOptions, label?: DebugLabel) => {
     const category = options.category ?? "general";
-    if (!categories.has(category)) categories.set(category, true);
+    // New categories start hidden: the dev tools list each one as a toggle to switch on.
+    if (!categories.has(category)) categories.set(category, false);
     const shape: Shape = { category, segments, label };
     if (options.duration !== undefined && options.duration > 0) {
       timedShapes.push({ ...shape, remaining: options.duration });

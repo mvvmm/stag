@@ -85,7 +85,8 @@ export function startDevtools(shell: Shell) {
   const dropped = tuning.apply(stored.tunables);
   if (dropped.length) console.info(`dropped stale tunable tweaks: ${dropped.join(", ")}`);
 
-  debugDraw.enabled = stored.draw.enabled;
+  // Debug builds always record draws; each category is switched on in the pane's View folder.
+  debugDraw.enabled = true;
   for (const [category, shown] of Object.entries(stored.draw.categories)) {
     debugDraw.setCategory(category, shown);
   }
@@ -104,7 +105,7 @@ export function startDevtools(shell: Shell) {
       v: 1,
       paneFolders: state.paneFolders,
       stats: state.stats,
-      draw: { enabled: debugDraw.enabled, categories: Object.fromEntries(debugDraw.categories) },
+      draw: { categories: Object.fromEntries(debugDraw.categories) },
       wireframe: scene.forceWireframe,
       inputOverlay: state.inputOverlay,
       // While a replay's tunables are in place, the player's own are what's remembered.
@@ -379,11 +380,6 @@ export function startDevtools(shell: Shell) {
       save();
       publish();
     },
-    setDraw(on: boolean) {
-      debugDraw.enabled = on;
-      save();
-      pane?.refresh();
-    },
     setCategory(category: string, shown: boolean) {
       debugDraw.setCategory(category, shown);
       save();
@@ -451,7 +447,6 @@ export function startDevtools(shell: Shell) {
       () => tools.setStats(cycle(STATS_MODES, state.stats)),
     ],
     ["input.overlay", "Input overlay", () => tools.setInputOverlay(!state.inputOverlay)],
-    ["draw.toggle", "Debug draw", () => tools.setDraw(!debugDraw.enabled)],
     ["inspector.toggle", "Babylon Inspector", () => void tools.toggleInspector()],
     ["wireframe.toggle", "Wireframe", () => tools.setWireframe(!scene.forceWireframe)],
     ["freeCamera.toggle", "Free camera", () => tools.setFreeCamera(!freeCamera.active)],

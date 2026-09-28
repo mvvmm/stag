@@ -20,7 +20,7 @@ const NONE = -1;
 /**
  * The debug pane (Tweakpane, loaded lazily), the one place every dev tool is controlled from:
  * scene switching, seed and restart, loop and view controls with frame step, the entity picker
- * (the selection's components get their own pane, see `entityPane.ts`), debug-draw categories, tunables with changed markers, resets
+ * (the selection's components get their own pane, see `entityPane.ts`), debug-draw category toggles (in View), tunables with changed markers, resets
  * and "copy changes", and a button for every command that asks for one. Always there in debug builds;
  * <kbd>`</kbd> hides and shows it. It's a debug view, so it reads and writes the tools directly
  * instead of going through UI signals.
@@ -103,12 +103,6 @@ export function createPane(tools: DevTools) {
     },
     set freeCamera(v: boolean) {
       tools.setFreeCamera(v);
-    },
-    get draw() {
-      return debugDraw.enabled;
-    },
-    set draw(v: boolean) {
-      tools.setDraw(v);
     },
   };
 
@@ -341,8 +335,8 @@ export function createPane(tools: DevTools) {
     })
     .on("click", () => void tools.toggleInspector());
 
-  const drawFolder = folder(viewFolder, "Debug draw", "View/Debug draw");
-  drawFolder.addBinding(view, "draw", { label: "enabled" });
+  // Debug-draw categories, one toggle each, below a separator (they appear as code first draws).
+  viewFolder.addBlade({ view: "separator" });
   const categoryViews = new Map<string, { shown: boolean }>();
   /** Adds toggles for categories that appeared since the last check (systems draw lazily). */
   const syncCategories = () => {
@@ -350,7 +344,7 @@ export function createPane(tools: DevTools) {
       if (categoryViews.has(category)) continue;
       const categoryView = { shown };
       categoryViews.set(category, categoryView);
-      drawFolder
+      viewFolder
         .addBinding(categoryView, "shown", { label: category })
         .on("change", (event) => tools.setCategory(category, event.value));
     }
