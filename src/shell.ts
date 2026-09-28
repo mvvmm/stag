@@ -256,6 +256,9 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     inFrame = true;
 
     fitCanvas(engine);
+    // Focus events aren't reliable (closing a native dropdown list may not send `focus`), so an
+    // auto-pause also lifts as soon as the page has focus again.
+    if (loop.autoPaused && !document.hidden && document.hasFocus()) updateAutoPause();
     // Aim is recomputed every frame: the camera can move even when the mouse doesn't. It goes
     // through the rendering camera (the debug free camera, if on) so it's under the cursor; WASD
     // stays relative to the game camera. The game camera is still where the last frame rendered
