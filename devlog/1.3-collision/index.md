@@ -25,6 +25,8 @@ The player stopped walking through walls. Every tick, `locomotion` now sweeps th
 
 ## Media
 
+[![Playing the collision gym on a 120 Hz display in Firefox, with the trail and grown outlines on: into the pillar pocket and out, up the 0.82 m corridor, into the wedge, and sliding along the long diagonal wall](gym-walkthrough.jpg)](gym-walkthrough.mp4)
+
 ![Pushing west into the gym's 30° wedge: the player stops deep in the point, where its circle touches both arms](02-wedge.png)
 
 ![The collision gym: the wedge and the V at the top left, the three corridor blocks, a long diagonal wall, touching diamonds, a box with a pillar on its corner, and the pillar cluster](03-gym.png)
