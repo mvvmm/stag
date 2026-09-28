@@ -178,7 +178,7 @@ describe("locomotion against obstacles", () => {
     transform.position.z = -1 + PLAYER.radius;
     tuning.set("player.radius", 0.7);
     step();
-    expect(transform.position.z).toBeCloseTo(-1 + 0.7, 9);
+    expect(transform.position.z).toBeCloseTo(-1 + 0.7 + SKIN, 9);
   });
 });
 

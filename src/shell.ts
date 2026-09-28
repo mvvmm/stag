@@ -11,18 +11,26 @@ import { DEBUG } from "@/debug/enabled";
 import type { FrameSample } from "@/debug/frameStats";
 import { createWorld, type Entity, type Vec3 } from "@/ecs/world";
 import type { InputFrame, ShellFrame } from "@/input/actions";
-import { attachInputDom, loadPreset } from "@/input/dom";
+import { PRESETS } from "@/input/bindings";
+import { attachInputDom, loadPreset, savePreset } from "@/input/dom";
 import { createInputState, type InputState } from "@/input/state";
 import { cameraYaw, createGroundAim } from "@/render/aim";
 import { type Atmosphere, createAtmosphere } from "@/render/atmosphere";
-import { clampToRect, createCameraRig, lookAheadOffset, type Rect } from "@/render/cameraRig";
+import {
+  clampToRect,
+  createCameraRig,
+  edgePanDirection,
+  lookAheadOffset,
+  type Rect,
+} from "@/render/cameraRig";
 import { createEngine, fitCanvas } from "@/render/engine";
 import { createMeshSync } from "@/render/meshSync";
 import { preloadModels } from "@/render/models";
 import { CAMERA, createScene, updateCamera } from "@/render/scene";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
 import { createSimulation } from "@/systems/simulation";
-import { loopStats } from "@/ui/signals";
+import { loopStats, showNotice } from "@/ui/signals";
+import { createSoftwareCursor } from "@/ui/softwareCursor";
 
 const STATS_INTERVAL = 0.25;
 
@@ -143,6 +151,11 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   let cameraTarget = (): Vec3 => ORIGIN;
   let cameraBounds: Rect | null = null;
   const cameraRig = createCameraRig();
+  /**
+   * moba: where the free camera looks (it pans at the screen edges and Space brings it back to the
+   * player, like League); null while it follows the player (WASD, or before the first frame).
+   */
+  let freeLook: Vec2 | null = null;
 
   // The camera's yaw for this frame; WASD is relative to it. Updated before the loop runs.
   let yaw = 0;
@@ -172,6 +185,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   // After the rig too (its plugins apply to the models' materials), before the first scene.
   await preloadModels(scene);
   const dom = attachInputDom(input, canvas);
+  const cursor = createSoftwareCursor(canvas);
   const groundAim = createGroundAim(scene);
 
   // Auto-pause while the tab is hidden or the window is unfocused; independent of a manual pause.
@@ -220,6 +234,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     cameraTarget = () => ORIGIN;
     cameraBounds = null;
     cameraRig.snap();
+    freeLook = null;
     atmosphere.reset();
 
     const disposer = createDisposer();
@@ -295,6 +310,14 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       loop.paused = !loop.paused;
       publishStats();
     }
+    if (shellFrame.pressed.has("switchControls")) {
+      const next = input.preset.id === "mmo" ? "moba" : "mmo";
+      input.setPreset(next);
+      savePreset(next);
+      showNotice(`Controls: ${PRESETS[next].label}`);
+    }
+    dom.syncLock();
+    cursor.update(dom.locked ? dom.pointer : null);
     for (const listener of frameListeners) listener(shellFrame);
 
     const { alpha } = loop.advance(frameSeconds);
@@ -306,7 +329,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     }
     time("meshSync", () => meshSync.sync(settings.interpolate ? alpha : 1));
     // After mesh sync, so it follows an interpolated mesh without a frame of lag.
-    placeCamera(frameSeconds, pointer);
+    placeCamera(frameSeconds, dom.pointer, shellFrame.held.has("centerCamera"));
     atmosphere.update(frameSeconds);
     for (const phase of renderPhases) time(phase.name, phase.run);
     time("render", () => scene.render());
@@ -353,20 +376,65 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     });
   };
 
-  const placeCamera = (seconds: number, pointer: { x: number; y: number } | null) => {
+  /**
+   * moba's free camera: it stays where it is, pans while the cursor is at a screen edge, and
+   * `center` (Space) puts it back on the player (held: it keeps following). Starts on the player.
+   */
+  const freeCamera = (
+    seconds: number,
+    pointer: { x: number; y: number } | null,
+    target: Vec2,
+    center: boolean,
+  ): Vec2 => {
+    let look = !freeLook || center ? { x: target.x, z: target.z } : freeLook;
+    const usable =
+      pointer !== null &&
+      document.hasFocus() &&
+      scene.activeCamera === camera &&
+      CAMERA.edgePanSpeed > 0;
+    if (usable && !center) {
+      const direction = edgePanDirection(
+        pointer,
+        canvas.clientWidth,
+        canvas.clientHeight,
+        yaw,
+        CAMERA.edgePanSize,
+      );
+      const step = CAMERA.edgePanSpeed * seconds;
+      look = { x: look.x + direction.x * step, z: look.z + direction.z * step };
+    }
+    if (cameraBounds && CAMERA.bounds) look = clampToRect(look, cameraBounds, CAMERA.boundsInset);
+    freeLook = look;
+    return look;
+  };
+
+  const placeCamera = (
+    seconds: number,
+    pointer: { x: number; y: number } | null,
+    center: boolean,
+  ) => {
     const target = cameraTarget();
-    const offset = lookAheadTarget(pointer);
-    const lookAt = cameraRig.update(
-      {
-        target,
-        offset,
-        bounds: CAMERA.bounds ? cameraBounds : null,
-        follow: CAMERA.follow,
-        lookAheadLag: CAMERA.lookAheadLag,
-        inset: CAMERA.boundsInset,
-      },
-      seconds,
-    );
+    const free = input.preset.move.kind === "pointer";
+    const offset = free ? null : lookAheadTarget(pointer);
+    let lookAt: Vec2;
+    if (free) {
+      lookAt = freeCamera(seconds, pointer, target, center);
+      // Back in WASD, the follow starts over from the player.
+      cameraRig.snap();
+    } else {
+      freeLook = null;
+      lookAt = cameraRig.update(
+        {
+          target,
+          offset,
+          bounds: CAMERA.bounds ? cameraBounds : null,
+          follow: CAMERA.follow,
+          lookAheadLag: CAMERA.lookAheadLag,
+          inset: CAMERA.boundsInset,
+        },
+        seconds,
+      );
+    }
     updateCamera(camera, { x: lookAt.x, y: target.y, z: lookAt.z });
 
     const draw = { category: "camera" } as const;

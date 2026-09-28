@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { SKIN } from "@/collision/slide";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import { greyboxRoom } from "@/data/rooms/greybox";
@@ -224,7 +225,7 @@ describe("record → replay (headless)", () => {
     }
     // Pushed back out of the wall, to the inside.
     expect(player?.noclip).toBeUndefined();
-    expect(player?.transform.position.z).toBeCloseTo(-10 + PLAYER.radius, 9);
+    expect(player?.transform.position.z).toBeCloseTo(-10 + PLAYER.radius + SKIN, 9);
   });
 
   it("records from the middle of a run and replays from its snapshot", async () => {

@@ -11,6 +11,11 @@ export const ACTIONS = [
   "interact",
   "stop",
   "pause",
+  // Shell actions (read through `sampleFrame`, never by the simulation):
+  /** Swap the control scheme (WASD ↔ right-click), until 1.7 picks one. */
+  "switchControls",
+  /** moba: snap the camera back onto the player (held: keep following). */
+  "centerCamera",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 

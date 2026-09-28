@@ -102,3 +102,10 @@ export type ReplayStatus = {
 };
 
 export const replayStatus = signal<ReplayStatus | null>(null);
+
+/** A short message to show at the bottom of the screen; a new id restarts it. */
+export const notice = signal<{ id: number; text: string } | null>(null);
+let noticeId = 0;
+export function showNotice(text: string): void {
+  notice.value = { id: ++noticeId, text };
+}

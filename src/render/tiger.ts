@@ -73,7 +73,7 @@ export const ANIM = defineTunables("anim", {
   /** How fast lean and tilt follow (Hz, critically damped). */
   bodyFrequency: { value: 3, min: 0.5, max: 12, step: 0.1 },
   /** Tail swing per rad/s of turning, degrees (it swings out of the turn), and its spring. */
-  tail: { value: 18, min: 0, max: 60, step: 0.5 },
+  tail: { value: 6, min: 0, max: 60, step: 0.5 },
   tailMax: { value: 50, min: 0, max: 90, step: 1 },
   tailFrequency: { value: 1.6, min: 0.3, max: 6, step: 0.05 },
   tailDamping: { value: 0.35, min: 0.05, max: 1.5, step: 0.01 },

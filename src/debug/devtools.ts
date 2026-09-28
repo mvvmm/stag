@@ -494,7 +494,7 @@ export function startDevtools(shell: Shell) {
     ["standIns.toggle", "Stand-in threats", () => tools.setStandIns(!standIns.on)],
     [
       "placeholderBody.toggle",
-      "Placeholder body",
+      "Hitboxes instead of models",
       () => tools.setPlaceholderBody(!bodyView.capsule),
     ],
     ["freeCamera.toggle", "Free camera", () => tools.setFreeCamera(!freeCamera.active)],

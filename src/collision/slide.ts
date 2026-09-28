@@ -106,33 +106,37 @@ export function moveAndSlide(
   };
 }
 
-export type FitResult = {
-  /** Where the body ends up: `at`, or moved just clear of what it overlapped. */
-  position: Vec2;
-  /** Whether it ends up clear of every obstacle (beyond the skin). */
-  fits: boolean;
-};
+/**
+ * Whether a body (circles of `radius` at `circles` around `at`) is clear of every obstacle, a skin
+ * of overlap allowed. Used before a long body turns: its ends swing, and it only takes a pose that
+ * fits.
+ */
+export function bodyFits(
+  shapes: readonly ObstacleShape[],
+  at: Vec2,
+  radius: number,
+  circles: readonly Vec2[],
+): boolean {
+  return !deepest(near(shapes, at, reachOf(circles, radius)), at, radius, circles);
+}
 
 /** Passes `fitBody` gets to push a body clear. */
 const FIT_PASSES = 8;
 
 /**
- * Fits a body (circles of `radius` at `circles` around `at`) among the obstacles: if some part
- * overlaps one, the whole body is pushed straight out of the deepest overlap, a few times over.
- * Used when a long body turns: its ends swing, and a wall they swing into pushes it aside. `fits`
- * is false when it's still overlapping after that (caught between obstacles), and the caller
- * shouldn't take the new pose.
+ * Fits a body among the obstacles: if some part overlaps one, the whole body is pushed straight
+ * out of the deepest overlap (a skin clear), a few times over. `fits` is false when it still
+ * overlaps after that (caught between obstacles). Used to wiggle a blocked long body free.
  */
 export function fitBody(
   shapes: readonly ObstacleShape[],
   at: Vec2,
   radius: number,
   circles: readonly Vec2[],
-): FitResult {
+): { position: Vec2; fits: boolean } {
   const position = { x: at.x, z: at.z };
   pushClear(shapes, position, radius, circles, FIT_PASSES);
-  const nearby = near(shapes, position, reachOf(circles, radius));
-  return { position, fits: !deepest(nearby, position, radius, circles) };
+  return { position, fits: bodyFits(shapes, position, radius, circles) };
 }
 
 /** How far from the body's center an obstacle can be and still touch it. */
@@ -166,7 +170,7 @@ function deepest(
 
 /**
  * The safety net: while some circle overlaps a shape, moves the whole body (in place) so that
- * circle is just clear of it. Each pass looks at the shapes near where the body is now, since a
+ * circle is a skin clear of it. Each pass looks at the shapes near where the body is now, since a
  * push can carry it toward ones it wasn't near. Returns whether it moved it.
  */
 function pushClear(
@@ -183,7 +187,9 @@ function pushClear(
     if (!overlap) break;
     const { shape, circle } = overlap;
     const c = { x: position.x + circle.x, z: position.z + circle.z };
-    const out = pushOut(c, shape, radius);
+    // A skin clear of it, like a cast leaves it: pushed to exactly the radius, rounding can leave
+    // it a hair inside a face it only touches, and every later move along it counts as into it.
+    const out = pushOut(c, shape, radius + SKIN);
     position.x += out.x - c.x;
     position.z += out.z - c.z;
     moved = true;

@@ -31,7 +31,8 @@ Small in scope, deep in replayability: we get longevity from a tight core loop t
 - **Camera:** angled top-down / isometric-style 3D view (Hades / V Rising-like). Chosen for threat readability (telegraphs, enemies, and terrain visible at once) and for achievable visual quality.
 - **Movement:** two candidate schemes, both supported by the input layer (0.3) and decided at the 1.7 movement feel gate (or both kept as a setting):
   - **MMO preset:** **WASD** direct control of the character (WoW-style "I'm steering my body" feel). Abilities on `1`/`2`/`3` + `4` (ultimate), right mouse = basic attack, left mouse = interact.
-  - **MOBA preset:** League-style **right-click to move** (hold to steer; right-click on an enemy attacks), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `S` = stop.
+  - **MOBA preset:** League-style **right-click to move** (hold to steer; right-click on an enemy attacks), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `S` = stop. League's camera too: the cursor is locked inside the window, the camera is free and pans at the screen edges, and `Space` centers it on the character (held: follows). Dodge is provisionally `F` here.
+  - `M` switches between the two schemes until 1.7 picks one.
 - **Aiming:** mouse aims abilities (cursor projected onto the ground) in both schemes.
 - **Abilities:** 3 basics + 1 ultimate; keys per preset above. Bindings are data, and remapping comes in 16.1.
 

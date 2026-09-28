@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { footprintCircles, halfSpine } from "@/collision/body";
-import { fitBody, moveAndSlide, SKIN } from "@/collision/slide";
-import { dmath } from "@/core/dmath";
+import { bodyFits, fitBody, moveAndSlide, SKIN } from "@/collision/slide";
 import { distanceToShape, type ObstacleShape } from "@/data/rooms/room";
 
 const PILL = { radius: 0.3, length: 2 };
@@ -55,34 +54,38 @@ describe("a pill in moveAndSlide", () => {
   });
 });
 
-describe("fitBody", () => {
-  it("leaves a body that fits where it is", () => {
-    const fit = fitBody([wall], { x: 0, z: 2 }, PILL.radius, footprintCircles(PILL, 0));
-    expect(fit).toEqual({ position: { x: 0, z: 2 }, fits: true });
+describe("bodyFits", () => {
+  it("fits a body clear of everything", () => {
+    expect(bodyFits([wall], { x: 0, z: 2 }, PILL.radius, footprintCircles(PILL, 0))).toBe(true);
   });
 
-  it("pushes a body whose end swung into a wall clear of it", () => {
+  it("doesn't fit a body whose end swung into a wall", () => {
     // Side-on against the wall, then turned 30° toward it: the nose dips in.
     const at = { x: 0, z: PILL.radius + 0.01 };
-    const circles = footprintCircles(PILL, Math.PI / 2 + Math.PI / 6);
-    expect(clearance(at, circles)).toBeLessThan(0);
-    const fit = fitBody([wall], at, PILL.radius, circles);
+    expect(bodyFits([wall], at, PILL.radius, footprintCircles(PILL, Math.PI / 2))).toBe(true);
+    const turned = footprintCircles(PILL, Math.PI / 2 + Math.PI / 6);
+    expect(clearance(at, turned)).toBeLessThan(0);
+    expect(bodyFits([wall], at, PILL.radius, turned)).toBe(false);
+  });
+
+  it("allows a skin of overlap, like the casts leave", () => {
+    const at = { x: 0, z: PILL.radius - SKIN / 2 };
+    expect(bodyFits([wall], at, PILL.radius, footprintCircles(PILL, Math.PI / 2))).toBe(true);
+  });
+});
+
+describe("fitBody", () => {
+  it("pushes a body whose end is in a wall a skin clear of it", () => {
+    const at = { x: 0, z: PILL.radius + 0.01 };
+    const turned = footprintCircles(PILL, Math.PI / 2 + Math.PI / 6);
+    const fit = fitBody([wall], at, PILL.radius, turned);
     expect(fit.fits).toBe(true);
-    expect(clearance(fit.position, circles)).toBeGreaterThanOrEqual(-SKIN);
+    expect(clearance(fit.position, turned)).toBeCloseTo(SKIN, 9);
   });
 
   it("doesn't fit a pill across a corridor narrower than it is long", () => {
-    // Two walls 1.2 m apart, the pill (2 m) turned across them.
     const north: ObstacleShape = { kind: "box", x: 0, z: 1.7, w: 20, d: 1, yaw: 0 };
     const fit = fitBody([wall, north], { x: 0, z: 0.6 }, PILL.radius, footprintCircles(PILL, 0));
     expect(fit.fits).toBe(false);
-  });
-
-  it("pushes out whole, in one piece", () => {
-    const circles = footprintCircles(PILL, 0.3);
-    const fit = fitBody([wall], { x: 0, z: 0.5 }, PILL.radius, circles);
-    const moved = dmath.hypot(fit.position.x, fit.position.z - 0.5);
-    expect(fit.fits).toBe(true);
-    expect(moved).toBeGreaterThan(0);
   });
 });

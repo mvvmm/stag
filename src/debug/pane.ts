@@ -405,7 +405,7 @@ export function createPane(tools: DevTools) {
   viewFolder.addBinding(view, "atmosphere");
   viewFolder.addBinding(view, "valueView", { label: "value view" });
   viewFolder.addBinding(view, "standIns", { label: "stand-in threats" });
-  viewFolder.addBinding(view, "placeholderBody", { label: "placeholder body" });
+  viewFolder.addBinding(view, "placeholderBody", { label: "hitboxes (no models)" });
   const freeCameraBinding = viewFolder.addBinding(view, "freeCamera", { label: "free camera" });
   const freeCameraLabel = freeCameraBinding.element.querySelector(".tp-lblv_l");
   if (freeCameraLabel instanceof HTMLElement) {

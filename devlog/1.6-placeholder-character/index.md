@@ -26,6 +26,9 @@ The grey-box capsule became a tiger, standing in for the Cat form until the art 
 - **A readability note for later:** the tiger's orange sits close to the red-orange of the stand-in danger telegraphs. That's something to settle in 3.2 and with the real Cat model.
 - **The glTF loader split the bundle** into many small lazy chunks. The first load grew by about 0.1 MB gzipped, plus the model.
 
+- **Two playtest bugs, caught on recordings.** Sliding along a wall with WASD, the long body turned its nose into the wall, got pushed off it and drifted back every three ticks: the facing now follows where the body actually went, and a moving body only turns as far as it fits. On right-click paths it got stuck at the end of a wall, once because a push-out left it exactly touching (rounding did the rest) and once because its nose caught under the wall where it could neither move nor turn: push-outs leave a skin now, and a blocked body may push itself clear to turn toward where it wants to go. Both recordings became regression tests that check the behaviour, not just the numbers.
+- **More League.** A second round of playtest notes made turning near instant (1800°/s), added `M` to switch control schemes, and gave the right-click scheme League's camera: the cursor locked in the window, the camera panning at the screen edges, Space to center it.
+
 ## Media
 
 The four gaits up close, at full size: idle, walk, trot and gallop.

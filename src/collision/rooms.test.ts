@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { footprintCircles } from "@/collision/body";
-import { fitBody, moveAndSlide, SKIN } from "@/collision/slide";
+import { bodyFits, moveAndSlide, SKIN } from "@/collision/slide";
 import { dmath } from "@/core/dmath";
 import { createRng } from "@/core/rng";
 import { greyboxRoom } from "@/data/rooms/greybox";
@@ -55,13 +55,11 @@ describe.each([greyboxRoom, gymRoom].map((room) => [room.id, room] as const))(
         const circles = footprintCircles(pill, facing);
         const motion = { x: dmath.sin(heading) * speed * DT, z: dmath.cos(heading) * speed * DT };
         p = moveAndSlide(shapes, p, motion, pill.radius, circles).position;
-        // Turn toward the heading like locomotion does (9° a tick), if the body fits.
+        // Turn toward the heading like locomotion does (9° a tick), as far as the body fits.
         const turn = Math.atan2(Math.sin(heading - facing), Math.cos(heading - facing));
         const step = Math.max(-0.16, Math.min(0.16, turn));
-        for (const tried of [step, step / 2]) {
-          const fit = fitBody(shapes, p, pill.radius, footprintCircles(pill, facing + tried));
-          if (!fit.fits) continue;
-          p = fit.position;
+        for (const tried of [step, step / 2, step / 4]) {
+          if (!bodyFits(shapes, p, pill.radius, footprintCircles(pill, facing + tried))) continue;
           facing += tried;
           break;
         }

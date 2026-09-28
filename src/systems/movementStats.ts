@@ -12,7 +12,7 @@ export const PLAYER = defineTunables("player", {
   /** Steering when the wanted direction points more than 90° away from the velocity, m/s². */
   turnAccel: { value: 90, min: 1, max: 1000, step: 1 },
   /** How fast the facing turns toward the movement direction, degrees per second. */
-  turnRate: { value: 540, min: 90, max: 3600, step: 10 },
+  turnRate: { value: 1800, min: 90, max: 3600, step: 10 },
   /** Footprint half-width, m (collision and pathing). */
   radius: { value: 0.28, min: 0.1, max: 0.8, step: 0.01 },
   /** Footprint length, nose to tail end, m: a pill along the facing (the Cat's long body). At most

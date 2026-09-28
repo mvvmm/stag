@@ -47,6 +47,7 @@ export const MMO_PRESET: Preset = {
     dodge: ["Space"],
     interact: ["Mouse0"],
     pause: ["Escape"],
+    switchControls: ["KeyM"],
   },
 };
 
@@ -61,10 +62,13 @@ export const MOBA_PRESET: Preset = {
     ability2: ["KeyW"],
     ability3: ["KeyE"],
     ultimate: ["KeyR"],
-    dodge: ["Space"],
+    // Space centers the camera, like League; dodge takes League's Flash key until 2.2 decides.
+    dodge: ["KeyF"],
     interact: ["Mouse0"],
     stop: ["KeyS"],
     pause: ["Escape"],
+    switchControls: ["KeyM"],
+    centerCamera: ["Space"],
   },
 };
 

@@ -1,6 +1,6 @@
 import type { World } from "miniplex";
 import { footprintCircles } from "@/collision/body";
-import { clipVelocity, fitBody, moveAndSlide, type SlideResult } from "@/collision/slide";
+import { bodyFits, clipVelocity, fitBody, moveAndSlide, type SlideResult } from "@/collision/slide";
 import { debugDraw } from "@/core/debugDraw";
 import { dmath } from "@/core/dmath";
 import { type Vec2, wrapAngle } from "@/core/math";
@@ -20,12 +20,11 @@ const ORANGE = { r: 1, g: 0.6, b: 0.2 };
  * Kinematic movement for every `mover`: the velocity moves toward `desired` at a linear rate
  * (`decel` when asked to stop, `turnAccel` when asked to go against the current velocity, `accel`
  * otherwise), the position follows the new velocity, sliding along obstacles instead of entering
- * them (unless the entity has `noclip`), and the facing turns toward the movement direction at
- * `turnRate`. Landing exactly on the desired velocity means stops don't drift. The velocity loses
+ * them (unless the entity has `noclip`), and the facing turns toward the direction it actually
+ * moved (along a wall it slides on) at `turnRate`. Landing exactly on the desired velocity means stops don't drift. The velocity loses
  * its part into any surface it ends up touching, so sliding carries the projected speed. A long
- * footprint (a pill along the facing) swings its ends when it turns: a wall they swing into pushes
- * the body aside, and where it can't make room (caught between obstacles) it turns only halfway, or
- * not at all.
+ * footprint (a pill along the facing) swings its ends when it turns, so it only turns as far as it
+ * fits; a blocked one may push itself clear to turn (see below).
  */
 export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _input: InputFrame) {
   const shapes: ObstacleShape[] = [];
@@ -43,6 +42,7 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
 
     const position = transform.position;
     const motion = { x: v.x * dt, z: v.z * dt };
+    const start = { x: position.x, z: position.z };
     if (entity.noclip) {
       position.x += motion.x;
       position.z += motion.z;
@@ -56,15 +56,24 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
       if (debugDraw.enabled) drawSlide(from, motion, slide, stats.radius);
     }
 
+    // Moving, the facing follows where the body actually went (along a wall it slides on), not
+    // where it's pushing: turning toward the wall would swing a long body's nose into it. Blocked
+    // (it wants to go somewhere but didn't move), it turns toward where it wants to go, and a long
+    // body may push itself clear to make that turn: that's how it wiggles out of a corner its nose
+    // is caught in.
+    const moved = { x: (position.x - start.x) / dt, z: (position.z - start.z) / dt };
     const speed = dmath.hypot(v.x, v.z);
-    if (speed > FACE_MIN_SPEED) {
-      const turn = wrapAngle(dmath.atan2(v.x, v.z) - transform.rotation.y);
+    const blocked =
+      dmath.hypot(moved.x, moved.z) <= FACE_MIN_SPEED && dmath.hypot(desired.x, desired.z) > 0;
+    const toward = blocked ? desired : moved;
+    if (blocked || dmath.hypot(moved.x, moved.z) > FACE_MIN_SPEED) {
+      const turn = wrapAngle(dmath.atan2(toward.x, toward.z) - transform.rotation.y);
       const most = stats.turnRate * dt;
       const step = Math.min(most, Math.max(-most, turn));
       if (entity.noclip || footprintCircles(stats, 0).length === 1) {
         transform.rotation.y = wrapAngle(transform.rotation.y + step);
       } else {
-        turnFitting(shapes, position, transform.rotation, stats, step);
+        turnFitting(shapes, position, transform.rotation, stats, step, blocked);
       }
     }
 
@@ -100,22 +109,29 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
 }
 
 /**
- * Turns a long body by `step` if it fits: the full turn, else half of it, else none. A turn that
- * swings an end into an obstacle pushes the body clear (`fitBody`).
+ * Turns a long body by `step` as far as it fits: the full turn, else half, else a quarter, else
+ * none. Only a blocked body (`push`) may be pushed clear to make the turn: pushing a moving body off
+ * a wall it slides along would let it drift back and turn into the wall again every few ticks.
  */
 function turnFitting(
   shapes: readonly ObstacleShape[],
-  position: Vec2 & { y?: number },
+  position: Vec2,
   rotation: { y: number },
   footprint: { radius: number; length: number },
   step: number,
+  push: boolean,
 ): void {
-  for (const tried of [step, step / 2]) {
+  for (const tried of [step, step / 2, step / 4]) {
     const yaw = wrapAngle(rotation.y + tried);
-    const fit = fitBody(shapes, position, footprint.radius, footprintCircles(footprint, yaw));
-    if (!fit.fits) continue;
-    position.x = fit.position.x;
-    position.z = fit.position.z;
+    const circles = footprintCircles(footprint, yaw);
+    if (!push) {
+      if (!bodyFits(shapes, position, footprint.radius, circles)) continue;
+    } else {
+      const fit = fitBody(shapes, position, footprint.radius, circles);
+      if (!fit.fits) continue;
+      position.x = fit.position.x;
+      position.z = fit.position.z;
+    }
     rotation.y = yaw;
     return;
   }
