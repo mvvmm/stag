@@ -61,9 +61,9 @@ export function attachInputDom(input: InputState, canvas: HTMLCanvasElement) {
   // every pointer event diffs the `buttons` bitmask instead of trusting `event.button`.
   let buttons = 0;
   const onPointer = (event: PointerEvent) => {
-    // Pressing on UI (the debug pane) lets go of everything: a native dropdown list swallows every
-    // key event while it's open, so a key released meanwhile would otherwise stay held.
-    if (event.type === "pointerdown" && event.target !== canvas) releaseAll();
+    // Opening a dropdown lets go of everything: its native list swallows every key event while
+    // it's open, so a key released meanwhile would otherwise stay held.
+    if (event.type === "pointerdown" && event.target instanceof HTMLSelectElement) releaseAll();
     const rect = canvas.getBoundingClientRect();
     pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
 
