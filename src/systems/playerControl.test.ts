@@ -144,6 +144,8 @@ describe("playerControl", () => {
 
   it("clicks into the gym's pillar pocket and out again, through the gap WASD fits", () => {
     // The pocket's way in is the 0.836 m gap between two pillars: 3.6 cm to spare at radius 0.4.
+    tuning.set("player.radius", 0.4);
+    tuning.set("player.length", 0);
     const pocket = { x: 6.77, z: -4.53 };
     const outside = { x: 5.6, z: -6.6 };
     const { entity, player, tick } = setup(outside, gymRoom);

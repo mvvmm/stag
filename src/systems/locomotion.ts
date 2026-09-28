@@ -1,5 +1,6 @@
 import type { World } from "miniplex";
-import { clipVelocity, moveAndSlide, type SlideResult } from "@/collision/slide";
+import { footprintCircles } from "@/collision/body";
+import { clipVelocity, fitBody, moveAndSlide, type SlideResult } from "@/collision/slide";
 import { debugDraw } from "@/core/debugDraw";
 import { dmath } from "@/core/dmath";
 import { type Vec2, wrapAngle } from "@/core/math";
@@ -21,7 +22,10 @@ const ORANGE = { r: 1, g: 0.6, b: 0.2 };
  * otherwise), the position follows the new velocity, sliding along obstacles instead of entering
  * them (unless the entity has `noclip`), and the facing turns toward the movement direction at
  * `turnRate`. Landing exactly on the desired velocity means stops don't drift. The velocity loses
- * its part into any surface it ends up touching, so sliding carries the projected speed.
+ * its part into any surface it ends up touching, so sliding carries the projected speed. A long
+ * footprint (a pill along the facing) swings its ends when it turns: a wall they swing into pushes
+ * the body aside, and where it can't make room (caught between obstacles) it turns only halfway, or
+ * not at all.
  */
 export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _input: InputFrame) {
   const shapes: ObstacleShape[] = [];
@@ -44,7 +48,8 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
       position.z += motion.z;
     } else {
       const from = { x: position.x, z: position.z };
-      const slide = moveAndSlide(shapes, from, motion, stats.radius);
+      const circles = footprintCircles(stats, transform.rotation.y);
+      const slide = moveAndSlide(shapes, from, motion, stats.radius, circles);
       position.x = slide.position.x;
       position.z = slide.position.z;
       clipVelocity(v, slide.touching);
@@ -55,9 +60,12 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
     if (speed > FACE_MIN_SPEED) {
       const turn = wrapAngle(dmath.atan2(v.x, v.z) - transform.rotation.y);
       const most = stats.turnRate * dt;
-      transform.rotation.y = wrapAngle(
-        transform.rotation.y + Math.min(most, Math.max(-most, turn)),
-      );
+      const step = Math.min(most, Math.max(-most, turn));
+      if (entity.noclip || footprintCircles(stats, 0).length === 1) {
+        transform.rotation.y = wrapAngle(transform.rotation.y + step);
+      } else {
+        turnFitting(shapes, position, transform.rotation, stats, step);
+      }
     }
 
     if (!debugDraw.enabled) continue;
@@ -88,6 +96,28 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
     if (speed > 0) {
       debugDraw.point(at, { color: "blue", category: "trail", duration: TRAIL_SECONDS });
     }
+  }
+}
+
+/**
+ * Turns a long body by `step` if it fits: the full turn, else half of it, else none. A turn that
+ * swings an end into an obstacle pushes the body clear (`fitBody`).
+ */
+function turnFitting(
+  shapes: readonly ObstacleShape[],
+  position: Vec2 & { y?: number },
+  rotation: { y: number },
+  footprint: { radius: number; length: number },
+  step: number,
+): void {
+  for (const tried of [step, step / 2]) {
+    const yaw = wrapAngle(rotation.y + tried);
+    const fit = fitBody(shapes, position, footprint.radius, footprintCircles(footprint, yaw));
+    if (!fit.fits) continue;
+    position.x = fit.position.x;
+    position.z = fit.position.z;
+    rotation.y = yaw;
+    return;
   }
 }
 

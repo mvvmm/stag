@@ -1,4 +1,13 @@
-import { Color3, Matrix, type Mesh, MeshBuilder, type PBRMaterial, Vector3 } from "@babylonjs/core";
+import {
+  Color3,
+  Matrix,
+  Mesh,
+  MeshBuilder,
+  type PBRMaterial,
+  Vector3,
+  VertexData,
+} from "@babylonjs/core";
+import { halfSpine } from "@/collision/body";
 import { debugDraw } from "@/core/debugDraw";
 import type { Vec2 } from "@/core/math";
 import {
@@ -94,6 +103,12 @@ function setup(ctx: SceneContext): void {
   // if the model didn't load). The capsule hangs under the tiger's root, so either one follows it.
   const tiger = createTiger(scene);
   const capsule = ctx.own(playerBody(ctx));
+  ctx.onTunableChange((id) => {
+    if (id === null || id === "player.radius" || id === "player.length") {
+      const nose = capsule.getChildMeshes()[0] as Mesh | undefined;
+      if (nose) shapePlayerBody(capsule, nose);
+    }
+  });
   const playerMesh = tiger ? tiger.root : capsule;
   if (tiger) {
     ctx.onDispose(() => {
@@ -154,33 +169,19 @@ function setup(ctx: SceneContext): void {
       if (shape.kind === "circle") debugDraw.circle(shape, shape.r, options);
       else debugDraw.path(boxCorners(shape), { ...options, closed: true });
     }
-    // The player's collision circle and facing, to compare with the body.
-    const footprint = { color: "yellow", category: "footprint" } as const;
-    const at = player.transform.position;
-    const facing = player.transform.rotation.y;
-    debugDraw.circle(at, PLAYER.radius, footprint);
-    debugDraw.arrow(
-      at,
-      {
-        x: at.x + Math.sin(facing) * PLAYER.radius * 1.6,
-        z: at.z + Math.cos(facing) * PLAYER.radius * 1.6,
-      },
-      footprint,
-    );
+    // The player's collision footprint (a circle or a pill) and facing, to compare with the body.
+    drawFootprint(player.transform.position, player.transform.rotation.y);
     const nav = navGraphOf(world, PLAYER.radius);
     if (nav) drawNavGraph(nav);
   });
 }
 
-/** The player's grey-box body: a capsule standing on its origin, and a nose pointing along +Z. */
+/**
+ * The player's grey-box body, shaped like its collision footprint: a capsule standing on its origin
+ * for a circle, lying along +Z for a pill (see `shapePlayerBody`), and a nose showing the facing.
+ */
 function playerBody(ctx: SceneContext): Mesh {
-  const radius = PLAYER.radius;
-  const body = MeshBuilder.CreateCapsule(
-    "player",
-    { radius, height: PLAYER_HEIGHT, tessellation: 16 },
-    ctx.scene,
-  );
-  body.bakeTransformIntoVertices(Matrix.Translation(0, PLAYER_HEIGHT / 2, 0));
+  const body = new Mesh("player", ctx.scene);
   body.material = ctx.own(
     greyboxMaterial("player", ctx.scene, PLAYER_COLOR, { roughness: 0.7, emissive: PLAYER_GLOW }),
   );
@@ -190,12 +191,61 @@ function playerBody(ctx: SceneContext): Mesh {
     MeshBuilder.CreateBox("playerNose", { width: 0.16, height: 0.16, depth: 0.3 }, ctx.scene),
   );
   nose.parent = body;
-  nose.position = new Vector3(0, PLAYER_HEIGHT * 0.7, radius + 0.08);
   nose.material = ctx.own(
     greyboxMaterial("playerNose", ctx.scene, PLAYER_COLOR.scale(0.45), { roughness: 0.7 }),
   );
   nose.isPickable = false;
+  shapePlayerBody(body, nose);
   return body;
+}
+
+/** (Re)builds the grey-box body's geometry for the current footprint tunables. */
+function shapePlayerBody(body: Mesh, nose: Mesh): void {
+  const radius = PLAYER.radius;
+  const pill = PLAYER.length > radius * 2;
+  const height = pill ? PLAYER.length : PLAYER_HEIGHT;
+  const shape = VertexData.CreateCapsule({ radius, height, tessellation: 16 });
+  // Standing on the ground; a pill lies down along +Z.
+  shape.transform(
+    pill
+      ? Matrix.RotationX(Math.PI / 2).multiply(Matrix.Translation(0, radius, 0))
+      : Matrix.Translation(0, height / 2, 0),
+  );
+  shape.applyToMesh(body, true);
+  body.refreshBoundingInfo();
+  nose.position = pill
+    ? new Vector3(0, radius * 1.4, PLAYER.length / 2 - 0.1)
+    : new Vector3(0, PLAYER_HEIGHT * 0.7, radius + 0.08);
+}
+
+/**
+ * The `footprint` debug category: the player's collision shape (a circle, or a pill: its two end
+ * caps and the sides between them) and an arrow along its facing.
+ */
+function drawFootprint(at: Vec2, facing: number): void {
+  const style = { color: "yellow", category: "footprint" } as const;
+  const radius = PLAYER.radius;
+  const half = halfSpine(PLAYER);
+  const dx = Math.sin(facing);
+  const dz = Math.cos(facing);
+  const front = { x: at.x + dx * half, z: at.z + dz * half };
+  const back = { x: at.x - dx * half, z: at.z - dz * half };
+  debugDraw.circle(front, radius, style);
+  if (half > 0) {
+    debugDraw.circle(back, radius, style);
+    // The sides: offset sideways (right of the facing is (dz, -dx)).
+    for (const side of [1, -1]) {
+      const ox = dz * radius * side;
+      const oz = -dx * radius * side;
+      debugDraw.line(
+        { x: front.x + ox, z: front.z + oz },
+        { x: back.x + ox, z: back.z + oz },
+        style,
+      );
+    }
+  }
+  const reach = half + radius * 1.6;
+  debugDraw.arrow(at, { x: at.x + dx * reach, z: at.z + dz * reach }, style);
 }
 
 /**

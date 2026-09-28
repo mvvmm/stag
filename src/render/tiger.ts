@@ -37,13 +37,15 @@ import { addRimLight } from "@/render/rimMaterial";
 const DEG = Math.PI / 180;
 
 export const TIGER = defineTunables("tiger", {
-  /** Size relative to the real tiger (2.4 m nose to tail tip, 0.93 m at the hip). */
-  scale: { value: 0.5, min: 0.2, max: 1.2, step: 0.01 },
-  /** How far the model sits back from the entity, real size, m (× scale): its origin is at the hips. */
-  offset: { value: 0.35, min: -1, max: 1, step: 0.01 },
+  /** Size relative to the real tiger: 2.0 m nose to rump (plus a 1 m tail), 0.93 m at the hip.
+   * The player's footprint (`player.radius`/`length`) should match it. */
+  scale: { value: 1, min: 0.2, max: 1.5, step: 0.01 },
+  /** How far the model sits back from the entity, real size, m (× scale), so the body between
+   * nose and rump is centered on it. */
+  offset: { value: -0.05, min: -1, max: 1, step: 0.01 },
   /** Scales the direct light (moon and the player's warm light) on its fur: right under the warm
    * light its back faces it head-on and would blow out. */
-  light: { value: 0.5, min: 0, max: 2, step: 0.01 },
+  light: { value: 0.3, min: 0, max: 2, step: 0.01 },
   /** Ground speed at which each clip's feet stick at 1× playback, real size, m/s (× scale). */
   walkSpeed: { value: 0.55, min: 0.1, max: 3, step: 0.01 },
   trotSpeed: { value: 1.85, min: 0.3, max: 6, step: 0.01 },
