@@ -18,7 +18,7 @@ import type { SceneSim } from "@/scenes/sim";
 import { PLAYER } from "@/systems/movementStats";
 
 // The view of every room scene: gridded floor, grey-box obstacle meshes, the player, the click-to-move marker,
-// the camera following the player, and obstacles fading while they hide it.
+// the camera following the player within the room, and obstacles fading while they hide it.
 
 /** The grey-box player: a capsule this tall, with a nose showing where it faces. */
 const PLAYER_HEIGHT = 1.2;
@@ -88,6 +88,13 @@ function setup(ctx: SceneContext): void {
   // The camera looks at the ground under the player's interpolated mesh.
   const focus = () => ({ x: playerMesh.position.x, y: 0, z: playerMesh.position.z });
   ctx.setCameraTarget(focus);
+  // The room is centered on the origin; the camera's look-at point stays inside it.
+  ctx.setCameraBounds({
+    minX: -room.width / 2,
+    maxX: room.width / 2,
+    minZ: -room.depth / 2,
+    maxZ: room.depth / 2,
+  });
 
   const fader = createOcclusionFader(scene, ctx.camera, obstacleMeshes, focus);
   const marker = createClickMarker(scene);

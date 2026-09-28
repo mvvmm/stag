@@ -4,6 +4,7 @@ import { MAX_FRAME_DELTA, MAX_TICKS_PER_FRAME, TICK_HZ } from "@/core/constants"
 import { debugDraw } from "@/core/debugDraw";
 import { createDisposer, type Disposer } from "@/core/disposer";
 import { createFixedLoop, type FixedLoop } from "@/core/loop";
+import type { Vec2 } from "@/core/math";
 import { createRng, type Rng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import { DEBUG } from "@/debug/enabled";
@@ -13,9 +14,10 @@ import type { InputFrame, ShellFrame } from "@/input/actions";
 import { attachInputDom, loadPreset } from "@/input/dom";
 import { createInputState, type InputState } from "@/input/state";
 import { cameraYaw, createGroundAim } from "@/render/aim";
+import { clampToRect, createCameraRig, lookAheadOffset, type Rect } from "@/render/cameraRig";
 import { createEngine, fitCanvas } from "@/render/engine";
 import { createMeshSync } from "@/render/meshSync";
-import { createScene, updateCamera } from "@/render/scene";
+import { CAMERA, createScene, updateCamera } from "@/render/scene";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
 import { createSimulation } from "@/systems/simulation";
 import { loopStats } from "@/ui/signals";
@@ -135,6 +137,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   let current: (LoadedScene & { disposer: Disposer }) | null = null;
   const ORIGIN: Vec3 = { x: 0, y: 0, z: 0 };
   let cameraTarget = (): Vec3 => ORIGIN;
+  let cameraBounds: Rect | null = null;
+  const cameraRig = createCameraRig();
 
   // The camera's yaw for this frame; WASD is relative to it. Updated before the loop runs.
   let yaw = 0;
@@ -206,6 +210,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     debugDraw.clear();
     statsTicks = 0;
     cameraTarget = () => ORIGIN;
+    cameraBounds = null;
+    cameraRig.snap();
 
     const disposer = createDisposer();
     const loaded = { def, seed, disposer };
@@ -221,6 +227,9 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       bindMesh: meshSync.bind,
       setCameraTarget: (target) => {
         cameraTarget = target;
+      },
+      setCameraBounds: (bounds) => {
+        cameraBounds = bounds;
       },
       own: disposer.own,
       onDispose: disposer.add,
@@ -284,7 +293,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     }
     time("meshSync", () => meshSync.sync(settings.interpolate ? alpha : 1));
     // After mesh sync, so it follows an interpolated mesh without a frame of lag.
-    updateCamera(camera, cameraTarget());
+    placeCamera(frameSeconds, pointer);
     for (const phase of renderPhases) time(phase.name, phase.run);
     time("render", () => scene.render());
     debugDraw.endFrame();
@@ -302,6 +311,66 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
       statsTicks = loop.tickCount;
       statsTimer = 0;
       publishStats();
+    }
+  };
+
+  /**
+   * The look-ahead offset the camera eases toward: from the cursor's place on screen, zero (so the
+   * view eases back to the player) when the cursor isn't the player's to use (outside the canvas,
+   * page unfocused, a replay playing, the free camera rendering), or null to hold it (paused).
+   */
+  const lookAheadTarget = (pointer: { x: number; y: number } | null): Vec2 | null => {
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const usable =
+      pointer !== null &&
+      pointer.x >= 0 &&
+      pointer.y >= 0 &&
+      pointer.x <= width &&
+      pointer.y <= height &&
+      document.hasFocus() &&
+      !driver &&
+      scene.activeCamera === camera;
+    if (!usable) return { x: 0, z: 0 };
+    if (loop.paused) return null;
+    return lookAheadOffset(pointer, width, height, yaw, {
+      distance: CAMERA.lookAhead,
+      deadZone: CAMERA.deadZone,
+    });
+  };
+
+  const placeCamera = (seconds: number, pointer: { x: number; y: number } | null) => {
+    const target = cameraTarget();
+    const offset = lookAheadTarget(pointer);
+    const lookAt = cameraRig.update(
+      {
+        target,
+        offset,
+        bounds: CAMERA.bounds ? cameraBounds : null,
+        follow: CAMERA.follow,
+        lookAheadLag: CAMERA.lookAheadLag,
+        inset: CAMERA.boundsInset,
+      },
+      seconds,
+    );
+    updateCamera(camera, { x: lookAt.x, y: target.y, z: lookAt.z });
+
+    const draw = { category: "camera" } as const;
+    debugDraw.arrow(target, lookAt, { ...draw, color: "yellow" });
+    debugDraw.point(lookAt, { ...draw, color: "yellow" });
+    if (offset) {
+      debugDraw.point(
+        { x: target.x + offset.x, z: target.z + offset.z },
+        { ...draw, color: "grey" },
+      );
+    }
+    if (cameraBounds && CAMERA.bounds) {
+      const { minX, maxX, minZ, maxZ } = cameraBounds;
+      const inset = CAMERA.boundsInset;
+      const lo = clampToRect({ x: minX, z: minZ }, cameraBounds, inset);
+      const hi = clampToRect({ x: maxX, z: maxZ }, cameraBounds, inset);
+      const corners = [lo, { x: hi.x, z: lo.z }, hi, { x: lo.x, z: hi.z }];
+      debugDraw.path(corners, { ...draw, color: "cyan", closed: true });
     }
   };
 

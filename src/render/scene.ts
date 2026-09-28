@@ -11,7 +11,7 @@ import {
 import { defineTunables } from "@/core/tuning";
 import type { Vec3 } from "@/ecs/world";
 
-/** The game camera. Smoothing, look-ahead and bounds come in 1.4. */
+/** The game camera: placement, cursor look-ahead, follow and bounds (see `cameraRig.ts`). */
 export const CAMERA = defineTunables("camera", {
   /** Angle above the ground, in degrees (90 = straight down). */
   pitch: { value: 52, min: 20, max: 89, step: 1 },
@@ -21,6 +21,18 @@ export const CAMERA = defineTunables("camera", {
   distance: { value: 17.8, min: 5, max: 50, step: 0.1 },
   /** Vertical field of view, in degrees. */
   fov: { value: 46, min: 15, max: 100, step: 1 },
+  /** How far the view leans toward the cursor, in meters (0 = off). */
+  lookAhead: { value: 3, min: 0, max: 8, step: 0.1 },
+  /** Fraction of the half-screen around the center where the cursor gives no look-ahead. */
+  deadZone: { value: 0.15, min: 0, max: 0.9, step: 0.01 },
+  /** Time constant of the look-ahead easing, in seconds. */
+  lookAheadLag: { value: 0.25, min: 0, max: 1, step: 0.01 },
+  /** Time constant of the player follow, in seconds (0 = pinned). */
+  follow: { value: 0, min: 0, max: 0.5, step: 0.01 },
+  /** Keep the look-at point inside the room. */
+  bounds: { value: true },
+  /** How far inside the room's edges the look-at point stops, in meters (negative = past them). */
+  boundsInset: { value: 4, min: -10, max: 15, step: 0.1 },
 });
 
 const lookAt = new Vector3();
