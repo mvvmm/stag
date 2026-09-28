@@ -7,7 +7,9 @@ import {
   lookYaw,
   type Spring,
   snapSpring,
+  stepChain,
   stepSpring,
+  sway,
 } from "@/render/locomotionAnim";
 
 const GAITS: Gait[] = [
@@ -140,5 +142,42 @@ describe("lookYaw", () => {
   it("clamps, and takes the short way round", () => {
     expect(lookYaw(from, 0, { x: 0, z: -5 }, 1)).toBeCloseTo(-1);
     expect(lookYaw(from, 3, { x: 0, z: -5 }, 1)).toBeCloseTo(Math.PI - 3);
+  });
+});
+
+describe("stepChain", () => {
+  it("passes a swing down the chain, the tip later than the base, and settles", () => {
+    const chain: Spring[] = [0, 1, 2, 3].map(() => ({ value: 0, velocity: 0 }));
+    const peaks = chain.map(() => ({ at: 0, value: 0 }));
+    for (let i = 0; i < 240; i++) {
+      // A short push, then nothing.
+      stepChain(chain, i < 12 ? 1 : 0, 2, 0.5, 1 / 60);
+      chain.forEach((link, j) => {
+        const peak = peaks[j] as { at: number; value: number };
+        if (link.value > peak.value) {
+          peak.value = link.value;
+          peak.at = i;
+        }
+      });
+    }
+    for (let j = 1; j < chain.length; j++) {
+      expect((peaks[j] as { at: number }).at).toBeGreaterThan((peaks[j - 1] as { at: number }).at);
+    }
+    for (const link of chain) expect(Math.abs(link.value)).toBeLessThan(0.02);
+  });
+});
+
+describe("sway", () => {
+  it("stays in [-1, 1] and doesn't repeat every main period", () => {
+    let min = 0;
+    let max = 0;
+    for (let t = 0; t < 60; t += 0.01) {
+      const v = sway(t, 0.3);
+      min = Math.min(min, v);
+      max = Math.max(max, v);
+    }
+    expect(min).toBeGreaterThanOrEqual(-1);
+    expect(max).toBeLessThanOrEqual(1);
+    expect(sway(1, 0.3)).not.toBeCloseTo(sway(1 + 1 / 0.3, 0.3), 3);
   });
 });

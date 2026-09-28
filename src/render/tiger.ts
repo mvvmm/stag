@@ -23,7 +23,9 @@ import {
   lookYaw,
   type Spring,
   snapSpring,
+  stepChain,
   stepSpring,
+  sway,
 } from "@/render/locomotionAnim";
 import { instantiateModel, modelMaterials } from "@/render/models";
 import { addRimLight } from "@/render/rimMaterial";
@@ -72,11 +74,20 @@ export const ANIM = defineTunables("anim", {
   tiltMax: { value: 7, min: 0, max: 30, step: 0.5 },
   /** How fast lean and tilt follow (Hz, critically damped). */
   bodyFrequency: { value: 3, min: 0.5, max: 12, step: 0.1 },
-  /** Tail swing per rad/s of turning, degrees (it swings out of the turn), and its spring. */
-  tail: { value: 6, min: 0, max: 60, step: 0.5 },
-  tailMax: { value: 50, min: 0, max: 90, step: 1 },
-  tailFrequency: { value: 1.6, min: 0.3, max: 6, step: 0.05 },
-  tailDamping: { value: 0.35, min: 0.05, max: 1.5, step: 0.01 },
+  /** Tail swing per rad/s of (smoothed) turning, degrees: it swings out of the turn. */
+  tail: { value: 10, min: 0, max: 60, step: 0.5 },
+  tailMax: { value: 40, min: 0, max: 90, step: 1 },
+  /** How fast the turn that drives the tail is smoothed (Hz): turns are near instant, the tail
+   * shouldn't be. */
+  tailDrive: { value: 3, min: 0.5, max: 20, step: 0.1 },
+  /** Each tail bone springs after the one before it (Hz, damping ratio): lower = lazier whip. */
+  tailFrequency: { value: 2.4, min: 0.3, max: 8, step: 0.05 },
+  tailDamping: { value: 0.45, min: 0.05, max: 1.5, step: 0.01 },
+  /** Idle sway, degrees, and its main rate (Hz): a slow, irregular swish while standing. */
+  tailSway: { value: 8, min: 0, max: 40, step: 0.5 },
+  tailSwayRate: { value: 0.25, min: 0.02, max: 2, step: 0.01 },
+  /** Sway in time with the stride while moving, degrees. */
+  tailStride: { value: 5, min: 0, max: 30, step: 0.5 },
   /** Head looking at the aim point: the most it turns (degrees) and how fast it follows (Hz). */
   headLook: { value: true },
   headMax: { value: 60, min: 0, max: 120, step: 1 },
@@ -91,9 +102,9 @@ const MODEL_UNITS = 0.01;
 const HIP_HEIGHT = 0.93;
 /** Where each gait's left hind foot is furthest forward (fraction of the clip), to line them up. */
 const GAIT_CLIPS = [
-  { name: "walk", offset: 0.436 },
+  { name: "walk", offset: 0.425 },
   { name: "trot", offset: 0 },
-  { name: "run", offset: 0.083 },
+  { name: "run", offset: 0.077 },
 ] as const;
 const IDLE_CLIP = "idle";
 /** Longer than this between two frames (a replay seek), the springs snap instead of swinging. */
@@ -107,7 +118,7 @@ const BONES = {
 } as const;
 /** How the head's turn is shared between the neck and the head, and the tail's between its bones. */
 const LOOK_SHARE = [0.45, 0.55];
-const TAIL_SHARE = [0.15, 0.25, 0.3, 0.3];
+const TAIL_SHARE = [0.2, 0.25, 0.27, 0.28];
 
 type Property = "rotationQuaternion" | "position" | "scaling";
 /** One animated property of one node, with its animation in each clip (or null). */
@@ -177,11 +188,14 @@ export function createTiger(scene: Scene): TigerBody | null {
   let breath = 0;
   const lean: Spring = { value: 0, velocity: 0 };
   const tilt: Spring = { value: 0, velocity: 0 };
-  const tail: Spring = { value: 0, velocity: 0 };
+  /** The smoothed turn rate driving the tail, and the tail's chain (one spring per bone). */
+  const tailTurn: Spring = { value: 0, velocity: 0 };
+  const tail: Spring[] = BONES.tail.map(() => ({ value: 0, velocity: 0 }));
+  let time = 0;
   const look: Spring = { value: 0, velocity: 0 };
   const snap = () => {
     smoothSpeed = speed;
-    for (const spring of [lean, tilt, tail, look]) snapSpring(spring);
+    for (const spring of [lean, tilt, tailTurn, ...tail, look]) snapSpring(spring);
   };
 
   const gaits = (): Gait[] => {
@@ -281,6 +295,7 @@ export function createTiger(scene: Scene): TigerBody | null {
       const blend = gaitBlend(smoothSpeed, gaits(), ANIM);
       phase = (phase + blend.cyclesPerSecond * step) % 1;
       breath = (breath + ANIM.breathRate * step) % 1;
+      time += step;
       const weights = [blend.idle, ...blend.weights];
       const times = [
         0,
@@ -316,10 +331,17 @@ export function createTiger(scene: Scene): TigerBody | null {
       rotateAroundWorld(neck, up, look.value * (LOOK_SHARE[0] as number));
       rotateAroundWorld(head, up, look.value * (LOOK_SHARE[1] as number));
 
-      const swing = Math.max(-ANIM.tailMax, Math.min(ANIM.tailMax, -turnRate * ANIM.tail)) * DEG;
-      stepSpring(tail, swing, ANIM.tailFrequency, ANIM.tailDamping, step);
+      // The tail: a whip-like chain driven by the smoothed turn (swinging out of it), a slow
+      // irregular sway while standing, and a small sway in time with the stride while moving.
+      stepSpring(tailTurn, turnRate, ANIM.tailDrive, 1, step);
+      const turning = -tailTurn.value * ANIM.tail;
+      const standing = sway(time, ANIM.tailSwayRate) * ANIM.tailSway * blend.idle;
+      const striding = Math.sin(2 * Math.PI * phase) * ANIM.tailStride * (1 - blend.idle);
+      const drive =
+        Math.max(-ANIM.tailMax, Math.min(ANIM.tailMax, turning + standing + striding)) * DEG;
+      stepChain(tail, drive, ANIM.tailFrequency, ANIM.tailDamping, step);
       tailBones.forEach((node, i) => {
-        rotateAroundWorld(node, up, tail.value * (TAIL_SHARE[i] as number));
+        rotateAroundWorld(node, up, (tail[i]?.value ?? 0) * (TAIL_SHARE[i] as number));
       });
     },
 

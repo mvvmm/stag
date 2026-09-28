@@ -27,6 +27,15 @@ const CLIPS: Record<string, string> = {
   Eat: "eat",
 };
 
+/**
+ * Looping clips exported without their closing frame: the last key is the frame before the cycle
+ * starts over, so wrapping straight from it to the first key skips a frame of motion (a visible
+ * hitch, 26-34° on some leg bones). Closing the loop adds a key one frame later equal to the first.
+ */
+const CLOSE_LOOPS = ["Walk", "Walk Fast", "Run"];
+/** The source's key spacing, s (24 fps). */
+const FRAME = 1 / 24;
+
 /** The idle is this clip's first pose (a calm stance), held. */
 const IDLE_POSE_FROM = "Howl";
 const IDLE_LENGTH = 1;
@@ -43,6 +52,9 @@ async function main() {
   const doc = await io.read(SOURCE);
   const root = doc.getRoot();
 
+  for (const animation of root.listAnimations()) {
+    if (CLOSE_LOOPS.includes(animation.getName())) closeLoop(doc, animation, FRAME);
+  }
   for (const animation of root.listAnimations()) {
     const name = CLIPS[animation.getName()];
     if (!name) throw new Error(`unknown clip "${animation.getName()}"`);
@@ -72,6 +84,36 @@ async function main() {
 
   await io.write(OUTPUT, doc);
   summarize(doc);
+}
+
+/**
+ * Makes `animation` loop seamlessly: every channel gets a key `frame` seconds after the clip's end
+ * with its value at the start, so the last frame blends back into the first like any other two.
+ */
+function closeLoop(doc: Document, animation: Animation, frame: number): void {
+  const buffer = doc.getRoot().listBuffers()[0];
+  const end = Math.max(...animation.listSamplers().map((s) => s.getInput()?.getMax([])[0] ?? 0));
+  for (const sampler of animation.listSamplers()) {
+    const input = sampler.getInput();
+    const output = sampler.getOutput();
+    if (!input || !output) continue;
+    const times = Array.from(input.getArray() ?? []);
+    const size = output.getElementSize();
+    const values = Array.from(output.getArray() ?? []);
+    // Its own accessors: samplers can share an input, which must only grow once.
+    sampler.setInput(
+      doc
+        .createAccessor(undefined, buffer)
+        .setType("SCALAR")
+        .setArray(new Float32Array([...times, end + frame])),
+    );
+    sampler.setOutput(
+      doc
+        .createAccessor(undefined, buffer)
+        .setType(output.getType())
+        .setArray(new Float32Array([...values, ...values.slice(0, size)])),
+    );
+  }
 }
 
 /**

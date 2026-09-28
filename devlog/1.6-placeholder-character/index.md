@@ -31,6 +31,8 @@ The grey-box capsule became a tiger, standing in for the Cat form until the art 
 
 - **Then we put the pill back where it belongs.** A third recording showed the tiger walking round wall ends tail first and stalling on the corner. Pathing planned for the body's width, and a 2 m body can't swing round the corners those paths hug. Looking at how others do it settled it: League and Dota move every unit as one circle whatever its model, and action games keep body-shaped capsules for damage. The tiger now moves and paths as a 0.4 m circle and turns freely, and the pill waits for hits in 2.4. We spent a day learning why the genre does it that way.
 
+- **The gaits hitched once per stride** because the source clips stop one frame short of a loop: their last key is the frame before the cycle restarts. The build script now adds the closing frame. The tail also got a whip-like chain of springs and a lazy idle swish, instead of swinging as one stiff piece.
+
 ## Media
 
 The four gaits up close, at full size: idle, walk, trot and gallop.

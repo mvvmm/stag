@@ -145,3 +145,31 @@ export function lookYaw(
   // Same convention as the sim's facing: yaw 0 looks along +Z, positive turns toward +X.
   return clamp(wrapAngle(Math.atan2(dx, dz) - facing), -max, max);
 }
+
+/**
+ * Steps a chain of springs (a tail): the first follows `drive`, and each one after it follows the
+ * one before, so a swing travels down the chain and the tip lags behind like a whip. Each spring
+ * has natural `frequency` (Hz) and `damping` ratio.
+ */
+export function stepChain(
+  chain: Spring[],
+  drive: number,
+  frequency: number,
+  damping: number,
+  dt: number,
+): void {
+  let target = drive;
+  for (const link of chain) {
+    stepSpring(link, target, frequency, damping, dt);
+    target = link.value;
+  }
+}
+
+/**
+ * A slow, irregular sway in [-1, 1] at time `t` (s): two sines at unrelated rates, so it never
+ * looks like a metronome. `rate` is the main one's cycles per second.
+ */
+export function sway(t: number, rate: number): number {
+  const TAU = 2 * Math.PI;
+  return 0.7 * Math.sin(TAU * rate * t) + 0.3 * Math.sin(TAU * rate * 1.618 * t + 1.3);
+}
