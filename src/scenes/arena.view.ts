@@ -12,11 +12,12 @@ import { cellCenter, type NavGrid, navGridOf } from "@/nav/grid";
 import { createClickMarker } from "@/render/clickMarker";
 import { createGridMaterial } from "@/render/gridMaterial";
 import { createOcclusionFader } from "@/render/occlusion";
-import { arenaSim } from "@/scenes/arena";
+import { arenaSim, gymSim } from "@/scenes/arena";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
+import type { SceneSim } from "@/scenes/sim";
 import { PLAYER } from "@/systems/movementStats";
 
-// The arena's view: gridded floor, grey-box obstacle meshes, the player, the click-to-move marker,
+// The view of every room scene: gridded floor, grey-box obstacle meshes, the player, the click-to-move marker,
 // the camera following the player, and obstacles fading while they hide it.
 
 /** The grey-box player: a capsule this tall, with a nose showing where it faces. */
@@ -33,13 +34,17 @@ const OBSTACLE_COLORS: Record<ObstacleType, Color3> = {
   pillar: new Color3(0.42, 0.39, 0.35),
 };
 
-export const arenaScene: SceneDef = { ...arenaSim, setup };
+/** A room scene's sim plus the shared room view. */
+export const roomScene = (sim: SceneSim): SceneDef => ({ ...sim, setup });
+
+export const arenaScene = roomScene(arenaSim);
+export const gymScene = roomScene(gymSim);
 
 function setup(ctx: SceneContext): void {
   const { world, scene } = ctx;
   const room = world.with("room").first?.room;
   const player = world.with("player", "transform").first;
-  if (!room || !player) throw new Error("arena: no room or player spawned");
+  if (!room || !player) throw new Error(`${room?.id ?? "room"}: no room or player spawned`);
 
   const floor = ctx.own(
     MeshBuilder.CreateGround(

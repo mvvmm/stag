@@ -17,6 +17,7 @@ import { snapshotWorld } from "@/replay/snapshot";
 import { arenaSim } from "@/scenes/arena";
 import type { SceneSim } from "@/scenes/sim";
 import { sims } from "@/scenes/sims";
+import { simCommands } from "@/systems/cheats";
 import { PLAYER } from "@/systems/movementStats";
 import { createSimulation, type System } from "@/systems/simulation";
 
@@ -45,7 +46,7 @@ function record(
     const { input, events = [] } = script(tick);
     for (const event of events) {
       recorder.event(event, world, rng);
-      applyEvent(world, { ...event, tick } as never, () => {});
+      applyEvent(world, { ...event, tick } as never, (id, w) => simCommands[id]?.run(w));
     }
     const frame = { ...emptyInputFrame(), ...input };
     simulation.step(1 / HZ, frame);
@@ -195,6 +196,34 @@ describe("record → replay (headless)", () => {
     expect(ran).toEqual(["spawn.enemy"]);
   });
 
+  it("runs sim commands (noclip) headless by default", () => {
+    // Walk south, noclip through the south wall's inner face, turn it off inside the wall.
+    const south = { move: { x: 0, z: quantize(-1) } };
+    const file = record(arenaSim, 4, 120, (tick) => {
+      const toggle: Step["events"] = [{ kind: "command", id: "cheats.noclip" }];
+      if (tick === 5) return { input: south, events: toggle };
+      if (tick === 82) return { events: toggle };
+      return tick < 82 ? { input: south } : {};
+    });
+    expect(file.events.map((e) => e.kind)).toEqual(["command", "command"]);
+    const { divergence } = runReplay(file, sims);
+    expect(divergence).toBeNull();
+
+    const world = createWorld();
+    const rng = createRng(4);
+    arenaSim.spawn(world, rng);
+    const simulation = createSimulation(world, rng, arenaSim.systems);
+    const player = world.with("player", "transform").first;
+    for (let tick = 0; tick < 120; tick++) {
+      if (tick === 5 || tick === 82) simCommands["cheats.noclip"]?.run(world);
+      simulation.step(1 / HZ, { ...emptyInputFrame(), ...(tick < 82 ? south : {}) });
+      if (tick === 81) expect(player?.transform.position.z).toBeLessThan(-10); // in the wall
+    }
+    // Pushed back out of the wall, to the inside.
+    expect(player?.noclip).toBeUndefined();
+    expect(player?.transform.position.z).toBeCloseTo(-10 + PLAYER.radius, 9);
+  });
+
   it("records from the middle of a run and replays from its snapshot", async () => {
     const world = createWorld();
     const rng = createRng(31);
@@ -220,7 +249,7 @@ describe("record → replay (headless)", () => {
       const { input, events = [] } = session(tick);
       for (const event of events) {
         recorder.event(event, world, rng);
-        applyEvent(world, { ...event, tick } as never, () => {});
+        applyEvent(world, { ...event, tick } as never, (id, w) => simCommands[id]?.run(w));
       }
       const frame = { ...emptyInputFrame(), ...input };
       simulation.step(1 / HZ, frame);

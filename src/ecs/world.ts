@@ -55,6 +55,8 @@ export type Entity = {
   orbit?: Orbit;
   player?: Player;
   mover?: Mover;
+  /** Walks through obstacles (the noclip cheat). */
+  noclip?: true;
   /** A static obstacle from the room data. Has no `transform`: its footprint says where it is. */
   obstacle?: Obstacle;
   /** The room being played: its size, for the floor and later camera bounds. One per world. */

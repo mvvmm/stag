@@ -330,12 +330,22 @@ export function createPane(tools: DevTools) {
 
   // --- Gameplay --------------------------------------------------------------------------------
 
-  // How the game plays (controls now; cheats like infinite health later).
+  // How the game plays: controls and cheats.
   const gameplayFolder = folder(pane, "Gameplay", "Gameplay");
   gameplayFolder.addBinding(view, "preset", {
     label: "controls",
     options: { "MMO (WASD)": "mmo", "MOBA (RMB)": "moba" },
   });
+  // Cheats: each is a recorded `sim: true` command, so replays keep working.
+  const cheats = {
+    get noclip() {
+      return !!shell.world.with("player").first?.noclip;
+    },
+    set noclip(on: boolean) {
+      if (on !== cheats.noclip) tools.commands.run("cheats.noclip");
+    },
+  };
+  gameplayFolder.addBinding(cheats, "noclip");
   // The player's speed over the last few seconds, to see the accel/decel ramps while tuning.
   const playerSpeed = {
     get speed() {

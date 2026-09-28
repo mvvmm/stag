@@ -1,26 +1,34 @@
 import type { World } from "miniplex";
 import { greyboxRoom } from "@/data/rooms/greybox";
+import { gymRoom } from "@/data/rooms/gym";
 import type { Room } from "@/data/rooms/room";
 import { cloneTransform, type Entity } from "@/ecs/world";
 import type { SceneSim } from "@/scenes/sim";
 import { locomotionSystem } from "@/systems/locomotion";
 import { playerControlSystem } from "@/systems/playerControl";
 
-// The arena: a hand-built room plus the player. The simulation half; the view (floor, obstacle
-// meshes, player, camera follow, occluder fading) is in `arena.view.ts`. The player walks through
-// walls with WASD until collision (1.3); click-to-move already paths around them.
+// Room scenes: a hand-built room plus the player. The simulation half; the view (floor, obstacle
+// meshes, player, camera follow, occluder fading) is in `arena.view.ts`.
 
-export const arenaSim: SceneSim = {
-  id: "arena",
-  label: "Arena (grey-box)",
-  systems: [
-    { name: "playerControl", run: playerControlSystem },
-    { name: "locomotion", run: locomotionSystem },
-  ],
-  spawn(world) {
-    spawnRoom(world, greyboxRoom);
-  },
-};
+/** A scene that plays `room`: the player walks it with pathing and collision. */
+export function roomSim(id: string, label: string, room: Room): SceneSim {
+  return {
+    id,
+    label,
+    systems: [
+      { name: "playerControl", run: playerControlSystem },
+      { name: "locomotion", run: locomotionSystem },
+    ],
+    spawn(world) {
+      spawnRoom(world, room);
+    },
+  };
+}
+
+/** The grey-box combat room (the default scene). */
+export const arenaSim = roomSim("arena", "Arena (grey-box)", greyboxRoom);
+/** The collision test bench. */
+export const gymSim = roomSim("gym", "Collision gym", gymRoom);
 
 /** Fills the world with a room (one `room` entity plus an `obstacle` per obstacle) and the player. */
 export function spawnRoom(world: World<Entity>, room: Room): void {
