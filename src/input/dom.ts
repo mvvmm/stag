@@ -6,14 +6,28 @@ const PRESET_STORAGE_KEY = "druid.inputPreset";
 /** `MouseEvent.buttons` bit → `MouseEvent.button` number (the middle and right bits are swapped). */
 const BUTTON_BY_BIT = [0, 2, 1, 3, 4];
 
-/** Typing into a text field (the debug pane, the Inspector) must not drive the game or dev keys. */
+/** Input types that don't take typed text (a focused checkbox or slider still lets keys through). */
+const NON_TEXT_INPUTS = new Set([
+  "checkbox",
+  "radio",
+  "range",
+  "button",
+  "submit",
+  "reset",
+  "color",
+]);
+
+/**
+ * Typing into a text field (the debug pane, the Inspector) must not drive the game or dev keys.
+ * Other focused controls (checkboxes, buttons, dropdowns) don't count: the game keeps its keys,
+ * and handling a bound key cancels its default, so a focused dropdown doesn't pick by letter.
+ */
 export function isEditable(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
     target.isContentEditable ||
-    target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement
+    (target instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(target.type))
   );
 }
 
