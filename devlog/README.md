@@ -23,6 +23,7 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 1.4 | [Camera follow](1.4-camera-follow/index.md) | 2026-09-27 |
 | 1.5 | [Early atmosphere](1.5-early-atmosphere/index.md) | 2026-09-28 |
 | 1.6 | [Placeholder character](1.6-placeholder-character/index.md) | 2026-09-28 |
+| 1.6.1 | [cf CLI](1.6.1-cf-cli/index.md) | 2026-09-29 |
 
 ## Layout
 
