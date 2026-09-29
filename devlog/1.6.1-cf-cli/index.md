@@ -30,8 +30,8 @@ The game didn't change: the built bundle is byte-identical to the one Wrangler u
 - **`cf build` can't make a Preview build.** Only `cf previews deploy` marks its build as a Preview, so Builds' Preview step only typechecks and lets `cf previews deploy` build.
 - **No local serve of a cf build.** `pnpm preview` falls back to a plain `vite build` + `vite preview`, still in workerd, with the real headers.
 - **The Preview URL went missing from the PR.** The Previews deployed fine, but Cloudflare's PR comment said "No Preview URL". Wrangler writes its result to an output file that Builds reads, and cf only prints it. We briefly talked ourselves out of it being real before confirming it: a Builds run showed the variable is set, and a local run showed cf leaves the directory empty. A 40-line shim (`scripts/cf-previews-deploy.ts`) writes cf's JSON in Wrangler's format, and the comment got its links back. It's the top item in the friction log.
-- **Nice surprises.** cf loads `.env` by itself, `cf previews deploy` prints clean JSON with the URLs, and your OAuth login covered what the per-Worker token couldn't (Builds settings).
+- **Nice surprises.** cf loads `.env` by itself, `cf previews deploy` prints its result as JSON with the URLs (colored even into a pipe, so the shim strips the escape codes), and the user's OAuth login covered what the per-Worker token couldn't (Builds settings).
 
 ## Media
 
-![PR #9: all five commits, the Cloudflare bot's build table (one failed build from the release-age policy, then three successful ones) and the checks](02-pr.png)
+![PR #9: the Cloudflare bot's comment with the branch's Preview URL and a per-commit table. The latest builds link their deployments now that the shim writes the output file; the earlier ones say "No Preview URL", and one failed on the release-age policy](02-pr.png)
