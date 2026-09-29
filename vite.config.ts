@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { cloudflare } from "@cloudflare/vite-plugin";
 import preact from "@preact/preset-vite";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
@@ -87,7 +88,16 @@ const git = gitInfo();
 
 export default defineConfig({
   // No react → preact/compat alias: we don't use React, and the Babylon Inspector needs the real one.
-  plugins: [preact({ reactAliasesEnabled: false }), replayFixtures()],
+  // cloudflare(): the Worker is configured in cloudflare.config.ts (no entrypoint = assets-only);
+  // the build lands where cf deploys it from, and dev applies public/_headers like production.
+  // Left out under Vitest: tests are plain Node, and the plugin's server clashes with Vitest's.
+  plugins: [
+    preact({ reactAliasesEnabled: false }),
+    replayFixtures(),
+    process.env.VITEST
+      ? []
+      : cloudflare({ experimental: { newConfig: true, headersAndRedirectsDevModeSupport: true } }),
+  ],
   define: {
     __COMMIT__: JSON.stringify(git.commit),
     __DIRTY__: JSON.stringify(git.dirty),

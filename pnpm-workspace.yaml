@@ -1,6 +1,11 @@
 # agent-browser ships its native binaries in the package; its postinstall only re-downloads them.
-# esbuild and workerd (via wrangler) check or fetch their platform binary in postinstall.
+# esbuild and workerd (via @cloudflare/vite-plugin) check or fetch their platform binary in postinstall.
 allowBuilds:
   agent-browser: false
   esbuild: true
   workerd: true
+# The cf CLI is a fast-moving beta (bumped every step), newer than the release-age window.
+minimumReleaseAgeExclude:
+  - '@cloudflare/codemods@0.2.1'
+  - '@cloudflare/vite-plugin@1.62.0'
+  - cf@1.0.0-beta.5

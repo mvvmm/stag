@@ -24,9 +24,9 @@ Always use **pnpm** (never npm or yarn). Node 24 (`.nvmrc`).
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | Vite dev server on http://localhost:5746 ("STAG") |
-| `pnpm build` | Typecheck + production build to `dist/` |
-| `pnpm preview` | Serve the production build |
+| `pnpm dev` | `cf dev` → Vite dev server on http://localhost:5746 ("STAG"), with the Cloudflare Vite plugin (`public/_headers` applied) |
+| `pnpm build` | Typecheck + `cf build` (Vite) to `.cloudflare/output/` (cf's Build Output) |
+| `pnpm preview` | Plain `vite build` to `dist/` served in workerd by the Vite plugin (real `_headers`), http://localhost:5746. cf has no local serve of its Build Output yet |
 | `pnpm check` | Typecheck + Biome lint/format check + tests. **Must pass before committing.** |
 | `pnpm format` | Apply Biome formatting, import sorting and safe fixes |
 | `pnpm test` / `pnpm test:watch` | Vitest |
@@ -34,17 +34,18 @@ Always use **pnpm** (never npm or yarn). Node 24 (`.nvmrc`).
 | `pnpm models:build` | Rebuild the game-ready models in `public/models/` from the originals in `assets-src/` (gitignored; download links in `scripts/build-models.ts` and CREDITS.md) |
 | `pnpm devlog:video` | Compress raw videos in `devlog/` to MP4 + poster and stage them (runs as the husky pre-commit hook; needs ffmpeg) |
 | `pnpm exec agent-browser` | Headless browser for devlog screenshots and checks (see `devlog/README.md`) |
-| `pnpm cf:dev` | Production build served by `wrangler dev` (real `_headers`, http://localhost:8787) |
-| `pnpm cf:preview` / `pnpm cf:deploy` | Build + deploy a Worker Preview for the current branch / production, with the scoped token from `.env`. Emergencies and agents only; the normal path is a PR |
+| `pnpm cf:preview` / `pnpm cf:deploy` | Build + deploy a Worker Preview for the current branch (`cf previews deploy`) / production (`cf deploy`), with the scoped token from `.env`. Emergencies and agents only; the normal path is a PR |
+| `pnpm exec cf …` | The Cloudflare CLI (beta) for everything else Cloudflare: find commands with `cf cli search "<task>"` |
 
 ## Repo & deploy
 
-- **Public repo:** [github.com/mvvmm/stag](https://github.com/mvvmm/stag). Production: https://stag.root-mvm.workers.dev (static-assets-only Worker `stag`, config in `wrangler.jsonc`, headers in `public/_headers`).
+- **Public repo:** [github.com/mvvmm/stag](https://github.com/mvvmm/stag). Production: https://stag.root-mvm.workers.dev (static-assets-only Worker `stag`, config in `cloudflare.config.ts`, built by `@cloudflare/vite-plugin` in `vite.config.ts`, headers in `public/_headers`).
+- **We dogfood the `cf` CLI.** Every Cloudflare operation goes through `cf` (pinned exactly, bumped to the latest beta at the start of each step), never Wrangler, the dashboard or raw API calls where cf covers it. Where cf falls short, don't work around it quietly: note it (version, repro, expectation) in the current step's plan under "Friction log" for the cf team. Wrangler is only in the lockfile because the Vite plugin depends on it.
 - **Every step is a branch + PR** named `<step>-<slug>`. Nothing is pushed to `main` directly (ruleset: PR required, no force-push). PRs merge with a **merge commit** (the only allowed method), so step commits and devlog links survive. **Agents never merge PRs:** push, get the checks and Preview green, report the Preview URL, and the user merges.
-- **Required checks:** `typecheck`, `lint` (`biome ci`: lint + format + import sorting), `test` (incl. replay fixtures), `build` (`.github/workflows/check.yml`), plus `Workers Builds: stag` (the Cloudflare Preview build, so a broken `wrangler.jsonc` can't reach `main`). Run `pnpm check` before pushing.
+- **Required checks:** `typecheck`, `lint` (`biome ci`: lint + format + import sorting), `test` (incl. replay fixtures), `build` (`.github/workflows/check.yml`), plus `Workers Builds: stag` (the Cloudflare Preview build, so a broken `cloudflare.config.ts` can't reach `main`). Run `pnpm check` before pushing.
 - **Cloudflare Workers Builds** deploys, not Actions: every push to a PR branch builds a **Worker Preview**, and Cloudflare comments its stable URL (`<branch>-stag.root-mvm.workers.dev`, follows the latest push) plus a per-commit URL on the PR. A merge to `main` deploys production. Playtest the Preview before merging.
-- **Credentials:** local wrangler uses an account-owned API token scoped to the `stag` Worker only (role Editor), in `.env` as `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (see `.env.example`). No `wrangler login`. Workers Builds uses its own user build token until it supports account-owned (per-Worker) tokens.
-- **Observability:** Workers Logs + traces are on in `wrangler.jsonc`. Asset-only requests don't run a script, so they stay empty until the Worker gets code.
+- **Credentials:** local `cf` uses an account-owned API token scoped to the `stag` Worker only (role Editor), in `.env` as `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (see `.env.example`; cf loads `.env` itself). It can deploy but not change account settings such as Workers Builds (403); those need the user's `cf auth login`. Workers Builds uses its own user build token until it supports account-owned (per-Worker) tokens.
+- **Observability:** Workers Logs + traces are on in `cloudflare.config.ts`. Asset-only requests don't run a script, so they stay empty until the Worker gets code.
 
 ## Layout
 

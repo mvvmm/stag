@@ -1,5 +1,7 @@
 node_modules
 dist
+# cf: build output (.cloudflare/output/) and generated Worker types
+.cloudflare
 coverage
 .DS_Store
 *.local

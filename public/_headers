@@ -1,4 +1,4 @@
-# Cloudflare Workers static-assets headers (Vite copies this into dist/).
+# Cloudflare Workers static-assets headers (Vite copies it into the build output).
 # Cross-origin isolation matches `pnpm dev`/`preview` (vite.config.ts): the profiler gets ~5 µs timers.
 # Consequence: every cross-origin resource (R2, fonts, …) must send CORP or CORS headers.
 /*
