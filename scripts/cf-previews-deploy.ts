@@ -39,7 +39,7 @@ const file = outputFilePath();
 if (file === null) {
   console.log("cf-previews-deploy: no WRANGLER_OUTPUT_FILE_* set, nothing to write");
 } else {
-  // cf forces color even into a pipe, so strip the escape codes before parsing.
+  // Color codes appear when FORCE_COLOR is set (some shells and agents set it); strip them.
   // biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes on purpose
   const json = stdout.replace(/\x1b\[[0-9;]*m/g, "");
   const result = JSON.parse(json.slice(json.indexOf("{"), json.lastIndexOf("}") + 1));
