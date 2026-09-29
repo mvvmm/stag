@@ -99,7 +99,7 @@ function setup(ctx: SceneContext): void {
     obstacleMeshes.push(mesh);
   }
 
-  // The player's body: the tiger (1.6), or the grey-box capsule (the pane's "placeholder body", or
+  // The player's body: the tiger (1.6), or the grey-box capsule (the pane's "hitboxes", or
   // if the model didn't load). The capsule hangs under the tiger's root, so either one follows it.
   const tiger = createTiger(scene);
   const capsule = ctx.own(playerBody(ctx));
@@ -120,7 +120,7 @@ function setup(ctx: SceneContext): void {
     ctx.onTick((input) => tiger.tick(player, input));
   }
   const showBody = () => {
-    const useCapsule = !tiger || bodyView.capsule;
+    const useCapsule = !tiger || bodyView.hitboxes;
     capsule.setEnabled(useCapsule);
     for (const node of tiger?.root.getChildren() ?? []) {
       if (node !== capsule) node.setEnabled(!useCapsule);

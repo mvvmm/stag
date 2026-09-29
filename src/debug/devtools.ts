@@ -95,7 +95,7 @@ export function startDevtools(shell: Shell) {
   atmosphere.valueView = stored.valueView;
   const standIns = createStandIns(shell);
   standIns.on = stored.standIns;
-  bodyView.capsule = stored.placeholderBody;
+  bodyView.hitboxes = stored.hitboxes;
 
   // Record & replay. Created before `save` subscribes to tunables, so a replay's tunables are
   // already set aside when the settings are written.
@@ -116,7 +116,7 @@ export function startDevtools(shell: Shell) {
       atmosphere: atmosphere.enabled,
       valueView: atmosphere.valueView,
       standIns: standIns.on,
-      placeholderBody: bodyView.capsule,
+      hitboxes: bodyView.hitboxes,
       // While a replay's tunables are in place, the player's own are what's remembered.
       tunables: replay.storedOverrides() ?? tuning.overrides(),
       scene: state.scene,
@@ -419,8 +419,8 @@ export function startDevtools(shell: Shell) {
     },
     standIns,
     /** The grey-box capsule instead of the player's model (room scenes). */
-    setPlaceholderBody(on: boolean) {
-      bodyView.capsule = on;
+    setHitboxes(on: boolean) {
+      bodyView.hitboxes = on;
       save();
       pane?.refresh();
     },
@@ -492,11 +492,7 @@ export function startDevtools(shell: Shell) {
     ["atmosphere.toggle", "Atmosphere", () => tools.setAtmosphere(!atmosphere.enabled)],
     ["valueView.toggle", "Value view", () => tools.setValueView(!atmosphere.valueView)],
     ["standIns.toggle", "Stand-in threats", () => tools.setStandIns(!standIns.on)],
-    [
-      "placeholderBody.toggle",
-      "Hitboxes instead of models",
-      () => tools.setPlaceholderBody(!bodyView.capsule),
-    ],
+    ["hitboxes.toggle", "Hitboxes instead of models", () => tools.setHitboxes(!bodyView.hitboxes)],
     ["freeCamera.toggle", "Free camera", () => tools.setFreeCamera(!freeCamera.active)],
     ["loop.pause", "Pause / resume", () => tools.setPaused(!loop.paused)],
     [

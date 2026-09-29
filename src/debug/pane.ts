@@ -142,11 +142,11 @@ export function createPane(tools: DevTools) {
     set standIns(v: boolean) {
       tools.setStandIns(v);
     },
-    get placeholderBody() {
-      return bodyView.capsule;
+    get hitboxes() {
+      return bodyView.hitboxes;
     },
-    set placeholderBody(v: boolean) {
-      tools.setPlaceholderBody(v);
+    set hitboxes(v: boolean) {
+      tools.setHitboxes(v);
     },
     get freeCamera() {
       return tools.freeCamera.active;
@@ -405,7 +405,7 @@ export function createPane(tools: DevTools) {
   viewFolder.addBinding(view, "atmosphere");
   viewFolder.addBinding(view, "valueView", { label: "value view" });
   viewFolder.addBinding(view, "standIns", { label: "stand-in threats" });
-  viewFolder.addBinding(view, "placeholderBody", { label: "hitboxes (no models)" });
+  viewFolder.addBinding(view, "hitboxes", { label: "hitboxes (no models)" });
   const freeCameraBinding = viewFolder.addBinding(view, "freeCamera", { label: "free camera" });
   const freeCameraLabel = freeCameraBinding.element.querySelector(".tp-lblv_l");
   if (freeCameraLabel instanceof HTMLElement) {
