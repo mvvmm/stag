@@ -111,7 +111,7 @@ describe("moveAndSlide", () => {
   it("pushes out of an overlap, even without moving", () => {
     const result = moveAndSlide([pillar], { x: 1.1, z: 0 }, { x: 0, z: 0 }, R);
     expect(result.depenetrated).toBe(true);
-    expect(result.position.x).toBeCloseTo(1 + R, 12);
+    expect(result.position.x).toBeCloseTo(1 + R + SKIN, 12);
   });
 
   it("is deterministic", () => {

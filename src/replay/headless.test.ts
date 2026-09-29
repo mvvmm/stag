@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { SKIN } from "@/collision/slide";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import { greyboxRoom } from "@/data/rooms/greybox";
@@ -197,7 +198,9 @@ describe("record → replay (headless)", () => {
   });
 
   it("runs sim commands (noclip) headless by default", () => {
-    // Walk south, noclip through the south wall's inner face, turn it off inside the wall.
+    // Walk south, noclip through the south wall's inner face, turn it off inside the wall. At the
+    // old top speed, which this was written for (recorded with the run).
+    tuning.set("player.speed", 7);
     const south = { move: { x: 0, z: quantize(-1) } };
     const file = record(arenaSim, 4, 120, (tick) => {
       const toggle: Step["events"] = [{ kind: "command", id: "cheats.noclip" }];
@@ -221,7 +224,7 @@ describe("record → replay (headless)", () => {
     }
     // Pushed back out of the wall, to the inside.
     expect(player?.noclip).toBeUndefined();
-    expect(player?.transform.position.z).toBeCloseTo(-10 + PLAYER.radius, 9);
+    expect(player?.transform.position.z).toBeCloseTo(-10 + PLAYER.radius + SKIN, 9);
   });
 
   it("records from the middle of a run and replays from its snapshot", async () => {

@@ -4,6 +4,7 @@ import {
   clampToRect,
   createCameraRig,
   easeFactor,
+  edgePanDirection,
   lookAheadOffset,
 } from "@/render/cameraRig";
 
@@ -153,5 +154,32 @@ describe("createCameraRig", () => {
     let at = rig.update(near, dt);
     for (let i = 0; i < 300; i++) at = rig.update(near, dt);
     expect(at).toEqual({ x: 11, z: 0 });
+  });
+});
+
+describe("edgePanDirection", () => {
+  const W = 1000;
+  const H = 600;
+  it("is zero away from the edges", () => {
+    expect(edgePanDirection({ x: 500, y: 300 }, W, H, 0, 20)).toEqual({ x: 0, z: 0 });
+    expect(edgePanDirection({ x: 21, y: 579 }, W, H, 0, 20)).toEqual({ x: 0, z: 0 });
+  });
+
+  it("points toward the edge the cursor is at (screen up is forward)", () => {
+    expect(edgePanDirection({ x: 0, y: 300 }, W, H, 0, 20)).toEqual({ x: -1, z: 0 });
+    expect(edgePanDirection({ x: W, y: 300 }, W, H, 0, 20)).toEqual({ x: 1, z: 0 });
+    const up = edgePanDirection({ x: 500, y: 5 }, W, H, 0, 20);
+    expect(up.x).toBeCloseTo(0);
+    expect(up.z).toBeCloseTo(1);
+    const down = edgePanDirection({ x: 500, y: H - 5 }, W, H, 0, 20);
+    expect(down.z).toBeCloseTo(-1);
+  });
+
+  it("is unit length in a corner, and turns with the camera", () => {
+    const corner = edgePanDirection({ x: W, y: 0 }, W, H, 0, 20);
+    expect(Math.hypot(corner.x, corner.z)).toBeCloseTo(1);
+    const turned = edgePanDirection({ x: 500, y: 0 }, W, H, Math.PI / 2, 20);
+    expect(turned.x).toBeCloseTo(1);
+    expect(turned.z).toBeCloseTo(0);
   });
 });

@@ -23,3 +23,6 @@ devlog/**/*.mkv
 devlog/**/*.webm
 devlog/**/*.avi
 devlog/**/*.tmp.mp4
+
+# downloaded source models (the game-ready output in public/models/ is committed; see CREDITS.md)
+assets-src/

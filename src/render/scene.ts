@@ -31,6 +31,10 @@ export const CAMERA = defineTunables("camera", {
   bounds: { value: true },
   /** How far inside the room's edges the look-at point stops, in meters (negative = past them). */
   boundsInset: { value: 4, min: -10, max: 15, step: 0.1 },
+  /** moba: the camera is free and pans while the cursor is at a screen edge, at this many m/s. */
+  edgePanSpeed: { value: 18, min: 0, max: 60, step: 0.5 },
+  /** moba: how close to a screen edge the cursor pans, in CSS pixels. */
+  edgePanSize: { value: 12, min: 1, max: 100, step: 1 },
 });
 
 const lookAt = new Vector3();

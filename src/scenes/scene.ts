@@ -51,6 +51,13 @@ export type SceneContext = {
    */
   setCameraBounds(bounds: Rect | null): void;
   /**
+   * The simulation time the view shows this frame, in seconds: the ticks run so far, less the
+   * part interpolation hasn't reached yet. It stands still while paused, steps with a frame step,
+   * follows the time scale and jumps with a replay seek, so view animation driven by it matches
+   * what the simulation does (use frame time for things that should run regardless).
+   */
+  viewTime(): number;
+  /**
    * A scene drawn on top of the game after post-processing, through the same camera: for markers
    * that must keep their true colors (no lighting, fog, grading or bloom). Meshes built in it are
    * still owned with `own`.

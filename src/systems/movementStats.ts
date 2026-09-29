@@ -4,7 +4,7 @@ import type { Entity } from "@/ecs/world";
 /** The player's movement feel. Per-form movement data replaces these in 10.1. */
 export const PLAYER = defineTunables("player", {
   /** Top speed, m/s. */
-  speed: { value: 7, min: 0, max: 20, step: 0.1 },
+  speed: { value: 4, min: 0, max: 20, step: 0.1 },
   /** Speeding up and steering, m/s². */
   accel: { value: 60, min: 1, max: 1000, step: 1 },
   /** Braking with no input, and for arrival, m/s². */
@@ -12,9 +12,15 @@ export const PLAYER = defineTunables("player", {
   /** Steering when the wanted direction points more than 90° away from the velocity, m/s². */
   turnAccel: { value: 90, min: 1, max: 1000, step: 1 },
   /** How fast the facing turns toward the movement direction, degrees per second. */
-  turnRate: { value: 540, min: 90, max: 3600, step: 10 },
-  /** Footprint radius, m (pathing now, collision in 1.3). */
-  radius: { value: 0.4, min: 0.2, max: 0.8, step: 0.05 },
+  turnRate: { value: 1800, min: 90, max: 3600, step: 10 },
+  /** Movement and pathing radius, m: one circle whatever the body's shape (like League's pathing
+   * radius), so every path fits the body that follows it and the facing turns freely. */
+  radius: { value: 0.4, min: 0.1, max: 0.8, step: 0.01 },
+  /** The body's own shape, for hits (2.4): half its width, m. */
+  bodyRadius: { value: 0.28, min: 0.1, max: 0.8, step: 0.01 },
+  /** The body's length nose to rump, m: a pill along the facing (at most 2 × `bodyRadius`, a
+   * circle). */
+  bodyLength: { value: 1.9, min: 0, max: 4, step: 0.05 },
 });
 
 export type MovementStats = {
@@ -24,6 +30,7 @@ export type MovementStats = {
   turnAccel: number;
   /** Radians per second. */
   turnRate: number;
+  /** Movement and pathing radius, m. */
   radius: number;
 };
 

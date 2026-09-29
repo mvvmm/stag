@@ -126,3 +126,23 @@ export function createCameraRig() {
     },
   };
 }
+
+/**
+ * The edge-pan direction for a cursor at `cursor` (CSS pixels) in a `width`×`height` viewport, seen
+ * by a camera with `yaw`: toward each screen edge the cursor is within `edge` pixels of (or past),
+ * unit length (diagonal in a corner), turned into the world. Zero away from the edges. Screen up is
+ * the camera's forward.
+ */
+export function edgePanDirection(
+  cursor: { x: number; y: number },
+  width: number,
+  height: number,
+  yaw: number,
+  edge: number,
+): Vec2 {
+  const x = cursor.x <= edge ? -1 : cursor.x >= width - edge ? 1 : 0;
+  const z = cursor.y <= edge ? 1 : cursor.y >= height - edge ? -1 : 0;
+  if (x === 0 && z === 0) return { x: 0, z: 0 };
+  const length = Math.hypot(x, z);
+  return rotateByYaw({ x: x / length, z: z / length }, yaw);
+}

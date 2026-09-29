@@ -10,4 +10,4 @@ Third-party assets used by the game: models, textures, sounds, music, fonts. npm
 
 | Asset | Author | Source | License | Location | Credit |
 |---|---|---|---|---|---|
-| _none yet_ | | | | | |
+| Tiger model and animations (`public/models/tiger.glb`, built by `scripts/build-models.ts`) | kenchoo, from a "Tiger" model (no longer online) and MotionStreamStudios | [Tiger rebuilt](https://sketchfab.com/3d-models/tiger-rebuilt-6b5d14b2de984ffcb00ee00e404ad208), based on [White Tiger (RIGGED ANIMATED)](https://sketchfab.com/3d-models/white-tiger-rigged-animated-9dd099d283e54f99b7cbd40b531b1a29) | CC-BY 4.0 | repo | "Tiger rebuilt" by kenchoo, based on "White Tiger (RIGGED ANIMATED)" by MotionStreamStudios, both licensed under CC BY 4.0. Modified: clips renamed, an idle pose added, materials and textures re-encoded. |

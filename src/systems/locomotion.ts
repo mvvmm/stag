@@ -19,8 +19,8 @@ const ORANGE = { r: 1, g: 0.6, b: 0.2 };
  * Kinematic movement for every `mover`: the velocity moves toward `desired` at a linear rate
  * (`decel` when asked to stop, `turnAccel` when asked to go against the current velocity, `accel`
  * otherwise), the position follows the new velocity, sliding along obstacles instead of entering
- * them (unless the entity has `noclip`), and the facing turns toward the movement direction at
- * `turnRate`. Landing exactly on the desired velocity means stops don't drift. The velocity loses
+ * them (unless the entity has `noclip`), and the facing turns toward the direction it actually
+ * moved (along a wall it slides on), or toward where it wants to go when blocked, at `turnRate`. Landing exactly on the desired velocity means stops don't drift. The velocity loses
  * its part into any surface it ends up touching, so sliding carries the projected speed.
  */
 export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _input: InputFrame) {
@@ -39,6 +39,7 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
 
     const position = transform.position;
     const motion = { x: v.x * dt, z: v.z * dt };
+    const start = { x: position.x, z: position.z };
     if (entity.noclip) {
       position.x += motion.x;
       position.z += motion.z;
@@ -51,9 +52,15 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
       if (debugDraw.enabled) drawSlide(from, motion, slide, stats.radius);
     }
 
+    // Moving, the facing follows where the body actually went (along a wall it slides on), not
+    // where it's pushing. Blocked (it wants to go somewhere but didn't move), it turns toward where
+    // it wants to go.
+    const moved = { x: (position.x - start.x) / dt, z: (position.z - start.z) / dt };
     const speed = dmath.hypot(v.x, v.z);
-    if (speed > FACE_MIN_SPEED) {
-      const turn = wrapAngle(dmath.atan2(v.x, v.z) - transform.rotation.y);
+    const moving = dmath.hypot(moved.x, moved.z) > FACE_MIN_SPEED;
+    const toward = moving ? moved : desired;
+    if (moving || dmath.hypot(desired.x, desired.z) > 0) {
+      const turn = wrapAngle(dmath.atan2(toward.x, toward.z) - transform.rotation.y);
       const most = stats.turnRate * dt;
       transform.rotation.y = wrapAngle(
         transform.rotation.y + Math.min(most, Math.max(-most, turn)),

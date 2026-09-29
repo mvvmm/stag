@@ -21,6 +21,7 @@ describe("parseDebugSettings", () => {
       atmosphere: false,
       valueView: true,
       standIns: true,
+      hitboxes: true,
       tunables: { "pawn.speed": 7.5 },
       scene: "stress",
     };

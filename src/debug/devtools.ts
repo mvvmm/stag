@@ -1,10 +1,4 @@
-import {
-  Color3,
-  HighlightLayer,
-  type Mesh,
-  MeshBuilder,
-  SceneInstrumentation,
-} from "@babylonjs/core";
+import { Color3, HighlightLayer, Mesh, MeshBuilder, SceneInstrumentation } from "@babylonjs/core";
 import { debugDraw } from "@/core/debugDraw";
 import { formatChanges, tuning } from "@/core/tuning";
 import { BUILD } from "@/debug/build";
@@ -38,6 +32,7 @@ import { createStandIns } from "@/debug/standIns";
 import { resolveStartup } from "@/debug/startup";
 import type { Entity } from "@/ecs/world";
 import { isEditable, savePreset } from "@/input/dom";
+import { bodyView } from "@/render/bodyView";
 import type { ReplayFile } from "@/replay/format";
 import { scenes } from "@/scenes";
 import type { SceneDef } from "@/scenes/scene";
@@ -100,6 +95,7 @@ export function startDevtools(shell: Shell) {
   atmosphere.valueView = stored.valueView;
   const standIns = createStandIns(shell);
   standIns.on = stored.standIns;
+  bodyView.hitboxes = stored.hitboxes;
 
   // Record & replay. Created before `save` subscribes to tunables, so a replay's tunables are
   // already set aside when the settings are written.
@@ -120,6 +116,7 @@ export function startDevtools(shell: Shell) {
       atmosphere: atmosphere.enabled,
       valueView: atmosphere.valueView,
       standIns: standIns.on,
+      hitboxes: bodyView.hitboxes,
       // While a replay's tunables are in place, the player's own are what's remembered.
       tunables: replay.storedOverrides() ?? tuning.overrides(),
       scene: state.scene,
@@ -231,10 +228,18 @@ export function startDevtools(shell: Shell) {
       return;
     }
     const want = new Map<Mesh, Color3>();
-    const hoveredMesh = picker.hovered && shell.meshOf(picker.hovered);
-    if (hoveredMesh) want.set(hoveredMesh, HOVER_COLOR);
-    const selectedMesh = selected && shell.meshOf(selected);
-    if (selectedMesh) want.set(selectedMesh, SELECTED_COLOR);
+    // An entity's mesh may be an empty root with the model's meshes under it (the player).
+    const outline = (entity: Entity | null, color: Color3) => {
+      const mesh = entity && shell.meshOf(entity);
+      if (!mesh) return;
+      for (const part of [mesh, ...mesh.getChildMeshes(false)]) {
+        if (part instanceof Mesh && part.getTotalVertices() > 0 && part.isEnabled()) {
+          want.set(part, color);
+        }
+      }
+    };
+    outline(picker.hovered, HOVER_COLOR);
+    outline(selected, SELECTED_COLOR);
     for (const [mesh, color] of highlighted) {
       if (want.get(mesh) !== color) {
         highlight.removeMesh(mesh);
@@ -413,6 +418,12 @@ export function startDevtools(shell: Shell) {
       pane?.refresh();
     },
     standIns,
+    /** The grey-box capsule instead of the player's model (room scenes). */
+    setHitboxes(on: boolean) {
+      bodyView.hitboxes = on;
+      save();
+      pane?.refresh();
+    },
     setWireframe(on: boolean) {
       scene.forceWireframe = on;
       save();
@@ -481,6 +492,7 @@ export function startDevtools(shell: Shell) {
     ["atmosphere.toggle", "Atmosphere", () => tools.setAtmosphere(!atmosphere.enabled)],
     ["valueView.toggle", "Value view", () => tools.setValueView(!atmosphere.valueView)],
     ["standIns.toggle", "Stand-in threats", () => tools.setStandIns(!standIns.on)],
+    ["hitboxes.toggle", "Hitboxes instead of models", () => tools.setHitboxes(!bodyView.hitboxes)],
     ["freeCamera.toggle", "Free camera", () => tools.setFreeCamera(!freeCamera.active)],
     ["loop.pause", "Pause / resume", () => tools.setPaused(!loop.paused)],
     [
