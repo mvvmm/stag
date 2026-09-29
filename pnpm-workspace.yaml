@@ -9,3 +9,5 @@ minimumReleaseAgeExclude:
   - '@cloudflare/codemods@0.2.1'
   - '@cloudflare/vite-plugin@1.62.0'
   - cf@1.0.0-beta.5
+  # @cloudflare/vite-plugin's own dependency + peer (we don't use it directly).
+  - wrangler@4.143.0
