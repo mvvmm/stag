@@ -29,7 +29,7 @@ The game didn't change: the built bundle is byte-identical to the one Wrangler u
 - **Vitest and the plugin can't share a config.** Both tried to own the Vite server, so the plugin now sits out when `VITEST` is set.
 - **`cf build` can't make a Preview build.** Only `cf previews deploy` marks its build as a Preview, so Builds' Preview step only typechecks and lets `cf previews deploy` build.
 - **No local serve of a cf build.** `pnpm preview` falls back to a plain `vite build` + `vite preview`, still in workerd, with the real headers.
-- **We misread the PR comment.** Cloudflare's PR comment shows "No Preview URL" in its per-commit column. We first logged that as a blocker. The user pointed out that the column is about per-version URLs. The Worker Preview itself was deploying fine at its stable branch URL all along.
+- **The Preview URL went missing from the PR.** The Previews deployed fine, but Cloudflare's PR comment said "No Preview URL". Wrangler writes its result to an output file that Builds reads, and cf only prints it. We briefly talked ourselves out of it being real before confirming it: a Builds run showed the variable is set, and a local run showed cf leaves the directory empty. A 40-line shim (`scripts/cf-previews-deploy.ts`) writes cf's JSON in Wrangler's format, and the comment got its links back. It's the top item in the friction log.
 - **Nice surprises.** cf loads `.env` by itself, `cf previews deploy` prints clean JSON with the URLs, and your OAuth login covered what the per-Worker token couldn't (Builds settings).
 
 ## Media
