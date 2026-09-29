@@ -35,6 +35,10 @@ The grey-box capsule became a tiger, standing in for the Cat form until the art 
 
 ## Media
 
+A playtest in Firefox after all the follow-ups: the full-size tiger walking, trotting and galloping round the greybox, sliding along walls, and the right-click scheme with the cursor locked in the window and the camera panning at the edges.
+
+[![The tiger playtested in the greybox](tiger-playtest.jpg)](tiger-playtest.mp4)
+
 The four gaits up close, at full size: idle, walk, trot and gallop.
 
 ![Idle, walk, trot and gallop](02-gaits.png)
