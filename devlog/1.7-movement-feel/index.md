@@ -38,6 +38,10 @@ So the tiger now measures its own run when it loads. It finds when each foot is 
 
 ## Media
 
+A playtest in Firefox after the follow-ups: the pouncy gallop, the living tail, and right-click paths around the greybox.
+
+[![The tiger playtested in the greybox after the 1.7 follow-ups](movement-feel-playtest.jpg)](movement-feel-playtest.mp4)
+
 A/D spam after moving north: every flip swings through north, body curved, never round through south.
 
 ![Six frames of the tiger flipping left and right through north](02-reversal-flips.png)
