@@ -23,17 +23,12 @@ import {
   createGaitDriver,
   type DriverOptions,
   type FootTrack,
-  footContact,
   type Gait,
-  legStopAt,
-  liftPhase,
   lookYaw,
   pairShift,
-  planStop,
   pushOffCurve,
   type ShuffleGate,
   type Spring,
-  type StopPlan,
   type StrideFeet,
   type StrideMotion,
   sampleLoop,
@@ -43,10 +38,8 @@ import {
   stepGaits,
   stepShuffle,
   stepSpring,
-  stopDone,
   strideMotion,
   sway,
-  touchdownPhase,
 } from "@/render/locomotionAnim";
 import { instantiateModel, modelMaterials } from "@/render/models";
 import { addRimLight } from "@/render/rimMaterial";
@@ -99,20 +92,9 @@ export const ANIM = defineTunables("anim", {
   pushOff: { value: 6, min: 0, max: 25, step: 0.5 },
   pushOffDip: { value: 0.06, min: 0, max: 0.3, step: 0.005 },
   pushOffTime: { value: 0.22, min: 0.05, max: 0.6, step: 0.01 },
-  /** Stopping: feet on the ground stay planted, legs in the air finish their swing (at `stopRate`
-   * times the gait's own pace; one further than `stopSwingMax` of a stride from landing steps
-   * straight in) and land, the body holds `stopPause` (s), then the legs step into the
-   * standing stance one by one (`stopStagger` apart, each `stopStep` long, the foot lifted
-   * through the walk's mid-swing by `stopLift`). The body fades into the idle over `stopBody`
-   * (s). Off = every bone blends straight into the standing pose. */
-  stopSteps: { value: true },
-  stopRate: { value: 1.3, min: 0.5, max: 4, step: 0.05 },
-  stopSwingMax: { value: 0.3, min: 0, max: 1, step: 0.05 },
-  stopPause: { value: 0.06, min: 0, max: 0.5, step: 0.01 },
-  stopStagger: { value: 0.08, min: 0, max: 0.4, step: 0.01 },
-  stopStep: { value: 0.18, min: 0.05, max: 0.6, step: 0.01 },
-  stopLift: { value: 0.7, min: 0, max: 1, step: 0.05 },
-  stopBody: { value: 0.3, min: 0, max: 1, step: 0.01 },
+  /** Stopping finishes the step: the gait strides on to the next planted point, at most this
+   * long (s), then fades into the idle. 0 = cross-fade straight away. */
+  stopMax: { value: 0.25, min: 0, max: 0.6, step: 0.01 },
   /** Stop settle: braking pitches the body forward (degrees per m/s² of braking, at most
    * `settleMax`), then it rocks back once and settles (Hz, damping ratio). */
   settle: { value: 0.12, min: 0, max: 1, step: 0.01 },
@@ -231,13 +213,8 @@ const LEGS: Record<Leg, { top: string; foot: string }> = {
   lf: { top: "Bip01 L Clavicle", foot: "Bip01 L Finger0" },
   rf: { top: "Bip01 R Clavicle", foot: "Bip01 R Finger0" },
 };
-/** The clips' indices in blend order. */
-const IDLE = 0;
-const WALK = 1;
+/** The run clip's index in blend order (the idle, walk, trot, run). */
 const RUN = 3;
-const LEG_NAMES = Object.keys(LEGS) as Leg[];
-/** What a set of bones shows: clips, each at its own stride phase and weight. */
-type Mix = { clip: number; phase: number; weight: number }[];
 
 export type TigerBody = {
   /** An empty mesh carrying the model: bind it to the player (mesh sync moves it). */
@@ -334,9 +311,15 @@ export function createTiger(scene: Scene): TigerBody | null {
     }
     // The gaits jump straight to what they'd be showing.
     Object.assign(driver, createGaitDriver(GAIT_CLIPS.length));
-    stepGaits(driver, gaitSpeed, shuffle, gaits(), { ...driverOptions(), fade: 0 }, noScore, 1e-3);
-    stopping = null;
-    wasMoving = gaitSpeed > 1e-3;
+    stepGaits(
+      driver,
+      gaitSpeed,
+      shuffle,
+      gaits(),
+      { ...driverOptions(), fade: 0 },
+      stopScore,
+      1e-3,
+    );
   };
 
   const gaits = (): Gait[] => {
@@ -348,47 +331,35 @@ export function createTiger(scene: Scene): TigerBody | null {
       ...(from[i] !== undefined ? { from: (from[i] as number) * TIGER.scale } : {}),
     }));
   };
-  /** The legs handle a stop (below), so the gaits don't stride on: the body fades into the
-   * idle, over `stopBody` once it has stopped. */
   const driverOptions = (): DriverOptions => ({
     idleBelow: ANIM.idleBelow,
     maxRate: ANIM.maxRate,
     minRate: ANIM.minRate,
     startPhase: ANIM.startPhase,
     shuffleRate: ANIM.shuffleRate,
-    stopMax: 0,
-    fade: gaitSpeed > 1e-3 ? ANIM.fade : ANIM.stopBody,
+    stopMax: ANIM.stopMax,
+    fade: ANIM.fade,
   });
-  const noScore = () => 0;
+  /** How far the pose at a shared stride phase is from standing, for the gaits a stop holds. */
+  const stopScore = (at: number) => {
+    let total = 0;
+    driver.held.forEach((weight, i) => {
+      if (weight > 0) total += weight * sampleLoop(stopScores[i] ?? [], at);
+    });
+    return total;
+  };
 
   const pose = new Quaternion();
   const sampled = new Quaternion();
   const vector = new Vector3();
 
   // The run's legs are each sampled a little ahead or behind (the bound), and the body's motion and
-  // the feet's contacts follow from that pose. Worked out at load and when `anim.bound` changes.
+  // the stop points follow from that pose. Worked out at load and when `anim.bound` changes.
   const legShift: Record<Leg, number> = { lh: 0, rh: 0, lf: 0, rf: 0 };
   let contacts: Record<Leg, number> | null = null;
   let motion: StrideMotion = { lift: [0], rock: [0], gather: [0] };
-  /** Per gait (walk, trot, run) and leg: how much the foot is on the ground over a stride, and
-   * where it touches down. Per leg: where its foot is highest in the walk (a step's lift). */
-  let footDown: Record<Leg, number[]>[] = [];
-  let touchdown: Record<Leg, number>[] = [];
-  let liftAt: Record<Leg, number> = { lh: 0, rh: 0, lf: 0, rf: 0 };
+  let stopScores: number[][] = [];
   let analysedBound: number | null = null;
-
-  /** A stop in progress: when it started (s ago), its plan, the gaits and stride it stopped in,
-   * and how much the legs follow it (1, fading out once the body moves again). */
-  type Stopping = {
-    t: number;
-    plan: StopPlan;
-    held: number[];
-    phase: number;
-    hold: number;
-    released: boolean;
-  };
-  let stopping: Stopping | null = null;
-  let wasMoving = false;
 
   /** A channel's time in clip `i` at the shared stride `phase`. */
   const timeOf = (channel: Channel, i: number, phase: number) => {
@@ -398,21 +369,16 @@ export function createTiger(scene: Scene): TigerBody | null {
     return clipTime(phase + shift, clip.offset, durations[i] as number);
   };
 
-  /** The clips at `weights` (in `clipNames` order), all at the stride `phase`. */
-  const mixOf = (weights: number[], phase: number): Mix =>
-    weights.map((weight, clip) => ({ clip, phase, weight }));
-
-  /** Blends the clips into the bones: the `body` mix everywhere, or a leg's own mix on its bones. */
-  const applyPose = (body: Mix, legs: Record<Leg, Mix> | null = null) => {
+  /** Blends the clips into the bones: `weights` per clip in `clipNames` order, at the stride `phase`. */
+  const applyPose = (weights: number[], phase: number) => {
     for (const channel of channels) {
-      const mix = channel.leg && legs ? legs[channel.leg] : body;
       let total = 0;
       if (channel.property === "rotationQuaternion") {
         pose.set(0, 0, 0, 0);
-        for (const { clip, phase, weight } of mix) {
-          const animation = channel.clips[clip];
-          if (!animation || weight <= 0) continue;
-          const at = timeOf(channel, clip, phase);
+        channel.clips.forEach((animation, i) => {
+          const weight = weights[i] as number;
+          if (!animation || weight <= 0) return;
+          const at = timeOf(channel, i, phase);
           sampled.copyFrom(animation.evaluate(at * animation.framePerSecond));
           // Same hemisphere as what's summed so far, so the blend takes the short way.
           const sign = Quaternion.Dot(pose, sampled) < 0 ? -1 : 1;
@@ -421,35 +387,36 @@ export function createTiger(scene: Scene): TigerBody | null {
           pose.z += sampled.z * weight * sign;
           pose.w += sampled.w * weight * sign;
           total += weight;
-        }
+        });
         if (total <= 0) continue;
         pose.normalize();
         channel.node.rotationQuaternion ??= new Quaternion();
         channel.node.rotationQuaternion.copyFrom(pose);
       } else {
         vector.setAll(0);
-        for (const { clip, phase, weight } of mix) {
-          const animation = channel.clips[clip];
-          if (!animation || weight <= 0) continue;
-          const at = timeOf(channel, clip, phase);
+        channel.clips.forEach((animation, i) => {
+          const weight = weights[i] as number;
+          if (!animation || weight <= 0) return;
+          const at = timeOf(channel, i, phase);
           const value = animation.evaluate(at * animation.framePerSecond) as Vector3;
           vector.addInPlace(value.scale(weight));
           total += weight;
-        }
+        });
         if (total <= 0) continue;
         channel.node[channel.property].copyFrom(vector.scaleInPlace(1 / total));
       }
     }
   };
 
-  /** Where a gait clip's feet are over a stride, in the model's own space (cm, forward is −X). */
-  const trackFeet = (clip: number): StrideFeet => {
+  /** Where the run's feet are over a stride, in the model's own space (cm, forward is −X). */
+  const trackFeet = (): StrideFeet => {
     const tracks = {} as Record<Leg, FootTrack>;
-    for (const leg of LEG_NAMES) tracks[leg] = { height: [], forward: [] };
+    for (const leg of Object.keys(LEGS) as Leg[]) tracks[leg] = { height: [], forward: [] };
+    const runOnly = clipNames.map((_, i) => (i === RUN ? 1 : 0));
     const inverse = new Matrix();
     const local = new Vector3();
     for (let k = 0; k < STRIDE_SAMPLES; k++) {
-      applyPose([{ clip, phase: k / STRIDE_SAMPLES, weight: 1 }]);
+      applyPose(runOnly, k / STRIDE_SAMPLES);
       refreshWorld(rig);
       rig.getWorldMatrix().invertToRef(inverse);
       for (const leg of Object.keys(LEGS) as Leg[]) {
@@ -462,11 +429,34 @@ export function createTiger(scene: Scene): TigerBody | null {
     return tracks;
   };
 
+  /** For each gait, how far its pose is from the idle's over a stride: the summed angle between
+   * the bones' rotations. A stop strides on to a low point, where the legs are nearly standing. */
+  const scoreStops = (): number[][] => {
+    const a = new Quaternion();
+    const b = new Quaternion();
+    return GAIT_CLIPS.map((_, g) =>
+      Array.from({ length: STRIDE_SAMPLES }, (_, k) => {
+        let total = 0;
+        for (const channel of channels) {
+          if (channel.property !== "rotationQuaternion") continue;
+          const idle = channel.clips[0];
+          const gait = channel.clips[g + 1];
+          if (!idle || !gait) continue;
+          a.copyFrom(idle.evaluate(0));
+          const at = timeOf(channel, g + 1, k / STRIDE_SAMPLES);
+          b.copyFrom(gait.evaluate(at * gait.framePerSecond));
+          total += 2 * Math.acos(Math.min(1, Math.abs(Quaternion.Dot(a, b))));
+        }
+        return total;
+      }),
+    );
+  };
+
   const analyse = () => {
     analysedBound = ANIM.bound;
     if (!contacts) {
       for (const leg of Object.keys(legShift) as Leg[]) legShift[leg] = 0;
-      const raw = trackFeet(RUN);
+      const raw = trackFeet();
       contacts = {
         lh: contactPhase(raw.lh.height),
         rh: contactPhase(raw.rh.height),
@@ -477,70 +467,8 @@ export function createTiger(scene: Scene): TigerBody | null {
     const hind = pairShift(contacts.lh, contacts.rh, ANIM.bound);
     const front = pairShift(contacts.lf, contacts.rf, ANIM.bound);
     Object.assign(legShift, { lh: hind.left, rh: hind.right, lf: front.left, rf: front.right });
-    const byLeg = (f: (track: FootTrack) => number, feet: StrideFeet) =>
-      Object.fromEntries(LEG_NAMES.map((leg) => [leg, f(feet[leg])])) as Record<Leg, number>;
-    const tracks = GAIT_CLIPS.map((_, g) => trackFeet(g + 1));
-    footDown = tracks.map(
-      (feet) =>
-        Object.fromEntries(LEG_NAMES.map((leg) => [leg, footContact(feet[leg].height)])) as Record<
-          Leg,
-          number[]
-        >,
-    );
-    touchdown = tracks.map((feet) => byLeg((track) => touchdownPhase(track.height), feet));
-    liftAt = byLeg((track) => liftPhase(track.height), tracks[WALK - 1] as StrideFeet);
-    motion = strideMotion(tracks[RUN - 1] as StrideFeet);
-  };
-
-  /** Starts a stop from the gaits the body is showing: plants the feet that are down, lands the
-   * others, then steps them in. */
-  const startStop = () => {
-    const shown = driver.weights.map((w, i) => (i === IDLE ? 0 : w));
-    const total = shown.reduce((a, b) => a + b, 0);
-    if (total <= 0.1) return;
-    const held = shown.map((w) => w / total);
-    let gait = WALK;
-    held.forEach((w, i) => {
-      if (w > (held[gait] as number)) gait = i;
-    });
-    const phase = driver.phase;
-    const natural = 1 / (durations[gait] as number);
-    // Landing swings at the gait's own pace: the slowed-down cruise would gallop in place.
-    const rate = natural * ANIM.stopRate;
-    const legs = LEG_NAMES.map((leg) => {
-      const down = sampleLoop(footDown[gait - 1]?.[leg] ?? [1], phase) >= 0.5;
-      const at = touchdown[gait - 1]?.[leg] ?? phase;
-      return { ahead: at - phase - Math.floor(at - phase), planted: down };
-    });
-    const timing = {
-      pause: ANIM.stopPause,
-      stagger: ANIM.stopStagger,
-      step: ANIM.stopStep,
-      swingMax: ANIM.stopSwingMax,
-    };
-    stopping = { t: 0, plan: planStop(legs, rate, timing), held, phase, hold: 1, released: false };
-  };
-
-  /** Each leg's mix during a stop: its gaits strided on to its touchdown and held, then a step
-   * into the idle with the foot lifted through the walk's mid-swing; faded out once it moves. */
-  const stopMixes = (stop: Stopping, body: Mix): Record<Leg, Mix> => {
-    const legs = {} as Record<Leg, Mix>;
-    LEG_NAMES.forEach((leg, i) => {
-      const at = legStopAt(stop.plan, i, stop.t, ANIM.stopStep);
-      const lifted = at.lift * ANIM.stopLift;
-      const planted = stop.hold * (1 - at.stand) * (1 - lifted);
-      legs[leg] = [
-        ...body.map((entry) => ({ ...entry, weight: entry.weight * (1 - stop.hold) })),
-        ...stop.held.map((weight, clip) => ({
-          clip,
-          phase: stop.phase + at.advance,
-          weight: weight * planted,
-        })),
-        { clip: IDLE, phase: 0, weight: stop.hold * at.stand * (1 - lifted) },
-        { clip: WALK, phase: liftAt[leg], weight: stop.hold * lifted },
-      ];
-    });
-    return legs;
+    motion = strideMotion(trackFeet());
+    stopScores = scoreStops();
   };
 
   const up = Vector3.Up();
@@ -608,7 +536,7 @@ export function createTiger(scene: Scene): TigerBody | null {
       smoothSpeed =
         gaitSpeed > smoothSpeed ? gaitSpeed : smoothSpeed + (gaitSpeed - smoothSpeed) * follow;
       const moving = gaitSpeed > 1e-3 ? smoothSpeed : 0;
-      stepGaits(driver, moving, shuffle, gaits(), driverOptions(), noScore, step);
+      stepGaits(driver, moving, shuffle, gaits(), driverOptions(), stopScore, step);
       if (driver.started) pushTime = 0;
       else pushTime += step;
       const phase = driver.phase;
@@ -616,24 +544,7 @@ export function createTiger(scene: Scene): TigerBody | null {
       breath = (breath + ANIM.breathRate * step) % 1;
       time += step;
       if (analysedBound !== ANIM.bound) analyse();
-
-      // Stopping: the legs land and step in (see startStop); moving again, they let go.
-      const isMoving = moving > 0;
-      if (wasMoving && !isMoving && ANIM.stopSteps) startStop();
-      wasMoving = isMoving;
-      if (stopping) {
-        stopping.t += step;
-        if (isMoving || !ANIM.stopSteps) stopping.released = true;
-        if (stopping.released) {
-          stopping.hold = ANIM.fade > 0 ? Math.max(0, stopping.hold - step / ANIM.fade) : 0;
-        }
-        const settled =
-          stopping.t >= stopDone(stopping.plan, ANIM.stopStep) &&
-          (driver.weights[IDLE] ?? 0) > 0.99;
-        if (stopping.hold <= 0 || (!stopping.released && settled)) stopping = null;
-      }
-      const bodyMix = mixOf(driver.weights, phase);
-      applyPose(bodyMix, stopping ? stopMixes(stopping, bodyMix) : null);
+      applyPose(driver.weights, phase);
       // The gallop's own body motion, as much as the gallop shows.
       const galloping = driver.weights[RUN] as number;
       // Up from where the landings are, never below: the feet don't sink into the floor.
