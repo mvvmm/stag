@@ -56,7 +56,7 @@ assets-src/   downloaded source models (gitignored; `pnpm models:build` turns th
 public/models/ game-ready glTF models (committed, credited in CREDITS.md)
 scripts/      Node dev scripts (run directly with node, e.g. devlog-video.ts, build-models.ts)
 src/
-  main.tsx    entry point: WebGPU check, then the shell (or the Unsupported screen)
+  main.tsx    entry point: device check (a mouse or trackpad, `ui/device.ts`; "Continue anyway"), WebGPU check, then the shell (or the Unsupported screen, one per reason)
   shell.ts    wires sim + fixed-step loop + renderer; the only place that reads wall-clock time
   core/       loop, time, seeded RNG, math helpers
   ecs/        miniplex World<Entity>, entity/component types
@@ -98,7 +98,7 @@ Create a folder when a step first needs it; don't add placeholder files.
 - Styling: CSS Modules (`*.module.css`) plus design tokens as CSS custom properties in `src/ui/styles/tokens.css`.
 - Babylon: import from the `@babylonjs/core` root for now (deep imports may come in the 9.6 performance pass).
 - **The repo is public.** Never commit secrets: credentials go in a gitignored `.env` (names documented in `.env.example`). Third-party assets get a row in [CREDITS.md](CREDITS.md) (source, license, credit) before use. Only redistributable ones (CC0, CC-BY, …) are committed. Store-EULA assets that allow shipping but not redistribution never go in the repo (they go to R2).
-- Rendering is **WebGPU only** (`WebGPUEngine`); custom shaders should be WGSL. Dev-only `?nowebgpu` previews the Unsupported screen.
+- Rendering is **WebGPU only** (`WebGPUEngine`); custom shaders should be WGSL. Dev-only `?unsupported=device|webgpu|error` previews the Unsupported screen.
 
 ## Dev tools
 

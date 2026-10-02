@@ -25,6 +25,7 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 1.6 | [Placeholder character](1.6-placeholder-character/index.md) | 2026-09-28 |
 | 1.6.1 | [cf CLI](1.6.1-cf-cli/index.md) | 2026-09-29 |
 | 1.7 | [Movement feel pass](1.7-movement-feel/index.md) | 2026-10-02 |
+| 1.7.1 | [Unsupported devices](1.7.1-unsupported-devices/index.md) | 2026-10-02 |
 
 ## Layout
 
@@ -77,13 +78,14 @@ The agent takes screenshots with [agent-browser](https://agent-browser.dev) (a d
    - `ab mouse move x y`, `ab mouse down right` / `ab mouse up right`, `ab press b`
    - held keys: agent-browser has no key-down command, so use `ab eval 'window.dispatchEvent(new KeyboardEvent("keydown",{code:"KeyW"}))'` (and a matching `keyup`)
 4. Capture with `ab screenshot devlog/<entry>/NN-slug.png`.
+   - **A phone (touch, no mouse):** `ab set device "iPhone 16 Pro"` only changes the viewport, and headless Chromium keeps a fine pointer. Launch Chrome for Testing (under `~/.agent-browser/browsers/`) yourself with `--headless=new --remote-debugging-port=9333 --user-data-dir=<scratchpad>/touch "--blink-settings=primaryPointerType=2,availablePointerTypes=2,primaryHoverType=1,availableHoverTypes=1"` and drive it with `agent-browser --cdp 9333` (`--args` splits that flag on its commas).
 5. **Look at every image** before using it. Throw away black frames, the Unsupported screen and half-loaded scenes.
 6. When you're done, run `ab close` and stop the preview server.
 
 **Old commits** (backfill or re-shoots):
 
 - `git worktree add <scratchpad>/wt-<step> <sha>`, then `pnpm install --frozen-lockfile` in it.
-- Run `pnpm exec vite --port 5748 --strictPort` there. Dev mode also allows `?nowebgpu`.
+- Run `pnpm exec vite --port 5748 --strictPort` there. Dev mode also allows `?unsupported=device|webgpu|error` (`?nowebgpu` before 1.7.1).
 - Take the shots, then `git worktree remove --force <path>`.
 
 The per-step commits so far:
