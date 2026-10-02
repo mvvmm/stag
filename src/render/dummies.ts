@@ -43,7 +43,7 @@ const NUMBER_FADE = 0.35;
 const NUMBER_RISE = 0.7;
 const NUMBER_POOL = 24;
 const NUMBER_SIZE = 0.55;
-const NUMBER_Y = DUMMY_HEIGHT + 0.15;
+const NUMBER_Y = BAR_Y + 0.25;
 /** Side-to-side offsets (m) cycled through, so numbers from quick hits don't stack exactly. */
 const NUMBER_SPREAD = [0, 0.22, -0.18, 0.12, -0.26, 0.05];
 

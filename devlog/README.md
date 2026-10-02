@@ -26,6 +26,7 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 1.6.1 | [cf CLI](1.6.1-cf-cli/index.md) | 2026-09-29 |
 | 1.7 | [Movement feel pass](1.7-movement-feel/index.md) | 2026-10-02 |
 | 1.7.1 | [Unsupported devices](1.7.1-unsupported-devices/index.md) | 2026-10-02 |
+| 2.1 | [Health, damage & test dummies](2.1-health-and-dummies/index.md) | 2026-10-02 |
 
 ## Layout
 

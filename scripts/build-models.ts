@@ -42,7 +42,7 @@ const MODELS: Record<string, ModelBuild> = {
     source: "assets-src/forest-guardian/forest-guardian.glb",
     output: "public/models/forest-guardian.glb",
     textureSize: 1024,
-    prepare: () => {},
+    prepare: prepareGuardian,
   },
 };
 
@@ -68,6 +68,9 @@ const FRAME = 1 / 24;
 /** The idle is this clip's first pose (a calm stance), held. */
 const IDLE_POSE_FROM = "Howl";
 const IDLE_LENGTH = 1;
+
+/** The Guardian's grassy display base (Sketchfab's scene, not the character). */
+const GUARDIAN_BASE = "Object_4";
 
 async function main() {
   const wanted = process.argv.slice(2);
@@ -125,6 +128,28 @@ function prepareTiger(doc: Document): void {
   // A zero specular (the body's) reads flat and dead under the moon; glTF's default is 0.04.
   for (const extension of root.listExtensionsUsed()) {
     if (extension.extensionName === "KHR_materials_specular") extension.dispose();
+  }
+}
+
+/**
+ * Drops what isn't the Guardian: its grassy display base, and the fully transparent untextured
+ * leftovers of the original scene (48 primitives nobody sees, each a draw call).
+ */
+function prepareGuardian(doc: Document): void {
+  const root = doc.getRoot();
+  for (const node of root.listNodes()) {
+    if (node.getName() === GUARDIAN_BASE) node.dispose();
+  }
+  for (const mesh of root.listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      const material = primitive.getMaterial();
+      const invisible =
+        material &&
+        material.getAlphaMode() === "BLEND" &&
+        material.getBaseColorFactor()[3] === 0 &&
+        !material.getBaseColorTexture();
+      if (invisible) primitive.dispose();
+    }
   }
 }
 
