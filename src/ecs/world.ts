@@ -44,6 +44,9 @@ export type Mover = {
   velocity: Vec2;
   /** The velocity a controller asks for this tick; `locomotion` accelerates toward it. */
   desired: Vec2;
+  /** The sign of the facing's last turn (1 or -1), not counting reversals: a reversal turns back
+   * against it, through the side the body came from. */
+  turnSide: number;
 };
 
 export type RoomInfo = { id: string; width: number; depth: number };

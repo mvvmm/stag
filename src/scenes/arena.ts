@@ -42,7 +42,7 @@ export function spawnRoom(world: World<Entity>, room: Room): void {
   world.add({
     transform,
     prevTransform: cloneTransform(transform),
-    mover: { velocity: { x: 0, z: 0 }, desired: { x: 0, z: 0 } },
+    mover: { velocity: { x: 0, z: 0 }, desired: { x: 0, z: 0 }, turnSide: 1 },
     player: { order: null, orders: 0, click: null },
   });
 }
