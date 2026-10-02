@@ -36,7 +36,7 @@ Small in scope, deep in replayability: we get longevity from a tight core loop t
 - **Aiming:** mouse aims abilities (cursor projected onto the ground) in both schemes.
 - **Abilities:** 3 basics + 1 ultimate; keys per preset above. Bindings are data, and remapping comes in 16.1.
 
-> Open: final keybinds (2.2); whether dodge (provisionally `Space`) is universal or form-specific; controller support.
+> Open: final keybinds (2.3); whether dodge (provisionally `Space`) is universal or form-specific; controller support.
 
 ### Movement feel requirements
 

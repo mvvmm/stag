@@ -51,17 +51,17 @@
 
 ## Phase 2: Abilities & Combat Core
 
-- [ ] **2.1 Ability framework:** slots, cooldowns, cast states (instant/windup/channel), aiming, data-driven definitions.
-- [ ] **2.2 Keybinds & dodge decision:** final ability keys; decide whether dodge is universal or form-specific.
-- [ ] **2.3 First mobility ability:** Cat pounce/dash (movement override, collision, cooldown).
-- [ ] **2.4 Health & damage:** health, hit shapes (circle/cone/line), damage events, death.
+- [ ] **2.1 Health, damage & test dummies:** health, hit shapes (circle/cone/line), damage events; a Training yard with a static and a patrolling dummy (no AI) that refill instead of dying, so abilities have something to hit. → [plan](plans/2.1-health-and-dummies.md)
+- [ ] **2.2 Ability framework:** slots, cooldowns, cast states (instant/windup/channel), aiming, data-driven definitions; built so enemies can cast through it later (3.1).
+- [ ] **2.3 Keybinds & dodge decision:** final ability keys; decide whether dodge is universal or form-specific.
+- [ ] **2.4 First mobility ability:** Cat pounce/dash (movement override, collision, cooldown).
 - [ ] **2.5 Cat basic attack + one damage ability.**
 - [ ] **2.6 HUD v1:** health bar, ability bar with cooldowns (HTML overlay).
 - [ ] **2.7 Combat juice:** hit flash, hitstop, screen shake, knockback, damage numbers.
 
 ## Phase 3: First Enemy (Vertical Slice)
 
-- [ ] **3.1 Enemy framework:** enemy definitions, spawning, AI state machine.
+- [ ] **3.1 Enemy framework:** enemy definitions, spawning, AI state machine, enemy death; attacks cast through the 2.2 ability framework; an attacking dummy in the Training yard.
 - [ ] **3.2 Telegraph system:** ground indicators (circle/cone/line/ring), windup timing, danger visual language v1.
 - [ ] **3.3 Enemy #1:** charger with a telegraphed line charge.
 - [ ] **3.4 Enemy steering:** pathing around obstacles, separation between enemies.

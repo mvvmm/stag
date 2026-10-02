@@ -62,7 +62,7 @@ export const MOBA_PRESET: Preset = {
     ability2: ["KeyW"],
     ability3: ["KeyE"],
     ultimate: ["KeyR"],
-    // Space centers the camera, like League; dodge takes League's Flash key until 2.2 decides.
+    // Space centers the camera, like League; dodge takes League's Flash key until 2.3 decides.
     dodge: ["KeyF"],
     interact: ["Mouse0"],
     stop: ["KeyS"],

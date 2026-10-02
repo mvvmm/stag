@@ -16,7 +16,7 @@ export const PLAYER = defineTunables("player", {
   /** Movement and pathing radius, m: one circle whatever the body's shape (like League's pathing
    * radius), so every path fits the body that follows it and the facing turns freely. */
   radius: { value: 0.4, min: 0.1, max: 0.8, step: 0.01 },
-  /** The body's own shape, for hits (2.4): half its width, m. */
+  /** The body's own shape, for hits (2.1): half its width, m. */
   bodyRadius: { value: 0.28, min: 0.1, max: 0.8, step: 0.01 },
   /** The body's length nose to rump, m: a pill along the facing (at most 2 × `bodyRadius`, a
    * circle). */
