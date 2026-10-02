@@ -1,10 +1,16 @@
 // Builds the game-ready models in public/models/ from the downloaded originals in assets-src/
 // (gitignored; see CREDITS.md for where each one comes from). Run with `pnpm models:build` after
-// changing this script or the source; the output is committed.
+// changing this script or a source; the output is committed. `pnpm models:build guardian` builds
+// just that one.
 //
 // tiger.glb ← assets-src/tiger/tiger-rebuilt.glb, "Tiger rebuilt" by kenchoo (CC-BY 4.0):
 // https://sketchfab.com/3d-models/tiger-rebuilt-6b5d14b2de984ffcb00ee00e404ad208
 // (Download 3D Model → the original .glb, saved as assets-src/tiger/tiger-rebuilt.glb.)
+//
+// forest-guardian.glb ← assets-src/forest-guardian/forest-guardian.glb, "Forest Guardian" by
+// Jessie (jessielea) (CC-BY 4.0):
+// https://sketchfab.com/3d-models/forest-guardian-0c07eb6b4be641f0975d2d1a80451cf8
+// (Download 3D Model → Autoconverted format (glb); the original is a .3ds without materials.)
 
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -14,10 +20,33 @@ import { dedup, prune, quantize, resample, textureCompress } from "@gltf-transfo
 import sharp from "sharp";
 
 const ROOT = join(import.meta.dirname, "..");
-const SOURCE = join(ROOT, "assets-src/tiger/tiger-rebuilt.glb");
-const OUTPUT = join(ROOT, "public/models/tiger.glb");
 
-/** The source's clip names → ours. Every clip is in place and loops already. */
+type ModelBuild = {
+  source: string;
+  output: string;
+  /** Longest texture side, px. */
+  textureSize: number;
+  /** Model-specific fixes before the shared optimization. */
+  prepare(doc: Document): void;
+};
+
+const MODELS: Record<string, ModelBuild> = {
+  tiger: {
+    source: "assets-src/tiger/tiger-rebuilt.glb",
+    output: "public/models/tiger.glb",
+    // The tiger is small on screen.
+    textureSize: 1024,
+    prepare: prepareTiger,
+  },
+  guardian: {
+    source: "assets-src/forest-guardian/forest-guardian.glb",
+    output: "public/models/forest-guardian.glb",
+    textureSize: 1024,
+    prepare: prepareGuardian,
+  },
+};
+
+/** The tiger's clip names → ours. Every clip is in place and loops already. */
 const CLIPS: Record<string, string> = {
   Walk: "walk",
   "Walk Fast": "trot",
@@ -40,18 +69,50 @@ const FRAME = 1 / 24;
 const IDLE_POSE_FROM = "Howl";
 const IDLE_LENGTH = 1;
 
-/** Longest texture side, px. The tiger is small on screen. */
-const TEXTURE_SIZE = 1024;
+/** The Guardian's grassy display base (Sketchfab's scene, not the character). */
+const GUARDIAN_BASE = "Object_4";
 
 async function main() {
-  if (!existsSync(SOURCE)) {
-    console.error(`missing ${SOURCE}: download the original .glb (see the header of this script)`);
-    process.exit(1);
+  const wanted = process.argv.slice(2);
+  for (const id of wanted) if (!MODELS[id]) throw new Error(`unknown model "${id}"`);
+  const ids = wanted.length ? wanted : Object.keys(MODELS);
+  let missing = false;
+  for (const id of ids) {
+    const model = MODELS[id] as ModelBuild;
+    const source = join(ROOT, model.source);
+    if (!existsSync(source)) {
+      console.error(`missing ${model.source}: download it (see the header of this script)`);
+      missing = true;
+      continue;
+    }
+    await build(model);
   }
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
-  const doc = await io.read(SOURCE);
-  const root = doc.getRoot();
+  if (missing) process.exit(1);
+}
 
+async function build(model: ModelBuild): Promise<void> {
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+  const doc = await io.read(join(ROOT, model.source));
+  model.prepare(doc);
+  await doc.transform(
+    resample(),
+    dedup(),
+    prune(),
+    textureCompress({
+      encoder: sharp,
+      targetFormat: "webp",
+      resize: [model.textureSize, model.textureSize],
+      quality: 88,
+    }),
+    quantize(),
+  );
+  const output = join(ROOT, model.output);
+  await io.write(output, doc);
+  summarize(doc, output);
+}
+
+function prepareTiger(doc: Document): void {
+  const root = doc.getRoot();
   for (const animation of root.listAnimations()) {
     if (CLOSE_LOOPS.includes(animation.getName())) closeLoop(doc, animation, FRAME);
   }
@@ -68,22 +129,28 @@ async function main() {
   for (const extension of root.listExtensionsUsed()) {
     if (extension.extensionName === "KHR_materials_specular") extension.dispose();
   }
+}
 
-  await doc.transform(
-    resample(),
-    dedup(),
-    prune(),
-    textureCompress({
-      encoder: sharp,
-      targetFormat: "webp",
-      resize: [TEXTURE_SIZE, TEXTURE_SIZE],
-      quality: 88,
-    }),
-    quantize(),
-  );
-
-  await io.write(OUTPUT, doc);
-  summarize(doc);
+/**
+ * Drops what isn't the Guardian: its grassy display base, and the fully transparent untextured
+ * leftovers of the original scene (48 primitives nobody sees, each a draw call).
+ */
+function prepareGuardian(doc: Document): void {
+  const root = doc.getRoot();
+  for (const node of root.listNodes()) {
+    if (node.getName() === GUARDIAN_BASE) node.dispose();
+  }
+  for (const mesh of root.listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      const material = primitive.getMaterial();
+      const invisible =
+        material &&
+        material.getAlphaMode() === "BLEND" &&
+        material.getBaseColorFactor()[3] === 0 &&
+        !material.getBaseColorTexture();
+      if (invisible) primitive.dispose();
+    }
+  }
 }
 
 /**
@@ -150,7 +217,7 @@ function addHeldPose(doc: Document, from: Animation, name: string, length: numbe
   }
 }
 
-function summarize(doc: Document): void {
+function summarize(doc: Document, output: string): void {
   const root = doc.getRoot();
   const clips = root.listAnimations().map((animation) => {
     const end = Math.max(...animation.listSamplers().map((s) => s.getInput()?.getMax([])[0] ?? 0));
@@ -163,8 +230,8 @@ function summarize(doc: Document): void {
   const textures = root
     .listTextures()
     .map((t) => `${t.getName() || "texture"} ${t.getMimeType()} ${t.getSize()?.join("x")}`);
-  const mb = (statSync(OUTPUT).size / 1024 / 1024).toFixed(2);
-  console.info(`${OUTPUT.slice(ROOT.length + 1)}: ${mb} MB, ${vertices} vertices`);
+  const mb = (statSync(output).size / 1024 / 1024).toFixed(2);
+  console.info(`${output.slice(ROOT.length + 1)}: ${mb} MB, ${vertices} vertices`);
   console.info(`  clips: ${clips.join(", ")}`);
   console.info(`  textures: ${textures.join(", ")}`);
 }

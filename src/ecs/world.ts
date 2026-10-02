@@ -1,4 +1,5 @@
 import { World } from "miniplex";
+import type { Footprint } from "@/collision/body";
 import type { Vec2 } from "@/core/math";
 import type { Obstacle } from "@/data/rooms/room";
 
@@ -49,6 +50,33 @@ export type Mover = {
   turnSide: number;
 };
 
+/** Hit points. Nothing dies yet (3.1): `current` stops at 0. */
+export type Health = {
+  current: number;
+  max: number;
+  /** Damage taken this tick, one entry per hit (cleared at the start of every tick), so the view
+   * can pop a number per hit. */
+  taken: number[];
+};
+
+/** A training dummy: it never dies, and refills to full once it's left alone for a while. */
+export type Dummy = {
+  kind: "static" | "patrol";
+  /** Seconds since its health last dropped. */
+  sinceHit: number;
+  /** Health at the end of the last tick, to notice drops however they happen. */
+  lastHealth: number;
+};
+
+/** Walks back and forth between two points (a dummy's route; no AI). */
+export type Patrol = {
+  a: Vec2;
+  b: Vec2;
+  towardB: boolean;
+  /** Seconds left to stand at the end it reached. */
+  wait: number;
+};
+
 export type RoomInfo = { id: string; width: number; depth: number };
 
 export type Entity = {
@@ -60,8 +88,16 @@ export type Entity = {
   mover?: Mover;
   /** Walks through obstacles (the noclip cheat). */
   noclip?: true;
+  /** Blocks other movers and is blocked by them: a circle of its movement radius
+   * (`movementStats(entity).radius`), so the player can't ghost through enemies. Moving or not. */
+  solid?: true;
   /** A static obstacle from the room data. Has no `transform`: its footprint says where it is. */
   obstacle?: Obstacle;
+  health?: Health;
+  /** The body's shape for hits (separate from the movement circle), along its facing. */
+  hurtbox?: Footprint;
+  dummy?: Dummy;
+  patrol?: Patrol;
   /** The room being played: its size, for the floor and later camera bounds. One per world. */
   room?: RoomInfo;
 };

@@ -1,5 +1,6 @@
 import { defineTunables } from "@/core/tuning";
 import type { Entity } from "@/ecs/world";
+import { DUMMY } from "@/systems/dummy";
 
 /** The player's movement feel. Per-form movement data replaces these in 10.1. */
 export const PLAYER = defineTunables("player", {
@@ -16,7 +17,7 @@ export const PLAYER = defineTunables("player", {
   /** Movement and pathing radius, m: one circle whatever the body's shape (like League's pathing
    * radius), so every path fits the body that follows it and the facing turns freely. */
   radius: { value: 0.4, min: 0.1, max: 0.8, step: 0.01 },
-  /** The body's own shape, for hits (2.4): half its width, m. */
+  /** The body's own shape, for hits (2.1): half its width, m. */
   bodyRadius: { value: 0.28, min: 0.1, max: 0.8, step: 0.01 },
   /** The body's length nose to rump, m: a pill along the facing (at most 2 × `bodyRadius`, a
    * circle). */
@@ -38,7 +39,17 @@ export type MovementStats = {
  * An entity's movement numbers this tick. The one place movement reads them, so per-form data
  * (10.1) and speed modifiers like sprint or slows (4.1) slot in here.
  */
-export function movementStats(_entity: Entity): MovementStats {
+export function movementStats(entity: Entity): MovementStats {
+  if (entity.dummy) {
+    return {
+      speed: DUMMY.patrolSpeed,
+      accel: DUMMY.patrolAccel,
+      decel: DUMMY.patrolAccel,
+      turnAccel: DUMMY.patrolAccel,
+      turnRate: (DUMMY.turnRate * Math.PI) / 180,
+      radius: DUMMY.radius,
+    };
+  }
   return {
     speed: PLAYER.speed,
     accel: PLAYER.accel,

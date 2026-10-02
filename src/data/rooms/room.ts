@@ -1,5 +1,6 @@
 import { dmath } from "@/core/dmath";
 import { rotateByYaw, type Vec2 } from "@/core/math";
+import type { DummySpawn } from "@/data/dummies";
 
 // Hand-built rooms as plain data (meters; +X east, +Z north, centered on the origin). A scene
 // turns a room into static obstacle entities; collision (1.3) and the view both read those.
@@ -28,6 +29,8 @@ export type Room = {
   depth: number;
   spawn: Vec2;
   obstacles: Obstacle[];
+  /** Training dummies (the Training yard). */
+  dummies?: DummySpawn[];
 };
 
 export const WALL_HEIGHT = 3;

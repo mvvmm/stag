@@ -21,19 +21,22 @@ const ORANGE = { r: 1, g: 0.6, b: 0.2 };
 /**
  * Kinematic movement for every `mover`: the velocity moves toward `desired` at a linear rate
  * (`decel` when asked to stop, `turnAccel` when asked to go against the current velocity, `accel`
- * otherwise), the position follows the new velocity, sliding along obstacles instead of entering
- * them (unless the entity has `noclip`), and the facing turns toward the direction it actually
+ * otherwise), the position follows the new velocity, sliding along obstacles, and for a `solid`
+ * mover other solid bodies, instead of entering them (unless the entity has `noclip`), and the facing turns toward the direction it actually
  * moved (along a wall it slides on), or toward where it wants to go when blocked, at `turnRate`; a
  * reversal turns back through the side it came from (`turnSide`). Landing exactly on the desired
  * velocity means stops don't drift. The velocity loses its part into any surface it ends up
  * touching, so sliding carries the projected speed.
  */
 export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _input: InputFrame) {
-  const shapes: ObstacleShape[] = [];
-  for (const { obstacle } of world.with("obstacle")) shapes.push(obstacle.shape);
+  const statics: ObstacleShape[] = [];
+  for (const { obstacle } of world.with("obstacle")) statics.push(obstacle.shape);
+  const solids = world.with("transform", "solid").without("noclip");
   for (const entity of world.with("transform", "mover")) {
     const { transform, mover } = entity;
     const stats = movementStats(entity);
+    // Every other solid body blocks it too, as a circle where it stands right now.
+    const shapes = entity.solid ? withBodies(statics, solids, entity) : statics;
     const v = mover.velocity;
     const desired = mover.desired;
 
@@ -108,6 +111,24 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
       debugDraw.point(at, { color: "blue", category: "trail", duration: TRAIL_SECONDS });
     }
   }
+}
+
+/**
+ * The static obstacles plus a circle for every other solid body (its movement radius, where it
+ * stands now). Bodies move one after another in world order, so each sees the others' latest spot.
+ */
+function withBodies(
+  statics: readonly ObstacleShape[],
+  solids: Iterable<Entity & Required<Pick<Entity, "transform">>>,
+  self: Entity,
+): ObstacleShape[] {
+  const shapes = [...statics];
+  for (const other of solids) {
+    if (other === self) continue;
+    const { x, z } = other.transform.position;
+    shapes.push({ kind: "circle", x, z, r: movementStats(other).radius });
+  }
+  return shapes;
 }
 
 /** The `collision` debug category: contacts and their normals, the slide, and safety-net fixes. */

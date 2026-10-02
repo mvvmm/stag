@@ -20,18 +20,20 @@ import type { Entity } from "@/ecs/world";
 import { type NavGraph, navGraphOf } from "@/nav/graph";
 import { bodyView } from "@/render/bodyView";
 import { createClickMarker } from "@/render/clickMarker";
+import { createDummyViews } from "@/render/dummies";
 import { createFloorMaterial } from "@/render/floorMaterial";
 import { greyboxMaterial } from "@/render/materials";
 import { createOcclusionFader } from "@/render/occlusion";
 import { createTiger } from "@/render/tiger";
-import { arenaSim, gymSim } from "@/scenes/arena";
+import { arenaSim, gymSim, yardSim } from "@/scenes/arena";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
 import type { SceneSim } from "@/scenes/sim";
 import { PLAYER } from "@/systems/movementStats";
 
-// The view of every room scene: gridded floor, grey-box obstacle meshes, the player, the click-to-move marker,
-// the camera following the player within the room, obstacles fading while they hide it, and what
-// the atmosphere needs (shadow casters and receivers, the player light's target).
+// The view of every room scene: gridded floor, grey-box obstacle meshes, the player, the training
+// dummies, the click-to-move marker, the camera following the player within the room, obstacles
+// fading while they hide it, and what the atmosphere needs (shadow casters and receivers, the
+// player light's target).
 
 /** The grey-box player: a capsule this tall, with a nose showing where it faces. */
 const PLAYER_HEIGHT = 1.2;
@@ -56,6 +58,7 @@ export const roomScene = (sim: SceneSim): SceneDef => ({ ...sim, setup });
 
 export const arenaScene = roomScene(arenaSim);
 export const gymScene = roomScene(gymSim);
+export const yardScene = roomScene(yardSim);
 
 function setup(ctx: SceneContext): void {
   const { world, scene } = ctx;
@@ -128,7 +131,8 @@ function setup(ctx: SceneContext): void {
   };
   showBody();
   ctx.bindMesh(player, playerMesh);
-  ctx.setShadowCasters([...obstacleMeshes, playerMesh]);
+  const dummies = createDummyViews(ctx);
+  ctx.setShadowCasters([...obstacleMeshes, playerMesh, ...dummies]);
 
   // The camera looks at the ground under the player's interpolated mesh.
   const focus = () => ({ x: playerMesh.position.x, y: 0, z: playerMesh.position.z });
@@ -212,7 +216,7 @@ function shapePlayerBody(body: Mesh, nose: Mesh): void {
 /**
  * The `footprint` debug category: the player's movement circle (what collides with walls and
  * paths) in yellow with an arrow along its facing, and the body's own shape (a pill: its hit shape
- * from 2.4) in red.
+ * from 2.1) in red.
  */
 function drawFootprint(at: Vec2, facing: number): void {
   const movement = { color: "yellow", category: "footprint" } as const;

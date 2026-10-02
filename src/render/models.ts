@@ -10,7 +10,7 @@ import { registerBuiltInLoaders } from "@babylonjs/loaders/dynamic";
 // every scene setup instantiates its own copies synchronously, so restarts never reload a file.
 // Built by `pnpm models:build` (scripts/build-models.ts); see CREDITS.md.
 
-const MODELS = { tiger: "models/tiger.glb" } as const;
+const MODELS = { tiger: "models/tiger.glb", guardian: "models/forest-guardian.glb" } as const;
 export type ModelId = keyof typeof MODELS;
 
 const containers = new Map<ModelId, AssetContainer>();
