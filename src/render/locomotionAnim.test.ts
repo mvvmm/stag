@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   bankAngle,
   clipTime,
+  createBend,
+  createGaitDriver,
+  type DriverOptions,
   type Gait,
   gaitBlend,
   lookYaw,
+  nextStopPhase,
+  pushOffCurve,
   type Spring,
   snapSpring,
+  stepBend,
   stepChain,
+  stepGaits,
+  stepShuffle,
   stepSpring,
   sway,
 } from "@/render/locomotionAnim";
@@ -179,5 +187,176 @@ describe("sway", () => {
     expect(min).toBeGreaterThanOrEqual(-1);
     expect(max).toBeLessThanOrEqual(1);
     expect(sway(1, 0.3)).not.toBeCloseTo(sway(1 + 1 / 0.3, 0.3), 3);
+  });
+});
+
+describe("gaitBlend with a handover speed", () => {
+  it("plays the upper gait alone from its `from` speed, slowed down", () => {
+    const gaits: Gait[] = [
+      GAITS[0] as Gait,
+      GAITS[1] as Gait,
+      { speed: 5, duration: 0.5, from: 3 },
+    ];
+    const cruise = gaitBlend(4, gaits, OPTIONS);
+    expect(cruise.weights).toEqual([0, 0, 1]);
+    expect(cruise.cyclesPerSecond).toBeCloseTo((4 / 5) * 2, 9); // 0.8× its own rate
+    const between = gaitBlend(2, gaits, OPTIONS);
+    expect(between.weights[1]).toBeGreaterThan(0);
+    expect(between.weights[2]).toBeGreaterThan(0);
+    expect(sum(between)).toBeCloseTo(1, 12);
+  });
+});
+
+const DRIVER: DriverOptions = {
+  ...OPTIONS,
+  startPhase: 0.25,
+  shuffleRate: 2,
+  stopMax: 0.3,
+  fade: 0.05,
+};
+/** A pose that's closest to standing at phases 0 and 0.5. */
+const score = (phase: number) => Math.abs(Math.sin(2 * Math.PI * phase));
+const run = (
+  driver: ReturnType<typeof createGaitDriver>,
+  speed: number,
+  frames: number,
+  shuffle = false,
+) => {
+  for (let i = 0; i < frames; i++) stepGaits(driver, speed, shuffle, GAITS, DRIVER, score, 1 / 120);
+};
+
+describe("stepGaits", () => {
+  it("starts on the push-off foot, once, from standing", () => {
+    const driver = createGaitDriver(GAITS.length);
+    driver.phase = 0.9;
+    stepGaits(driver, 2.5, false, GAITS, DRIVER, score, 1 / 120);
+    expect(driver.started).toBe(true);
+    expect(driver.phase).toBeGreaterThanOrEqual(0.25);
+    expect(driver.phase).toBeLessThan(0.3);
+    stepGaits(driver, 2.5, false, GAITS, DRIVER, score, 1 / 120);
+    expect(driver.started).toBe(false);
+  });
+
+  it("finishes the step on a planted point before fading into the idle", () => {
+    const driver = createGaitDriver(GAITS.length);
+    run(driver, 2.5, 60);
+    driver.phase = 0.3; // past 0.25: the next planted point is 0.5
+    run(driver, 0, 1);
+    expect(driver.mode).toBe("stop");
+    expect(driver.weights[0]).toBeLessThan(0.1); // still striding, not idling
+    run(driver, 0, 60);
+    expect(driver.mode).toBe("idle");
+    expect(Math.abs(driver.phase - 0.5)).toBeLessThanOrEqual(1 / 48); // sampled every 1/48
+    run(driver, 0, 120);
+    expect(driver.weights[0]).toBeCloseTo(1, 3);
+    const phase = driver.phase;
+    run(driver, 0, 30);
+    expect(driver.phase).toBe(phase); // standing: the stride holds
+  });
+
+  it("doesn't stride on past stopMax to reach a planted point", () => {
+    const driver = createGaitDriver(GAITS.length);
+    run(driver, 2.5, 60);
+    const rate = driver.rate;
+    run(driver, 0, 240);
+    expect(driver.mode).toBe("idle");
+    // It strode at most stopMax at its pace (plus the one frame that stopped it).
+    expect(rate * DRIVER.stopMax).toBeLessThan(1);
+  });
+
+  it("shuffles at the walk for short moves, and cross-fades when the move commits", () => {
+    const driver = createGaitDriver(GAITS.length);
+    run(driver, 2.5, 30, true);
+    expect(driver.mode).toBe("shuffle");
+    expect(driver.weights[1]).toBeGreaterThan(0.9);
+    expect(driver.rate).toBeCloseTo(DRIVER.shuffleRate / (GAITS[0] as Gait).duration, 9);
+    run(driver, 2.5, 60);
+    expect(driver.mode).toBe("move");
+    expect(driver.weights[3]).toBeGreaterThan(0.9);
+  });
+
+  it("weights always sum to 1", () => {
+    const driver = createGaitDriver(GAITS.length);
+    for (const [speed, shuffle] of [
+      [2.5, true],
+      [1, false],
+      [0, false],
+      [0.5, false],
+      [0, true],
+    ] as const) {
+      run(driver, speed, 17, shuffle);
+      expect(driver.weights.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9);
+    }
+  });
+});
+
+describe("nextStopPhase", () => {
+  it("finds the best point ahead within the window, never behind", () => {
+    // Checked every 1/48 of a cycle.
+    expect(Math.abs(nextStopPhase(0.3, 1, score) - 0.2)).toBeLessThanOrEqual(1 / 96);
+    expect(Math.abs(nextStopPhase(0.55, 1, score) - 0.45)).toBeLessThanOrEqual(1 / 96);
+    expect(nextStopPhase(0.3, 0.1, score)).toBeLessThanOrEqual(0.1);
+    expect(nextStopPhase(0.3, 0, score)).toBe(0);
+  });
+});
+
+describe("pushOffCurve", () => {
+  it("rises from 0 to 1 and back to 0", () => {
+    expect(pushOffCurve(0, 0.2)).toBe(0);
+    expect(pushOffCurve(0.1, 0.2)).toBeCloseTo(1, 9);
+    expect(pushOffCurve(0.2, 0.2)).toBe(0);
+    expect(pushOffCurve(0.05, 0.2)).toBeGreaterThan(0);
+    expect(pushOffCurve(0.1, 0)).toBe(0);
+  });
+});
+
+describe("stepBend", () => {
+  const options = { frontFrequency: 8, frontDamping: 0.6, hipFrequency: 4, max: 0.7 };
+
+  it("trails the hips behind the shoulders through a turn, then straightens", () => {
+    const bend = createBend();
+    for (let i = 0; i < 6; i++) stepBend(bend, Math.PI / 12, options, 1 / 60); // 90° in 0.1 s
+    expect(bend.hips.value).toBeLessThan(bend.front.value);
+    expect(bend.front.value).toBeLessThan(0);
+    expect(bend.front.value - bend.hips.value).toBeLessThanOrEqual(options.max + 1e-9);
+    for (let i = 0; i < 240; i++) stepBend(bend, 0, options, 1 / 60);
+    expect(Math.abs(bend.front.value)).toBeLessThan(1e-3);
+    expect(Math.abs(bend.hips.value)).toBeLessThan(1e-3);
+  });
+
+  it("barely depends on the frame rate", () => {
+    const at = (fps: number) => {
+      const bend = createBend();
+      const frames = Math.round(fps * 0.1);
+      for (let i = 0; i < frames; i++) stepBend(bend, Math.PI / 2 / frames, options, 1 / fps);
+      for (let i = 0; i < Math.round(fps * 0.1); i++) stepBend(bend, 0, options, 1 / fps);
+      return bend.hips.value;
+    };
+    expect(Math.abs(at(30) - at(144))).toBeLessThan(0.05);
+  });
+
+  it("never lags a reversal by more than three quarters of a half-turn", () => {
+    const bend = createBend();
+    for (let i = 0; i < 6; i++) stepBend(bend, Math.PI / 6, options, 1 / 60);
+    expect(Math.abs(bend.front.value)).toBeLessThanOrEqual(Math.PI * 0.75 + 1e-9);
+  });
+});
+
+describe("stepShuffle", () => {
+  const options = { distance: 1, time: 0.12 };
+
+  it("shuffles a short tap and commits a held key, until it wants nothing", () => {
+    const gate = { time: 0, committed: false };
+    expect(stepShuffle(gate, true, null, options, 0.05)).toBe(true);
+    expect(stepShuffle(gate, true, null, options, 0.05)).toBe(true);
+    expect(stepShuffle(gate, true, null, options, 0.05)).toBe(false);
+    expect(stepShuffle(gate, true, null, options, 0.05)).toBe(false);
+    expect(stepShuffle(gate, false, null, options, 0.05)).toBe(false);
+    expect(stepShuffle(gate, true, null, options, 0.05)).toBe(true);
+  });
+
+  it("commits a right-click by its path's length", () => {
+    expect(stepShuffle({ time: 0, committed: false }, true, 0.6, options, 1 / 60)).toBe(true);
+    expect(stepShuffle({ time: 0, committed: false }, true, 3, options, 1 / 60)).toBe(false);
   });
 });

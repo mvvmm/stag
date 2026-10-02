@@ -2,6 +2,7 @@ import { signal } from "@preact/signals";
 import type { Vec2 } from "@/core/math";
 import type { StatsMode } from "@/debug/persist";
 import type { Action } from "@/input/actions";
+import type { PresetId } from "@/input/bindings";
 
 export type LoopStats = {
   fps: number;
@@ -109,3 +110,15 @@ let noticeId = 0;
 export function showNotice(text: string): void {
   notice.value = { id: ++noticeId, text };
 }
+
+/** The pause menu: open or not, and the control scheme it shows as picked. */
+export const pauseMenu = signal<{ open: boolean; controls: PresetId }>({
+  open: false,
+  controls: "mmo",
+});
+
+/** What the pause menu's buttons do; the shell fills them in. */
+export const menuActions = {
+  resume: () => {},
+  setControls: (_id: PresetId) => {},
+};

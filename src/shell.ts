@@ -11,7 +11,7 @@ import { DEBUG } from "@/debug/enabled";
 import type { FrameSample } from "@/debug/frameStats";
 import { createWorld, type Entity, type Vec3 } from "@/ecs/world";
 import type { InputFrame, ShellFrame } from "@/input/actions";
-import { PRESETS } from "@/input/bindings";
+import { PRESETS, type PresetId } from "@/input/bindings";
 import { attachInputDom, loadPreset, savePreset } from "@/input/dom";
 import { createInputState, type InputState } from "@/input/state";
 import { cameraYaw, createGroundAim } from "@/render/aim";
@@ -29,7 +29,7 @@ import { preloadModels } from "@/render/models";
 import { CAMERA, createScene, updateCamera } from "@/render/scene";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
 import { createSimulation } from "@/systems/simulation";
-import { loopStats, showNotice } from "@/ui/signals";
+import { loopStats, menuActions, pauseMenu, showNotice } from "@/ui/signals";
 import { createSoftwareCursor } from "@/ui/softwareCursor";
 
 const STATS_INTERVAL = 0.25;
@@ -287,6 +287,26 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     else doLoad(def, seed, options);
   };
 
+  /** Opens or closes the pause menu (Esc): open, the game is paused; closed, it runs again. */
+  const setMenu = (open: boolean) => {
+    pauseMenu.value = { open, controls: input.preset.id };
+    loop.paused = open;
+    if (open) input.releaseAll();
+    publishStats();
+  };
+  const setControls = (next: PresetId) => {
+    if (next === input.preset.id) return;
+    input.setPreset(next);
+    savePreset(next);
+    showNotice(`Controls: ${PRESETS[next].label}`);
+    pauseMenu.value = { ...pauseMenu.value, controls: next };
+  };
+  menuActions.resume = () => setMenu(false);
+  menuActions.setControls = (id) => {
+    setControls(id);
+    setMenu(false);
+  };
+
   const frame = (frameSeconds: number) => {
     const frameStart = performance.now();
     phases = {};
@@ -306,16 +326,15 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     yaw = cameraYaw(camera);
 
     const shellFrame = input.sampleFrame();
-    if (shellFrame.pressed.has("pause")) {
-      loop.paused = !loop.paused;
-      publishStats();
-    }
+    if (shellFrame.pressed.has("pause")) setMenu(!pauseMenu.value.open);
     if (shellFrame.pressed.has("switchControls")) {
-      const next = input.preset.id === "mmo" ? "moba" : "mmo";
-      input.setPreset(next);
-      savePreset(next);
-      showNotice(`Controls: ${PRESETS[next].label}`);
+      setControls(input.preset.id === "mmo" ? "moba" : "mmo");
     }
+    if (pauseMenu.value.controls !== input.preset.id) {
+      pauseMenu.value = { ...pauseMenu.value, controls: input.preset.id };
+    }
+    // The menu needs the real pointer (the moba scheme locks it to the canvas).
+    if (pauseMenu.value.open && dom.locked) document.exitPointerLock();
     dom.syncLock();
     cursor.update(dom.locked ? dom.pointer : null);
     for (const listener of frameListeners) listener(shellFrame);
