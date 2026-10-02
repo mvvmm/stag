@@ -1,5 +1,7 @@
 import { defineTunables } from "@/core/tuning";
+import { DUMMY_RADIUS } from "@/data/dummies";
 import type { Entity } from "@/ecs/world";
+import { DUMMY } from "@/systems/dummy";
 
 /** The player's movement feel. Per-form movement data replaces these in 10.1. */
 export const PLAYER = defineTunables("player", {
@@ -38,7 +40,17 @@ export type MovementStats = {
  * An entity's movement numbers this tick. The one place movement reads them, so per-form data
  * (10.1) and speed modifiers like sprint or slows (4.1) slot in here.
  */
-export function movementStats(_entity: Entity): MovementStats {
+export function movementStats(entity: Entity): MovementStats {
+  if (entity.dummy) {
+    return {
+      speed: DUMMY.patrolSpeed,
+      accel: DUMMY.patrolAccel,
+      decel: DUMMY.patrolAccel,
+      turnAccel: DUMMY.patrolAccel,
+      turnRate: (DUMMY.turnRate * Math.PI) / 180,
+      radius: DUMMY_RADIUS,
+    };
+  }
   return {
     speed: PLAYER.speed,
     accel: PLAYER.accel,

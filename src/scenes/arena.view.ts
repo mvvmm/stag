@@ -20,18 +20,20 @@ import type { Entity } from "@/ecs/world";
 import { type NavGraph, navGraphOf } from "@/nav/graph";
 import { bodyView } from "@/render/bodyView";
 import { createClickMarker } from "@/render/clickMarker";
+import { createDummyViews } from "@/render/dummies";
 import { createFloorMaterial } from "@/render/floorMaterial";
 import { greyboxMaterial } from "@/render/materials";
 import { createOcclusionFader } from "@/render/occlusion";
 import { createTiger } from "@/render/tiger";
-import { arenaSim, gymSim } from "@/scenes/arena";
+import { arenaSim, gymSim, yardSim } from "@/scenes/arena";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
 import type { SceneSim } from "@/scenes/sim";
 import { PLAYER } from "@/systems/movementStats";
 
-// The view of every room scene: gridded floor, grey-box obstacle meshes, the player, the click-to-move marker,
-// the camera following the player within the room, obstacles fading while they hide it, and what
-// the atmosphere needs (shadow casters and receivers, the player light's target).
+// The view of every room scene: gridded floor, grey-box obstacle meshes, the player, the training
+// dummies, the click-to-move marker, the camera following the player within the room, obstacles
+// fading while they hide it, and what the atmosphere needs (shadow casters and receivers, the
+// player light's target).
 
 /** The grey-box player: a capsule this tall, with a nose showing where it faces. */
 const PLAYER_HEIGHT = 1.2;
@@ -49,6 +51,8 @@ const OBSTACLE_COLORS: Record<ObstacleType, Color3> = {
   low: new Color3(0.48, 0.49, 0.5),
   block: new Color3(0.27, 0.28, 0.3),
   pillar: new Color3(0.38, 0.35, 0.31),
+  // Dummies have their own body (render/dummies.ts); this only colors a stray one.
+  dummy: new Color3(0.42, 0.47, 0.4),
 };
 
 /** A room scene's sim plus the shared room view. */
@@ -56,6 +60,7 @@ export const roomScene = (sim: SceneSim): SceneDef => ({ ...sim, setup });
 
 export const arenaScene = roomScene(arenaSim);
 export const gymScene = roomScene(gymSim);
+export const yardScene = roomScene(yardSim);
 
 function setup(ctx: SceneContext): void {
   const { world, scene } = ctx;
@@ -89,7 +94,8 @@ function setup(ctx: SceneContext): void {
   };
 
   const obstacleMeshes: Mesh[] = [];
-  const obstacles = [...world.with("obstacle")];
+  // A static dummy is an obstacle too, but its body is the dummy's (below).
+  const obstacles = [...world.with("obstacle").without("dummy")];
   for (const entity of obstacles) {
     const mesh = ctx.own(obstacleMesh(ctx, entity));
     mesh.material = materialFor(entity.obstacle.type);
@@ -128,7 +134,8 @@ function setup(ctx: SceneContext): void {
   };
   showBody();
   ctx.bindMesh(player, playerMesh);
-  ctx.setShadowCasters([...obstacleMeshes, playerMesh]);
+  const dummies = createDummyViews(ctx);
+  ctx.setShadowCasters([...obstacleMeshes, playerMesh, ...dummies]);
 
   // The camera looks at the ground under the player's interpolated mesh.
   const focus = () => ({ x: playerMesh.position.x, y: 0, z: playerMesh.position.z });
@@ -212,7 +219,7 @@ function shapePlayerBody(body: Mesh, nose: Mesh): void {
 /**
  * The `footprint` debug category: the player's movement circle (what collides with walls and
  * paths) in yellow with an arrow along its facing, and the body's own shape (a pill: its hit shape
- * from 2.4) in red.
+ * from 2.1) in red.
  */
 function drawFootprint(at: Vec2, facing: number): void {
   const movement = { color: "yellow", category: "footprint" } as const;
