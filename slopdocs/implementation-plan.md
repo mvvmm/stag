@@ -17,7 +17,7 @@
 |---|---|
 | Engine / language | Babylon.js (**WebGPU only**, no WebGL fallback) + TypeScript (strict), Vite, pnpm |
 | Movement / collision | Custom kinematic controller + simple 2D collision on the ground plane (no physics engine; Havok is optional later for props) |
-| Platform | Desktop only, keyboard + mouse; current browsers with WebGPU (older browsers get an Unsupported screen) |
+| Platform | Desktop only, keyboard + mouse; current browsers with WebGPU (other devices and older browsers get an Unsupported screen) |
 | UI | Hybrid: in-world UI (health bars, telegraphs, damage numbers) in Babylon; screen UI (HUD, menus, reward picks) as a light HTML overlay |
 | Rooms | Hand-built in code/data first, procedural generation later |
 | Art | Stylized asset packs (glTF) + our own lighting/post-processing; grey-box until the art pass |
@@ -47,6 +47,7 @@
 - [x] **1.6 Placeholder character:** pack model with idle/run animations driven by movement. → [plan](plans/1.6-placeholder-character.md)
 - [x] **1.6.1 cf CLI:** migrate the deploy tooling from Wrangler to Cloudflare's `cf` CLI (`cloudflare.config.ts`, Vite plugin, Workers Builds). → [plan](plans/1.6.1-cf-cli.md)
 - [x] **1.7 Movement feel pass:** tune until running around the empty arena is fun on its own (gate); pick the control scheme (WASD vs right-click-to-move, or keep both as a setting). → [plan](plans/1.7-movement-feel.md)
+- [x] **1.7.1 Unsupported devices:** show the Unsupported screen on devices without a mouse (phones, touch-only tablets), with a "Continue anyway"; one screen with text per reason (device, WebGPU, startup error). → [plan](plans/1.7.1-unsupported-devices.md)
 
 ## Phase 2: Abilities & Combat Core
 

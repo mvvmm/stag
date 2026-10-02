@@ -5,6 +5,7 @@ import { DEBUG } from "@/debug/enabled";
 import { isWebGPUSupported } from "@/render/engine";
 import { scenes } from "@/scenes";
 import { randomSeed, startShell } from "@/shell";
+import { deviceSupported } from "@/ui/device";
 import { InputStats } from "@/ui/InputStats";
 import { Notice } from "@/ui/Notice";
 import { PauseMenu } from "@/ui/PauseMenu";
@@ -15,12 +16,24 @@ import { Unsupported } from "@/ui/Unsupported";
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const uiRoot = document.getElementById("ui") as HTMLElement;
 
-async function bootstrap() {
-  // Dev-only escape hatch to preview the unsupported screen: ?nowebgpu
-  const forceUnsupported =
-    import.meta.env.DEV && new URLSearchParams(location.search).has("nowebgpu");
-  if (forceUnsupported || !(await isWebGPUSupported())) {
-    render(<Unsupported />, uiRoot);
+/** Dev-only preview of the unsupported screen: `?unsupported=device|webgpu|error`. */
+const forced = import.meta.env.DEV ? new URLSearchParams(location.search).get("unsupported") : null;
+
+function bootstrap() {
+  if (forced === "device" || (forced === null && !deviceSupported())) {
+    render(<Unsupported reason="device" onContinue={() => void start()} />, uiRoot);
+    return;
+  }
+  void start();
+}
+
+async function start() {
+  if (forced === "error") {
+    render(<Unsupported reason="error" detail="Error: forced by ?unsupported=error" />, uiRoot);
+    return;
+  }
+  if (forced === "webgpu" || !(await isWebGPUSupported())) {
+    render(<Unsupported reason="webgpu" />, uiRoot);
     return;
   }
 
@@ -29,7 +42,7 @@ async function bootstrap() {
     shell = await startShell(canvas);
   } catch (error) {
     console.error(error);
-    render(<Unsupported detail={String(error)} />, uiRoot);
+    render(<Unsupported reason="error" detail={String(error)} />, uiRoot);
     return;
   }
 
@@ -56,4 +69,4 @@ async function bootstrap() {
   );
 }
 
-void bootstrap();
+bootstrap();
