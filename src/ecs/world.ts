@@ -88,8 +88,10 @@ export type Entity = {
   mover?: Mover;
   /** Walks through obstacles (the noclip cheat). */
   noclip?: true;
-  /** A static obstacle from the room data. Its footprint says where it is (a static dummy also has
-   * a `transform`). */
+  /** Blocks other movers and is blocked by them: a circle of its movement radius
+   * (`movementStats(entity).radius`), so the player can't ghost through enemies. Moving or not. */
+  solid?: true;
+  /** A static obstacle from the room data. Has no `transform`: its footprint says where it is. */
   obstacle?: Obstacle;
   health?: Health;
   /** The body's shape for hits (separate from the movement circle), along its facing. */

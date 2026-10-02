@@ -1,5 +1,5 @@
 import type { World } from "miniplex";
-import { DUMMY_HEIGHT, DUMMY_HURTBOX, DUMMY_RADIUS, type DummySpawn } from "@/data/dummies";
+import { DUMMY_HURTBOX, type DummySpawn } from "@/data/dummies";
 import { greyboxRoom } from "@/data/rooms/greybox";
 import { gymRoom } from "@/data/rooms/gym";
 import type { Room } from "@/data/rooms/room";
@@ -61,10 +61,11 @@ export function spawnRoom(world: World<Entity>, room: Room): void {
     prevTransform: cloneTransform(transform),
     mover: { velocity: { x: 0, z: 0 }, desired: { x: 0, z: 0 }, turnSide: 1 },
     player: { order: null, orders: 0, click: null },
+    solid: true,
   });
 }
 
-/** A training dummy at full health. A static one is also a circle obstacle, so it blocks. */
+/** A training dummy at full health, solid like every body. */
 function spawnDummy(world: World<Entity>, spawn: DummySpawn): void {
   const at = spawn.kind === "static" ? spawn.at : spawn.a;
   const facing = spawn.kind === "static" ? (spawn.facing ?? 0) : 0;
@@ -76,14 +77,9 @@ function spawnDummy(world: World<Entity>, spawn: DummySpawn): void {
     health: { current: max, max, taken: [] },
     hurtbox: { ...DUMMY_HURTBOX },
     dummy: { kind: spawn.kind, sinceHit: 0, lastHealth: max },
+    solid: true,
   };
-  if (spawn.kind === "static") {
-    dummy.obstacle = {
-      type: "dummy",
-      shape: { kind: "circle", x: at.x, z: at.z, r: DUMMY_RADIUS },
-      height: DUMMY_HEIGHT,
-    };
-  } else {
+  if (spawn.kind === "patrol") {
     dummy.mover = { velocity: { x: 0, z: 0 }, desired: { x: 0, z: 0 }, turnSide: 1 };
     dummy.patrol = { a: { ...spawn.a }, b: { ...spawn.b }, towardB: true, wait: 0 };
   }

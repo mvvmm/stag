@@ -15,6 +15,9 @@ export const DUMMY = defineTunables("dummy", {
   patrolPause: { value: 0.4, min: 0, max: 5, step: 0.05 },
   /** How fast it turns to face where it walks, degrees per second. */
   turnRate: { value: 540, min: 30, max: 3600, step: 10 },
+  /** Its collision circle, m: tiny, so you know it's there without having to think about it
+   * (hits use the much bigger hurtbox). Enemies get the same. */
+  radius: { value: 0.15, min: 0.02, max: 0.8, step: 0.01 },
 });
 
 /**

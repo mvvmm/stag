@@ -51,8 +51,6 @@ const OBSTACLE_COLORS: Record<ObstacleType, Color3> = {
   low: new Color3(0.48, 0.49, 0.5),
   block: new Color3(0.27, 0.28, 0.3),
   pillar: new Color3(0.38, 0.35, 0.31),
-  // Dummies have their own body (render/dummies.ts); this only colors a stray one.
-  dummy: new Color3(0.42, 0.47, 0.4),
 };
 
 /** A room scene's sim plus the shared room view. */
@@ -94,8 +92,7 @@ function setup(ctx: SceneContext): void {
   };
 
   const obstacleMeshes: Mesh[] = [];
-  // A static dummy is an obstacle too, but its body is the dummy's (below).
-  const obstacles = [...world.with("obstacle").without("dummy")];
+  const obstacles = [...world.with("obstacle")];
   for (const entity of obstacles) {
     const mesh = ctx.own(obstacleMesh(ctx, entity));
     mesh.material = materialFor(entity.obstacle.type);

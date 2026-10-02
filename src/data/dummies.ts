@@ -5,14 +5,12 @@ import type { Vec2 } from "@/core/math";
 
 /** Where a room puts a dummy. */
 export type DummySpawn =
-  /** Stands still, and blocks movement and paths like a pillar. */
+  /** Stands still. */
   | { kind: "static"; at: Vec2; facing?: number }
-  /** Walks back and forth between `a` and `b` (it walks through the player, until 3.4). */
+  /** Walks back and forth between `a` and `b`. */
   | { kind: "patrol"; a: Vec2; b: Vec2 };
 
-/** A dummy's footprint for movement and blocking (its base), m. */
-export const DUMMY_RADIUS = 0.35;
-/** A dummy's body for hits: a bit wider than its base (the arms). */
-export const DUMMY_HURTBOX: Footprint = { radius: 0.45, length: 0 };
-/** How tall a dummy stands, m (its obstacle height, and where the view puts its health bar). */
-export const DUMMY_HEIGHT = 1.8;
+/** A dummy's body for hits (its collision circle is the much smaller `dummy.radius` tunable). */
+export const DUMMY_HURTBOX: Footprint = { radius: 0.6, length: 0 };
+/** How tall a dummy stands, m (the view fits its model to it and hangs its health bar above). */
+export const DUMMY_HEIGHT = 2.6;

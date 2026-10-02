@@ -6,7 +6,7 @@ import type { DummySpawn } from "@/data/dummies";
 // turns a room into static obstacle entities; collision (1.3) and the view both read those.
 
 /** What an obstacle is, which picks its grey-box material (and later its art). */
-export type ObstacleType = "wall" | "low" | "block" | "pillar" | "dummy";
+export type ObstacleType = "wall" | "low" | "block" | "pillar";
 
 /** An obstacle's footprint on the ground plane. */
 export type ObstacleShape =

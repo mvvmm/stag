@@ -1,5 +1,4 @@
 import { defineTunables } from "@/core/tuning";
-import { DUMMY_RADIUS } from "@/data/dummies";
 import type { Entity } from "@/ecs/world";
 import { DUMMY } from "@/systems/dummy";
 
@@ -48,7 +47,7 @@ export function movementStats(entity: Entity): MovementStats {
       decel: DUMMY.patrolAccel,
       turnAccel: DUMMY.patrolAccel,
       turnRate: (DUMMY.turnRate * Math.PI) / 180,
-      radius: DUMMY_RADIUS,
+      radius: DUMMY.radius,
     };
   }
   return {

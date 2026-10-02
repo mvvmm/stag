@@ -12,12 +12,13 @@ import {
   VertexData,
 } from "@babylonjs/core";
 import { debugDraw } from "@/core/debugDraw";
-import { DUMMY_HEIGHT, DUMMY_RADIUS } from "@/data/dummies";
+import { DUMMY_HEIGHT, DUMMY_HURTBOX } from "@/data/dummies";
 import type { Entity } from "@/ecs/world";
 import { bodyView } from "@/render/bodyView";
 import { greyboxMaterial } from "@/render/materials";
 import { instantiateModel } from "@/render/models";
 import type { SceneContext } from "@/scenes/scene";
+import { movementStats } from "@/systems/movementStats";
 
 // The training dummies' view: a body per dummy (the Forest Guardian, or a grey-box capsule the
 // size of its hurtbox), a health bar over each, and a number popping up for every hit. Bars and
@@ -100,9 +101,11 @@ export function createDummyViews(ctx: SceneContext): Mesh[] {
 
   ctx.onFrame(() => {
     if (!debugDraw.enabled) return;
-    for (const { transform, hurtbox } of dummies) {
-      const at = transform.position;
-      debugDraw.circle(at, DUMMY_RADIUS, { color: "yellow", category: "footprint" });
+    for (const entity of dummies) {
+      const at = entity.transform.position;
+      const solid = { color: "yellow", category: "footprint" } as const;
+      debugDraw.circle(at, movementStats(entity).radius, solid);
+      const hurtbox = entity.hurtbox;
       if (hurtbox) debugDraw.circle(at, hurtbox.radius, { color: "red", category: "footprint" });
     }
   });
@@ -125,7 +128,7 @@ function dummyBody(
   const float = ctx.own(new TransformNode(`dummyFloat-${index}`, scene));
   float.parent = root;
 
-  const radius = entity.hurtbox?.radius ?? DUMMY_RADIUS;
+  const radius = entity.hurtbox?.radius ?? DUMMY_HURTBOX.radius;
   const standIn = ctx.own(new Mesh(`dummyStandIn-${index}`, scene));
   const shape = VertexData.CreateCapsule({ radius, height: DUMMY_HEIGHT, tessellation: 16 });
   shape.transform(Matrix.Translation(0, DUMMY_HEIGHT / 2, 0));
