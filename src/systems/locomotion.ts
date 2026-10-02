@@ -11,6 +11,9 @@ import { movementStats } from "@/systems/movementStats";
 
 /** Below this speed (m/s) the facing holds instead of following the velocity. */
 const FACE_MIN_SPEED = 0.1;
+/** A turn within this of 180° (radians) is a reversal: it swings back through the side the body
+ * came from instead of taking whichever arc is a hair shorter. */
+const REVERSE_BAND = (10 * Math.PI) / 180;
 /** Seconds the motion trail stays on the ground. */
 const TRAIL_SECONDS = 2;
 const ORANGE = { r: 1, g: 0.6, b: 0.2 };
@@ -20,8 +23,10 @@ const ORANGE = { r: 1, g: 0.6, b: 0.2 };
  * (`decel` when asked to stop, `turnAccel` when asked to go against the current velocity, `accel`
  * otherwise), the position follows the new velocity, sliding along obstacles instead of entering
  * them (unless the entity has `noclip`), and the facing turns toward the direction it actually
- * moved (along a wall it slides on), or toward where it wants to go when blocked, at `turnRate`. Landing exactly on the desired velocity means stops don't drift. The velocity loses
- * its part into any surface it ends up touching, so sliding carries the projected speed.
+ * moved (along a wall it slides on), or toward where it wants to go when blocked, at `turnRate`; a
+ * reversal turns back through the side it came from (`turnSide`). Landing exactly on the desired
+ * velocity means stops don't drift. The velocity loses its part into any surface it ends up
+ * touching, so sliding carries the projected speed.
  */
 export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _input: InputFrame) {
   const shapes: ObstacleShape[] = [];
@@ -60,7 +65,14 @@ export function locomotionSystem(world: World<Entity>, dt: number, _rng: Rng, _i
     const moving = dmath.hypot(moved.x, moved.z) > FACE_MIN_SPEED;
     const toward = moving ? moved : desired;
     if (moving || dmath.hypot(desired.x, desired.z) > 0) {
-      const turn = wrapAngle(dmath.atan2(toward.x, toward.z) - transform.rotation.y);
+      let turn = wrapAngle(dmath.atan2(toward.x, toward.z) - transform.rotation.y);
+      if (Math.abs(turn) > Math.PI - REVERSE_BAND) {
+        // A reversal undoes the last turn: moving W, A/D flips back and forth through W instead
+        // of spinning round in full circles.
+        if (Math.sign(turn) === mover.turnSide) turn -= mover.turnSide * 2 * Math.PI;
+      } else if (turn !== 0) {
+        mover.turnSide = turn > 0 ? 1 : -1;
+      }
       const most = stats.turnRate * dt;
       transform.rotation.y = wrapAngle(
         transform.rotation.y + Math.min(most, Math.max(-most, turn)),

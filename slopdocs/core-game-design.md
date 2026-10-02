@@ -29,19 +29,20 @@ Small in scope, deep in replayability: we get longevity from a tight core loop t
 ## 4. Camera & Controls
 
 - **Camera:** angled top-down / isometric-style 3D view (Hades / V Rising-like). Chosen for threat readability (telegraphs, enemies, and terrain visible at once) and for achievable visual quality.
-- **Movement:** two candidate schemes, both supported by the input layer (0.3) and decided at the 1.7 movement feel gate (or both kept as a setting):
+- **Movement:** two schemes, both kept as a player setting (decided at the 1.7 movement feel gate). **WASD is the default**; every ability and enemy has to work with both.
   - **MMO preset:** **WASD** direct control of the character (WoW-style "I'm steering my body" feel). Abilities on `1`/`2`/`3` + `4` (ultimate), right mouse = basic attack, left mouse = interact.
   - **MOBA preset:** League-style **right-click to move** (hold to steer; right-click on an enemy attacks), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `S` = stop. League's camera too: the cursor is locked inside the window, the camera is free and pans at the screen edges, and `Space` centers it on the character (held: follows). Dodge is provisionally `F` here.
-  - `M` switches between the two schemes until 1.7 picks one.
+  - The pause menu (`Esc`) picks the scheme, and `M` switches anytime. The setting moves into the 6.1 pause menu and the 16.1 settings.
 - **Aiming:** mouse aims abilities (cursor projected onto the ground) in both schemes.
 - **Abilities:** 3 basics + 1 ultimate; keys per preset above. Bindings are data, and remapping comes in 16.1.
 
-> Open: final control scheme (1.7) and final keybinds (2.2); whether dodge (provisionally `Space`) is universal or form-specific; controller support.
+> Open: final keybinds (2.2); whether dodge (provisionally `Space`) is universal or form-specific; controller support.
 
 ### Movement feel requirements
 
 - Responsive: minimal input latency, fast acceleration/deceleration, precise stops.
 - Micro-adjustments are easy and satisfying (small repositioning to step out of a telegraph edge).
+- Turns are near instant, like League, and the body sells them: it bends and has slack instead of spinning like a pole (1.7). A reversal swings back through the side you came from. The Cat's own model (9.3) should have a shorter body than the placeholder tiger, closer to Nidalee's cougar.
 - Base movement should be fun **with nothing else happening**. If running around an empty arena isn't enjoyable, tune it before building anything else.
 - Mobility abilities (dash, pounce, blink, leap, charge, sprint) are the **cooldown-gated enhancement** layer: tools to escape, engage, or reposition, with meaningful decisions about when to spend them.
 

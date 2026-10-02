@@ -6,6 +6,7 @@ import { wrapAngle } from "@/core/math";
 import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import { createWorld } from "@/ecs/world";
+import { emptyInputFrame } from "@/input/actions";
 import { replayTunables, tunableValues } from "@/replay/events";
 import { parseReplay } from "@/replay/format";
 import { readText } from "@/replay/gzip";
@@ -113,5 +114,31 @@ describe("movement playtest bugs", () => {
     const samples = await trace("arena-around-walls.replay.json.gz");
     expect(longestBackwards(samples)).toBeLessThanOrEqual(6);
     expect(longestBlocked(samples)).toBeLessThan(10);
+  });
+
+  it("flips back and forth through where it came from when spamming A/D", () => {
+    // Moving one way, then tapping left/right fast: the shortest-arc rule broke the 180° tie the
+    // same way every time, so each flip carried on round and the body spun in full circles.
+    const sim = sims.get("arena");
+    if (!sim) throw new Error("no arena");
+    const world = createWorld();
+    const rng = createRng(1);
+    sim.spawn(world, rng);
+    const simulation = createSimulation(world, rng, sim.systems);
+    const entity = world.with("player", "transform").first;
+    if (!entity) throw new Error("no player");
+    const input = emptyInputFrame();
+    const run = (x: number, z: number, ticks: number) => {
+      input.move = { x, z };
+      for (let i = 0; i < ticks; i++) {
+        simulation.step(1 / TICK_HZ, input);
+        yaws.push(entity.transform.rotation.y);
+      }
+    };
+    const yaws: number[] = [];
+    run(0, 1, 20);
+    yaws.length = 0;
+    for (let flip = 0; flip < 20; flip++) run(flip % 2 === 0 ? -1 : 1, 0, 4 + (flip % 3) * 3);
+    expect(Math.max(...yaws.map(Math.abs))).toBeLessThanOrEqual(Math.PI / 2 + 1e-9);
   });
 });

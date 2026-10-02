@@ -24,7 +24,7 @@ function setup(velocity = { x: 0, z: 0 }, facing = 0, obstacles: Obstacle[] = []
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: facing, z: 0 },
   };
-  const mover: Mover = { velocity: { ...velocity }, desired: { x: 0, z: 0 } };
+  const mover: Mover = { velocity: { ...velocity }, desired: { x: 0, z: 0 }, turnSide: 1 };
   const entity = world.add({ transform, mover });
   const rng = createRng(1);
   const step = (dt = DT) => locomotionSystem(world, dt, rng, emptyInputFrame());
@@ -118,6 +118,35 @@ describe("locomotion", () => {
     const { transform, step } = setup({ x: 0, z: 0 }, 1.2);
     for (let i = 0; i < 10; i++) step();
     expect(transform.rotation.y).toBe(1.2);
+  });
+
+  it.each([1, -1])("reverses back through the side it came from (first turn %i)", (side) => {
+    // Moving +Z (facing 0), then flipping between +X and -X: every flip swings through +Z, never
+    // round through -Z.
+    const { transform, mover, step } = setup({ x: 0, z: 4 });
+    mover.desired = { x: 0, z: 4 };
+    step();
+    let widest = 0;
+    for (let flip = 0; flip < 20; flip++) {
+      mover.desired = { x: (flip % 2 === 0 ? side : -side) * 4, z: 0 };
+      for (let i = 0; i < 20; i++) {
+        step(flip % 3 === 0 ? DT / 2 : DT);
+        widest = Math.max(widest, Math.abs(transform.rotation.y));
+      }
+      expect(Math.abs(Math.abs(transform.rotation.y) - Math.PI / 2)).toBeLessThan(1e-9);
+    }
+    expect(widest).toBeLessThanOrEqual(Math.PI / 2 + 1e-9);
+  });
+
+  it("only overrides the short way round for reversals", () => {
+    // Facing 0, last turned negative: a 160° turn to the positive side still goes the short way.
+    const { transform, mover, step } = setup({ x: 0, z: 0 });
+    mover.turnSide = -1;
+    const target = (160 * Math.PI) / 180;
+    mover.desired = { x: Math.sin(target), z: Math.cos(target) };
+    step();
+    expect(transform.rotation.y).toBeGreaterThan(0);
+    expect(mover.turnSide).toBe(1);
   });
 });
 

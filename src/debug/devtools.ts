@@ -7,6 +7,7 @@ import { createCommandRegistry } from "@/debug/commands";
 import { createDebugDrawRenderer } from "@/debug/debugDrawRender";
 import { createFrameStats } from "@/debug/frameStats";
 import { createFreeCamera } from "@/debug/freeCamera";
+import { defineGallopPresets } from "@/debug/gallopPresets";
 import { attachInputOverlay } from "@/debug/inputOverlay";
 import { getPath, type Path } from "@/debug/inspect";
 import { createInspector } from "@/debug/inspector";
@@ -522,6 +523,7 @@ export function startDevtools(shell: Shell) {
     commands.define({ id, label, group: "Built-in", button: false, run });
   }
   defineMovementPresets(commands);
+  defineGallopPresets(commands);
   defineCheats(commands, shell);
 
   // --- Pane toggle (`), outside the game's input ----------------------------------------------

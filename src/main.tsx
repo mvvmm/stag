@@ -7,6 +7,7 @@ import { scenes } from "@/scenes";
 import { randomSeed, startShell } from "@/shell";
 import { InputStats } from "@/ui/InputStats";
 import { Notice } from "@/ui/Notice";
+import { PauseMenu } from "@/ui/PauseMenu";
 import { ReplayBadge } from "@/ui/ReplayBadge";
 import { Stats } from "@/ui/Stats";
 import { Unsupported } from "@/ui/Unsupported";
@@ -49,6 +50,7 @@ async function bootstrap() {
       <InputStats />
       <ReplayBadge />
       <Notice />
+      <PauseMenu />
     </>,
     uiRoot,
   );

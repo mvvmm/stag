@@ -18,14 +18,29 @@ import type { InputFrame } from "@/input/actions";
 import {
   bankAngle,
   clipTime,
+  contactPhase,
+  createBend,
+  createGaitDriver,
+  type DriverOptions,
+  type FootTrack,
+  flicks,
   type Gait,
-  gaitBlend,
   lookYaw,
+  noise,
+  pairShift,
+  pushOffCurve,
+  type ShuffleGate,
   type Spring,
+  type StrideFeet,
+  type StrideMotion,
+  sampleLoop,
   snapSpring,
+  stepBend,
   stepChain,
+  stepGaits,
+  stepShuffle,
   stepSpring,
-  sway,
+  strideMotion,
 } from "@/render/locomotionAnim";
 import { instantiateModel, modelMaterials } from "@/render/models";
 import { addRimLight } from "@/render/rimMaterial";
@@ -34,7 +49,9 @@ import { addRimLight } from "@/render/rimMaterial";
 // speed, and procedural layers on top (breathing, leaning into turns, tilting with acceleration,
 // the tail swinging, the head looking at the aim point). View-only: it reads the player and the
 // input each tick and runs on the view's time (`viewTime`), so pause, frame step, time scale and
-// replays show the same motion. See locomotionAnim.ts for the math.
+// replays show the same motion. See locomotionAnim.ts for the math. 1.7 made it fluid at the sim's
+// near-instant turns and stops: the spine bends through turns, starts push off, stops finish the
+// step and settle, and short moves shuffle.
 
 const DEG = Math.PI / 180;
 
@@ -48,10 +65,14 @@ export const TIGER = defineTunables("tiger", {
   /** Scales the direct light (moon and the player's warm light) on its fur: right under the warm
    * light its back faces it head-on and would blow out. */
   light: { value: 0.3, min: 0, max: 2, step: 0.01 },
-  /** Ground speed at which each clip's feet stick at 1× playback, real size, m/s (× scale). */
+  /** Ground speed at which each clip's feet stick at 1× playback, real size, m/s (× scale). The
+   * run's is measured from how fast its planted feet slide back (6.3–7.3 m/s). */
   walkSpeed: { value: 0.55, min: 0.1, max: 3, step: 0.01 },
   trotSpeed: { value: 1.85, min: 0.3, max: 6, step: 0.01 },
-  runSpeed: { value: 5, min: 1, max: 15, step: 0.05 },
+  runSpeed: { value: 7, min: 1, max: 15, step: 0.05 },
+  /** The gallop has fully taken over from the trot by this speed, real size, m/s (× scale): the
+   * 4 m/s cruise is the gallop alone, slowed down, not a mix of two rhythms. */
+  runFrom: { value: 3, min: 1, max: 15, step: 0.05 },
 });
 
 export const ANIM = defineTunables("anim", {
@@ -63,13 +84,59 @@ export const ANIM = defineTunables("anim", {
   minRate: { value: 0.5, min: 0.1, max: 1, step: 0.05 },
   /** Time constant smoothing the speed the gaits follow, s. */
   speedLag: { value: 0.06, min: 0, max: 0.5, step: 0.01 },
+  /** How long the clip weights take to follow (cross-fades, settling into the idle), s. */
+  fade: { value: 0.08, min: 0, max: 0.5, step: 0.01 },
+  /** Starting from standing, the stride starts here (cycles): the push-off foot. */
+  startPhase: { value: 0, min: 0, max: 1, step: 0.01 },
+  /** Push-off on a start from standing: nose down (degrees), the hips dipping (m, real size),
+   * over this long (s). */
+  pushOff: { value: 6, min: 0, max: 25, step: 0.5 },
+  pushOffDip: { value: 0.06, min: 0, max: 0.3, step: 0.005 },
+  pushOffTime: { value: 0.22, min: 0.05, max: 0.6, step: 0.01 },
+  /** Stopping finishes the step: the gait strides on to the next planted point, at most this
+   * long (s), then fades into the idle. 0 = cross-fade straight away. */
+  stopMax: { value: 0.25, min: 0, max: 0.6, step: 0.01 },
+  /** Stop settle: braking pitches the body forward (degrees per m/s² of braking, at most
+   * `settleMax`), then it rocks back once and settles (Hz, damping ratio). */
+  settle: { value: 0.12, min: 0, max: 1, step: 0.01 },
+  settleMax: { value: 6, min: 0, max: 20, step: 0.5 },
+  settleFrequency: { value: 2.2, min: 0.5, max: 8, step: 0.1 },
+  settleDamping: { value: 0.35, min: 0.05, max: 1.5, step: 0.01 },
+  /** Short moves shuffle (walk steps) instead of flickering into the gallop: a right-click path
+   * up to `shuffleDistance` (m), or a key held up to `shuffleTime` (s). */
+  shuffle: { value: true },
+  shuffleDistance: { value: 1, min: 0, max: 4, step: 0.05 },
+  shuffleTime: { value: 0.12, min: 0, max: 0.5, step: 0.01 },
+  /** A shuffle's stride rate, as a multiple of the walk's own. */
+  shuffleRate: { value: 2, min: 0.5, max: 4, step: 0.05 },
+  /** The spine bends through turns: the shoulders catch up with the facing (Hz, damping ratio:
+   * below 1 they overshoot a little), the hips follow them (Hz), at most `bendMax` degrees
+   * behind. */
+  bend: { value: true },
+  bendFrequency: { value: 7, min: 1, max: 20, step: 0.1 },
+  bendDamping: { value: 0.65, min: 0.1, max: 1.5, step: 0.01 },
+  bendHips: { value: 3.5, min: 0.5, max: 12, step: 0.1 },
+  bendMax: { value: 40, min: 0, max: 80, step: 1 },
+  /** The gallop as a bound (a cat's run, a string of pounces): how far each left and right leg
+   * are pulled together in time, 0 = the clip's gallop (feet landing one by one), 1 = both hind
+   * feet, then both front feet, land as one. */
+  bound: { value: 1, min: 0, max: 1, step: 0.05 },
+  /** The galloping body's motion, from where the feet are: bouncing up in flight and down on
+   * the landings (m, real size, up from the landings' height), rocking nose up on the hind push and down on the front landing
+   * (degrees), and the back arching into an upside-down V as the feet bunch up under it, then
+   * flattening (a little past straight, `stretch` of the arch) as they spread out (degrees at
+   * the peak). */
+  bounce: { value: 0.18, min: 0, max: 0.3, step: 0.005 },
+  rock: { value: 12, min: 0, max: 30, step: 0.5 },
+  flex: { value: 32, min: 0, max: 40, step: 0.5 },
+  stretch: { value: 0.6, min: 0, max: 1, step: 0.05 },
   /** Breathing while idle: chest pitch in degrees, and breaths per second. */
   breath: { value: 1.5, min: 0, max: 6, step: 0.1 },
   breathRate: { value: 0.35, min: 0.05, max: 2, step: 0.01 },
   /** Banking into turns: 1 = the physically balanced lean, clamped to `leanMax` degrees. */
   lean: { value: 0.6, min: 0, max: 2, step: 0.05 },
   leanMax: { value: 14, min: 0, max: 40, step: 0.5 },
-  /** Pitch per m/s² of acceleration along the facing (nose down speeding up), degrees. */
+  /** Pitch per m/s² of speeding up along the facing (nose down), degrees. */
   tilt: { value: 0.12, min: 0, max: 1, step: 0.01 },
   tiltMax: { value: 7, min: 0, max: 30, step: 0.5 },
   /** How fast lean and tilt follow (Hz, critically damped). */
@@ -83,11 +150,24 @@ export const ANIM = defineTunables("anim", {
   /** Each tail bone springs after the one before it (Hz, damping ratio): lower = lazier whip. */
   tailFrequency: { value: 2.4, min: 0.3, max: 8, step: 0.05 },
   tailDamping: { value: 0.45, min: 0.05, max: 1.5, step: 0.01 },
-  /** Idle sway, degrees, and its main rate (Hz): a slow, irregular swish while standing. */
-  tailSway: { value: 8, min: 0, max: 40, step: 0.5 },
-  tailSwayRate: { value: 0.25, min: 0.02, max: 2, step: 0.01 },
-  /** Sway in time with the stride while moving, degrees. */
-  tailStride: { value: 5, min: 0, max: 30, step: 0.5 },
+  /** Standing, the tail wanders side to side (degrees, and how fast the wander changes: wanders
+   * per second), its lift and the curl of its tip wander too (degrees), and now and then it
+   * swings bigger: one swing of `tailFlick` degrees lasting `tailFlickTime` (s), in about
+   * `tailFlickChance` of every `tailFlickEvery` seconds. */
+  tailSway: { value: 28, min: 0, max: 40, step: 0.5 },
+  tailSwayRate: { value: 0.45, min: 0.02, max: 2, step: 0.01 },
+  tailLift: { value: 14, min: 0, max: 40, step: 0.5 },
+  tailCurl: { value: 25, min: 0, max: 60, step: 0.5 },
+  tailFlick: { value: 55, min: 0, max: 60, step: 0.5 },
+  tailFlickTime: { value: 0.9, min: 0.2, max: 3, step: 0.05 },
+  tailFlickEvery: { value: 2.5, min: 0.5, max: 10, step: 0.1 },
+  tailFlickChance: { value: 0.55, min: 0, max: 1, step: 0.05 },
+  /** Running, it swings in time with the stride (degrees), wanders faster on top (degrees, and
+   * wanders per second), and rides higher (degrees). */
+  tailStride: { value: 16, min: 0, max: 40, step: 0.5 },
+  tailRunSway: { value: 14, min: 0, max: 40, step: 0.5 },
+  tailRunRate: { value: 0.9, min: 0.05, max: 4, step: 0.05 },
+  tailRunLift: { value: 14, min: -30, max: 40, step: 0.5 },
   /** Head looking at the aim point: the most it turns (degrees) and how fast it follows (Hz). */
   headLook: { value: true },
   headMax: { value: 60, min: 0, max: 120, step: 1 },
@@ -112,17 +192,45 @@ const MAX_STEP = 0.25;
 
 const BONES = {
   chest: "Bip01 Spine1",
+  spine2: "Bip01 Spine2",
   neck: "Bip01 Neck",
   head: "Bip01 Head",
   tail: ["Bip01 Tail", "Bip01 Tail1", "Bip01 Tail2", "Bip01 Tail3"],
 } as const;
 /** How the head's turn is shared between the neck and the head, and the tail's between its bones. */
 const LOOK_SHARE = [0.45, 0.55];
+/** How the spine's bend is shared from the middle of the back to the neck (the front legs hang off
+ * the neck, the hind legs and tail off the lower spine). */
+const BEND_SHARE = [0.4, 0.35, 0.25];
+/** Samples per stride when working out the stop points and the gallop's body motion. */
+const STRIDE_SAMPLES = 48;
+/** How fast the braking that drives the stop settle fades, s. */
+const BRAKE_FADE = 0.08;
 const TAIL_SHARE = [0.2, 0.25, 0.27, 0.28];
+/** The sign of a turn around the body's side axis that lifts the tail. */
+const TAIL_UP = 1;
+/** The sign of a turn around the body's side axis that lifts a bone's far end (the arch's rise). */
+const ARCH_UP = -1;
 
 type Property = "rotationQuaternion" | "position" | "scaling";
-/** One animated property of one node, with its animation in each clip (or null). */
-type Channel = { node: TransformNode; property: Property; clips: (Animation | null)[] };
+type Leg = "lh" | "rh" | "lf" | "rf";
+/** One animated property of one node, with its animation in each clip (or null), and the leg it
+ * moves, if any. */
+type Channel = {
+  node: TransformNode;
+  property: Property;
+  clips: (Animation | null)[];
+  leg: Leg | null;
+};
+/** Each leg's top bone (everything under it is that leg), and the bone whose position is its foot. */
+const LEGS: Record<Leg, { top: string; foot: string }> = {
+  lh: { top: "Bip01 L Thigh", foot: "Bip01 L Toe0" },
+  rh: { top: "Bip01 R Thigh", foot: "Bip01 R Toe0" },
+  lf: { top: "Bip01 L Clavicle", foot: "Bip01 L Finger0" },
+  rf: { top: "Bip01 R Clavicle", foot: "Bip01 R Finger0" },
+};
+/** The run clip's index in blend order (the idle, walk, trot, run). */
+const RUN = 3;
 
 export type TigerBody = {
   /** An empty mesh carrying the model: bind it to the player (mesh sync moves it). */
@@ -161,6 +269,7 @@ export function createTiger(scene: Scene): TigerBody | null {
     return node;
   };
   const chest = bone(BONES.chest);
+  const spine2 = bone(BONES.spine2);
   const neck = bone(BONES.neck);
   const head = bone(BONES.head);
   const tailBones = BONES.tail.map(bone);
@@ -172,9 +281,19 @@ export function createTiger(scene: Scene): TigerBody | null {
     const group = entries.animationGroups.find((g) => g.name === name);
     return group ? (group.to - group.from) / 60 : 1;
   });
+  const feet = Object.fromEntries(
+    Object.entries(LEGS).map(([leg, { foot }]) => [leg, bone(foot)]),
+  ) as Record<Leg, TransformNode>;
 
   // Per tick, from the simulation.
   let speed = 0;
+  /** The speed the gaits play for: where it's heading while speeding up, so a start goes straight
+   * into its gait. */
+  let gaitSpeed = 0;
+  let shuffle = false;
+  /** How hard it's braking, m/s². */
+  let braking = 0;
+  const shuffleGate: ShuffleGate = { time: 0, committed: false };
   let turnRate = 0;
   let accel = 0;
   let forwardSpeed = 0;
@@ -184,34 +303,103 @@ export function createTiger(scene: Scene): TigerBody | null {
   // Per frame, on the view's time.
   let lastTime: number | null = null;
   let smoothSpeed = 0;
-  let phase = 0;
+  const driver = createGaitDriver(GAIT_CLIPS.length);
   let breath = 0;
+  /** Seconds since the last start from standing (the push-off), and the braking it's settling. */
+  let pushTime = Number.POSITIVE_INFINITY;
+  let brake = 0;
+  const settle: Spring = { value: 0, velocity: 0 };
+  const bend = createBend();
+  let lastFacing: number | null = null;
   const lean: Spring = { value: 0, velocity: 0 };
   const tilt: Spring = { value: 0, velocity: 0 };
-  /** The smoothed turn rate driving the tail, and the tail's chain (one spring per bone). */
+  /** The smoothed turn rate driving the tail, and the tail's chains (one spring per bone): side
+   * to side, and up and down. */
   const tailTurn: Spring = { value: 0, velocity: 0 };
   const tail: Spring[] = BONES.tail.map(() => ({ value: 0, velocity: 0 }));
+  const tailPitch: Spring[] = BONES.tail.map(() => ({ value: 0, velocity: 0 }));
   let time = 0;
   const look: Spring = { value: 0, velocity: 0 };
   const snap = () => {
-    smoothSpeed = speed;
-    for (const spring of [lean, tilt, tailTurn, ...tail, look]) snapSpring(spring);
+    smoothSpeed = gaitSpeed;
+    brake = 0;
+    pushTime = Number.POSITIVE_INFINITY;
+    const springs = [
+      lean,
+      tilt,
+      settle,
+      tailTurn,
+      ...tail,
+      ...tailPitch,
+      look,
+      bend.front,
+      bend.hips,
+    ];
+    for (const spring of springs) {
+      snapSpring(spring);
+    }
+    // The gaits jump straight to what they'd be showing.
+    Object.assign(driver, createGaitDriver(GAIT_CLIPS.length));
+    stepGaits(
+      driver,
+      gaitSpeed,
+      shuffle,
+      gaits(),
+      { ...driverOptions(), fade: 0 },
+      stopScore,
+      1e-3,
+    );
   };
 
   const gaits = (): Gait[] => {
     const speeds = [TIGER.walkSpeed, TIGER.trotSpeed, TIGER.runSpeed];
+    const from = [undefined, undefined, Math.max(TIGER.runFrom, TIGER.trotSpeed)];
     return GAIT_CLIPS.map((_, i) => ({
       speed: (speeds[i] as number) * TIGER.scale,
       duration: durations[i + 1] as number,
+      ...(from[i] !== undefined ? { from: (from[i] as number) * TIGER.scale } : {}),
     }));
+  };
+  const driverOptions = (): DriverOptions => ({
+    idleBelow: ANIM.idleBelow,
+    maxRate: ANIM.maxRate,
+    minRate: ANIM.minRate,
+    startPhase: ANIM.startPhase,
+    shuffleRate: ANIM.shuffleRate,
+    stopMax: ANIM.stopMax,
+    fade: ANIM.fade,
+  });
+  /** How far the pose at a shared stride phase is from standing, for the gaits a stop holds. */
+  const stopScore = (at: number) => {
+    let total = 0;
+    driver.held.forEach((weight, i) => {
+      if (weight > 0) total += weight * sampleLoop(stopScores[i] ?? [], at);
+    });
+    return total;
   };
 
   const pose = new Quaternion();
   const sampled = new Quaternion();
   const vector = new Vector3();
 
-  /** Blends the clips into the bones: `weights` per clip in `clipNames` order, at `times`. */
-  const applyPose = (weights: number[], times: number[]) => {
+  // The run's legs are each sampled a little ahead or behind (the bound), and the body's motion and
+  // the stop points follow from that pose. Worked out at load and when `anim.bound` changes.
+  const legShift: Record<Leg, number> = { lh: 0, rh: 0, lf: 0, rf: 0 };
+  let contacts: Record<Leg, number> | null = null;
+  let motion: StrideMotion = { lift: [0], rock: [0], gather: [0] };
+  let stopScores: number[][] = [];
+  let analysedBound: number | null = null;
+
+  /** A channel's time in clip `i` at the shared stride `phase`. */
+  const timeOf = (channel: Channel, i: number, phase: number) => {
+    if (i === 0) return 0;
+    const clip = GAIT_CLIPS[i - 1] as (typeof GAIT_CLIPS)[number];
+    const shift = i === RUN && channel.leg ? legShift[channel.leg] : 0;
+    return clipTime(phase + shift, clip.offset, durations[i] as number);
+  };
+
+  /** Blends the clips into the bones: `weights` per clip in `clipNames` order, at the stride `phase`. */
+  const applyPose = (weights: number[], phase: number) => {
     for (const channel of channels) {
       let total = 0;
       if (channel.property === "rotationQuaternion") {
@@ -219,7 +407,8 @@ export function createTiger(scene: Scene): TigerBody | null {
         channel.clips.forEach((animation, i) => {
           const weight = weights[i] as number;
           if (!animation || weight <= 0) return;
-          sampled.copyFrom(animation.evaluate((times[i] as number) * animation.framePerSecond));
+          const at = timeOf(channel, i, phase);
+          sampled.copyFrom(animation.evaluate(at * animation.framePerSecond));
           // Same hemisphere as what's summed so far, so the blend takes the short way.
           const sign = Quaternion.Dot(pose, sampled) < 0 ? -1 : 1;
           pose.x += sampled.x * weight * sign;
@@ -237,9 +426,8 @@ export function createTiger(scene: Scene): TigerBody | null {
         channel.clips.forEach((animation, i) => {
           const weight = weights[i] as number;
           if (!animation || weight <= 0) return;
-          const value = animation.evaluate(
-            (times[i] as number) * animation.framePerSecond,
-          ) as Vector3;
+          const at = timeOf(channel, i, phase);
+          const value = animation.evaluate(at * animation.framePerSecond) as Vector3;
           vector.addInPlace(value.scale(weight));
           total += weight;
         });
@@ -247,6 +435,69 @@ export function createTiger(scene: Scene): TigerBody | null {
         channel.node[channel.property].copyFrom(vector.scaleInPlace(1 / total));
       }
     }
+  };
+
+  /** Where the run's feet are over a stride, in the model's own space (cm, forward is −X). */
+  const trackFeet = (): StrideFeet => {
+    const tracks = {} as Record<Leg, FootTrack>;
+    for (const leg of Object.keys(LEGS) as Leg[]) tracks[leg] = { height: [], forward: [] };
+    const runOnly = clipNames.map((_, i) => (i === RUN ? 1 : 0));
+    const inverse = new Matrix();
+    const local = new Vector3();
+    for (let k = 0; k < STRIDE_SAMPLES; k++) {
+      applyPose(runOnly, k / STRIDE_SAMPLES);
+      refreshWorld(rig);
+      rig.getWorldMatrix().invertToRef(inverse);
+      for (const leg of Object.keys(LEGS) as Leg[]) {
+        refreshWorld(feet[leg]);
+        Vector3.TransformCoordinatesToRef(feet[leg].getAbsolutePosition(), inverse, local);
+        tracks[leg].height.push(local.y);
+        tracks[leg].forward.push(-local.x);
+      }
+    }
+    return tracks;
+  };
+
+  /** For each gait, how far its pose is from the idle's over a stride: the summed angle between
+   * the bones' rotations. A stop strides on to a low point, where the legs are nearly standing. */
+  const scoreStops = (): number[][] => {
+    const a = new Quaternion();
+    const b = new Quaternion();
+    return GAIT_CLIPS.map((_, g) =>
+      Array.from({ length: STRIDE_SAMPLES }, (_, k) => {
+        let total = 0;
+        for (const channel of channels) {
+          if (channel.property !== "rotationQuaternion") continue;
+          const idle = channel.clips[0];
+          const gait = channel.clips[g + 1];
+          if (!idle || !gait) continue;
+          a.copyFrom(idle.evaluate(0));
+          const at = timeOf(channel, g + 1, k / STRIDE_SAMPLES);
+          b.copyFrom(gait.evaluate(at * gait.framePerSecond));
+          total += 2 * Math.acos(Math.min(1, Math.abs(Quaternion.Dot(a, b))));
+        }
+        return total;
+      }),
+    );
+  };
+
+  const analyse = () => {
+    analysedBound = ANIM.bound;
+    if (!contacts) {
+      for (const leg of Object.keys(legShift) as Leg[]) legShift[leg] = 0;
+      const raw = trackFeet();
+      contacts = {
+        lh: contactPhase(raw.lh.height),
+        rh: contactPhase(raw.rh.height),
+        lf: contactPhase(raw.lf.height),
+        rf: contactPhase(raw.rf.height),
+      };
+    }
+    const hind = pairShift(contacts.lh, contacts.rh, ANIM.bound);
+    const front = pairShift(contacts.lf, contacts.rf, ANIM.bound);
+    Object.assign(legShift, { lh: hind.left, rh: hind.right, lf: front.left, rf: front.right });
+    motion = strideMotion(trackFeet());
+    stopScores = scoreStops();
   };
 
   const up = Vector3.Up();
@@ -262,7 +513,26 @@ export function createTiger(scene: Scene): TigerBody | null {
       const facing = transform.rotation.y;
       const vx = velocity?.x ?? 0;
       const vz = velocity?.z ?? 0;
+      const lastSpeed = speed;
       speed = Math.hypot(vx, vz);
+      const change = hasTick ? (speed - lastSpeed) / TICK_DT : 0;
+      braking = Math.max(0, -change);
+      const desired = player.mover?.desired;
+      const wants = !!desired && (desired.x !== 0 || desired.z !== 0);
+      const heading = desired ? Math.hypot(desired.x, desired.z) : 0;
+      gaitSpeed = change > 0 && speed > 0.05 ? Math.max(speed, heading) : speed;
+      const order = player.player?.order;
+      let path: number | null = null;
+      if (order) {
+        path = 0;
+        let from = transform.position as { x: number; z: number };
+        for (const point of order.waypoints) {
+          path += Math.hypot(point.x - from.x, point.z - from.z);
+          from = point;
+        }
+      }
+      const options = { distance: ANIM.shuffleDistance, time: ANIM.shuffleTime };
+      shuffle = stepShuffle(shuffleGate, wants, path, options, TICK_DT) && ANIM.shuffle;
       const along = vx * Math.sin(facing) + vz * Math.cos(facing);
       const prev = player.prevTransform?.rotation.y ?? facing;
       turnRate = wrapAngle(facing - prev) / TICK_DT;
@@ -289,22 +559,32 @@ export function createTiger(scene: Scene): TigerBody | null {
         if (material instanceof PBRMaterial) material.directIntensity = TIGER.light;
       }
 
-      // Gaits.
+      // Gaits. The speed they follow rises at once (a start goes straight into its gait) and eases
+      // down; a stop is a stop the moment the body stops.
       const follow = ANIM.speedLag > 0 ? 1 - Math.exp(-step / ANIM.speedLag) : 1;
-      smoothSpeed += (speed - smoothSpeed) * follow;
-      const blend = gaitBlend(smoothSpeed, gaits(), ANIM);
-      phase = (phase + blend.cyclesPerSecond * step) % 1;
+      smoothSpeed =
+        gaitSpeed > smoothSpeed ? gaitSpeed : smoothSpeed + (gaitSpeed - smoothSpeed) * follow;
+      const moving = gaitSpeed > 1e-3 ? smoothSpeed : 0;
+      stepGaits(driver, moving, shuffle, gaits(), driverOptions(), stopScore, step);
+      if (driver.started) pushTime = 0;
+      else pushTime += step;
+      const phase = driver.phase;
+      const idle = driver.weights[0] as number;
       breath = (breath + ANIM.breathRate * step) % 1;
       time += step;
-      const weights = [blend.idle, ...blend.weights];
-      const times = [
-        0,
-        ...GAIT_CLIPS.map((clip, i) => clipTime(phase, clip.offset, durations[i + 1] as number)),
-      ];
-      applyPose(weights, times);
+      if (analysedBound !== ANIM.bound) analyse();
+      applyPose(driver.weights, phase);
+      // The gallop's own body motion, as much as the gallop shows.
+      const galloping = driver.weights[RUN] as number;
+      // Up from where the landings are, never below: the feet don't sink into the floor.
+      const lowest = Math.min(...motion.lift);
+      const lift = ((sampleLoop(motion.lift, phase) - lowest) / (1 - lowest || 1)) * galloping;
+      const rock = sampleLoop(motion.rock, phase) * galloping;
+      const gather = sampleLoop(motion.gather, phase) * galloping;
 
-      // Lean and tilt: the whole body around the pivot (x = pitch, z = bank; the model's own
-      // frame is turned under it, so these are the body's axes).
+      // Lean, tilt, push-off and settle: the whole body around the pivot (x = pitch, z = bank;
+      // the model's own frame is turned under it, so these are the body's axes), and its yaw is
+      // where the hips point (the spine bends the front back onto the facing below).
       stepSpring(
         lean,
         bankAngle(smoothSpeed, turnRate, ANIM.lean, ANIM.leanMax * DEG),
@@ -312,36 +592,97 @@ export function createTiger(scene: Scene): TigerBody | null {
         1,
         step,
       );
-      const pitch = Math.max(-ANIM.tiltMax, Math.min(ANIM.tiltMax, accel * ANIM.tilt)) * DEG;
+      const pitch = Math.min(ANIM.tiltMax, Math.max(0, accel) * ANIM.tilt) * DEG;
       stepSpring(tilt, pitch, ANIM.bodyFrequency, 1, step);
-      body.rotation.set(tilt.value, 0, -lean.value);
+      brake = Math.max(brake * Math.exp(-step / BRAKE_FADE), braking);
+      const forward = Math.min(ANIM.settleMax, brake * ANIM.settle) * DEG;
+      stepSpring(settle, forward, ANIM.settleFrequency, ANIM.settleDamping, step);
+      const push = pushOffCurve(pushTime, ANIM.pushOffTime);
+
+      const facing = root.rotation.y;
+      const turn = lastFacing === null ? 0 : wrapAngle(facing - lastFacing);
+      lastFacing = facing;
+      if (ANIM.bend) {
+        const options = {
+          frontFrequency: ANIM.bendFrequency,
+          frontDamping: ANIM.bendDamping,
+          hipFrequency: ANIM.bendHips,
+          max: ANIM.bendMax * DEG,
+        };
+        stepBend(bend, step > 0 ? turn : 0, options, step);
+      } else {
+        snapSpring(bend.front);
+        snapSpring(bend.hips);
+      }
+
+      body.position.y = pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip) * scale;
+      body.rotation.set(
+        tilt.value + settle.value + (push * ANIM.pushOff - rock * ANIM.rock) * DEG,
+        bend.hips.value,
+        -lean.value,
+      );
 
       // Bone layers, parent to child, each around a world axis.
       root.computeWorldMatrix(true);
-      const facing = root.rotation.y;
+      const curve = bend.front.value - bend.hips.value;
+      [chest, spine2, neck].forEach((node, i) => {
+        rotateAroundWorld(node, up, curve * (BEND_SHARE[i] as number));
+      });
       side.set(Math.cos(facing), 0, -Math.sin(facing));
-      const breathing = Math.sin(breath * 2 * Math.PI) * ANIM.breath * DEG * blend.idle;
+      const breathing = Math.sin(breath * 2 * Math.PI) * ANIM.breath * DEG * idle;
       rotateAroundWorld(chest, side, -breathing);
       rotateAroundWorld(neck, side, breathing);
+      // The back's arch: the mid-back rises from the hips and falls to the shoulders (an upside-
+      // down V peaking at Spine2), and the neck gives it back so the head and front legs keep
+      // their angle. The hind legs hang off the lower spine, so they stay as the clip has them.
+      const arch = (gather >= 0 ? gather : gather * ANIM.stretch) * ANIM.flex * DEG * ARCH_UP;
+      rotateAroundWorld(chest, side, arch);
+      rotateAroundWorld(spine2, side, -2 * arch);
+      rotateAroundWorld(neck, side, arch);
 
       const lookTarget = ANIM.headLook
-        ? lookYaw(root.position, facing, aim, ANIM.headMax * DEG)
+        ? lookYaw(root.position, facing + bend.front.value, aim, ANIM.headMax * DEG)
         : 0;
       stepSpring(look, lookTarget, ANIM.headFrequency, 1, step);
       rotateAroundWorld(neck, up, look.value * (LOOK_SHARE[0] as number));
       rotateAroundWorld(head, up, look.value * (LOOK_SHARE[1] as number));
 
-      // The tail: a whip-like chain driven by the smoothed turn (swinging out of it), a slow
-      // irregular sway while standing, and a small sway in time with the stride while moving.
+      // The tail is never still. Two whip-like chains (side to side, up and down) follow:
+      // - standing: a slow random wander, a wandering lift and tip curl, and now and then a
+      //   bigger swing to one side;
+      // - moving: a swing in time with the stride, a faster wander on top, carried higher;
+      // - always: swinging out of turns.
+      // The randomness is smooth noise of the view's time, so it pauses, steps and replays.
+      const moving01 = 1 - idle;
       stepSpring(tailTurn, turnRate, ANIM.tailDrive, 1, step);
       const turning = -tailTurn.value * ANIM.tail;
-      const standing = sway(time, ANIM.tailSwayRate) * ANIM.tailSway * blend.idle;
-      const striding = Math.sin(2 * Math.PI * phase) * ANIM.tailStride * (1 - blend.idle);
-      const drive =
-        Math.max(-ANIM.tailMax, Math.min(ANIM.tailMax, turning + standing + striding)) * DEG;
+      const flickOptions = {
+        every: ANIM.tailFlickEvery,
+        chance: ANIM.tailFlickChance,
+        length: ANIM.tailFlickTime,
+      };
+      const standing =
+        noise(time * ANIM.tailSwayRate, 11) * ANIM.tailSway +
+        flicks(time, 23, flickOptions) * ANIM.tailFlick;
+      const striding =
+        Math.sin(2 * Math.PI * phase) * ANIM.tailStride +
+        noise(time * ANIM.tailRunRate, 37) * ANIM.tailRunSway;
+      const swing = turning + standing * idle + striding * moving01;
+      const drive = Math.max(-ANIM.tailMax, Math.min(ANIM.tailMax, swing)) * DEG;
       stepChain(tail, drive, ANIM.tailFrequency, ANIM.tailDamping, step);
+      const lifting =
+        noise(time * ANIM.tailSwayRate * 0.6, 53) * ANIM.tailLift * idle +
+        (ANIM.tailRunLift + noise(time * ANIM.tailRunRate, 61) * ANIM.tailLift * 0.5) * moving01;
+      stepChain(tailPitch, lifting * DEG, ANIM.tailFrequency, ANIM.tailDamping, step);
+      // The tip curls on its own (a cat's hook), more while standing.
+      const curl =
+        noise(time * ANIM.tailSwayRate * 0.8, 71) * ANIM.tailCurl * (0.4 + 0.6 * idle) * DEG;
+      side.set(Math.cos(facing), 0, -Math.sin(facing));
       tailBones.forEach((node, i) => {
-        rotateAroundWorld(node, up, (tail[i]?.value ?? 0) * (TAIL_SHARE[i] as number));
+        const share = TAIL_SHARE[i] as number;
+        rotateAroundWorld(node, up, (tail[i]?.value ?? 0) * share);
+        const tip = i >= 2 ? curl * (i - 1) * 0.5 : 0;
+        rotateAroundWorld(node, side, ((tailPitch[i]?.value ?? 0) * share + tip) * TAIL_UP);
       });
     },
 
@@ -369,7 +710,7 @@ function collectChannels(entries: InstantiatedEntries, clipNames: readonly strin
       const key = `${target.uniqueId}:${property}`;
       let channel = byKey.get(key);
       if (!channel) {
-        channel = { node: target, property, clips: clipNames.map(() => null) };
+        channel = { node: target, property, clips: clipNames.map(() => null), leg: legOf(target) };
         byKey.set(key, channel);
       }
       channel.clips[i] = animation;
@@ -417,4 +758,14 @@ function refreshWorld(node: Node | null): void {
   if (!node) return;
   refreshWorld(node.parent);
   if (node instanceof TransformNode) node.computeWorldMatrix(true);
+}
+
+/** The leg a bone belongs to (it's the leg's top bone or under it), or null. */
+function legOf(node: Node): Leg | null {
+  for (let at: Node | null = node; at; at = at.parent) {
+    for (const [leg, { top }] of Object.entries(LEGS) as [Leg, { top: string }][]) {
+      if (at.name === top || at.name.startsWith(`${top}_`)) return leg;
+    }
+  }
+  return null;
 }
