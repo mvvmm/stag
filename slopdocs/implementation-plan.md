@@ -21,7 +21,7 @@
 | UI | Hybrid: in-world UI (health bars, telegraphs, damage numbers) in Babylon; screen UI (HUD, menus, reward picks) as a light HTML overlay |
 | Rooms | Hand-built in code/data first, procedural generation later |
 | Art | Stylized asset packs (glTF) + our own lighting/post-processing; grey-box until the art pass |
-| Hosting | Cloudflare Workers (static assets) via Workers Builds: `main` → production, PR branches → Worker Previews (public repo `mvvmm/stag`, required CI checks); R2 for large assets; D1 for server data; Astro if we need a marketing site |
+| Hosting | Cloudflare Workers (static assets, `cloudflare.config.ts`, deployed with the `cf` CLI) via Workers Builds: `main` → production, PR branches → Worker Previews (public repo `mvvmm/stag`, required CI checks); R2 for large assets; D1 for server data; Astro if we need a marketing site |
 | Saves | localStorage first (versioned); optional D1 cloud sync later (anonymous ID, no logins) |
 
 ---
@@ -45,6 +45,7 @@
 - [x] **1.4 Camera follow:** smoothing, aim look-ahead, bounds. → [plan](plans/1.4-camera-follow.md)
 - [x] **1.5 Early atmosphere:** dark lighting, fog, shadows, player light, bloom/grading/vignette; readability check. → [plan](plans/1.5-early-atmosphere.md)
 - [x] **1.6 Placeholder character:** pack model with idle/run animations driven by movement. → [plan](plans/1.6-placeholder-character.md)
+- [x] **1.6.1 cf CLI:** migrate the deploy tooling from Wrangler to Cloudflare's `cf` CLI (`cloudflare.config.ts`, Vite plugin, Workers Builds). → [plan](plans/1.6.1-cf-cli.md)
 - [ ] **1.7 Movement feel pass:** tune until running around the empty arena is fun on its own (gate); pick the control scheme (WASD vs right-click-to-move, or keep both as a setting).
 
 ## Phase 2: Abilities & Combat Core
