@@ -24,6 +24,14 @@ This step was meant to tune movement until running around an empty room was fun,
 - **The shoulders still lag a little.** In frame steps they're about 60° behind the sim two ticks into a 90° turn. That's a tuning call for the playtest (`anim.bendFrequency`), not a bug.
 - Every replay fixture got new checkpoints: the mover has a new field and some reversals now turn the other way. The behaviour checks from 1.6 all still pass, plus a new A/D-spam check.
 
+## After the first playtest
+
+The pass helped, but the gallop still looked off: the legs moved more than the body did, it didn't run like a cat (Nidalee's run is a string of pounces), and the rump stayed perfectly still while everything around it moved. We ran forward kinematics on the clip's bones in Node to find out why. The run's planted feet slide back at about 7 m/s, not the 5 we'd judged by eye, so at our 4 m/s the legs cycled 40% too fast. Its feet land one by one, a rotary gallop. And its hips are simply pinned: the pelvis has no animation at all.
+
+So the tiger now measures its own run when it loads. It finds when each foot is planted and shifts each left/right leg pair toward each other in time, so the hind pair and then the front pair land nearly together (`anim.bound`). It also works out, from where the feet are, how the body should move over a stride: up in flight and down on the landings, nose up on the hind push and down on the front landing, and the back curling as the hind feet come under it. The whole body now moves with the stride, rump included.
+
+![Fourteen frames of a steady gallop: stretched out in flight, gathered with the legs under the body, landing in pairs](06-bound-gallop.png)
+
 ## Media
 
 A/D spam after moving north: every flip swings through north, body curved, never round through south.

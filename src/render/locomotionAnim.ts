@@ -405,3 +405,117 @@ export function stepShuffle(
   }
   return !gate.committed;
 }
+
+// The gallop's body motion (1.7 follow-up). The run clip keeps the hips pinned and lands its four
+// feet one after another; a cat bounds: hind pair, then front pair, and its whole body bounces,
+// rocks and flexes. These derive both from where the clip's own feet are over a stride.
+
+/** One foot over a stride: its height and how far forward it is, sampled evenly over the cycle. */
+export type FootTrack = { height: number[]; forward: number[] };
+
+/** The feet of one stride: left/right hind and front. */
+export type StrideFeet = { lh: FootTrack; rh: FootTrack; lf: FootTrack; rf: FootTrack };
+
+const wrapPhase = (phase: number) => phase - Math.floor(phase + 0.5);
+
+/** How much a foot carries weight at each sample: 1 near its lowest, 0 once it's lifted. */
+export function footContact(height: readonly number[]): number[] {
+  const min = Math.min(...height);
+  const range = Math.max(Math.max(...height) - min, 1e-9);
+  return height.map((h) => 1 - smoothstep(((h - min) / range - 0.12) / 0.2));
+}
+
+/** When a foot is planted, as a stride phase in [0, 1): the circular middle of its contact. */
+export function contactPhase(height: readonly number[]): number {
+  const contact = footContact(height);
+  let x = 0;
+  let y = 0;
+  contact.forEach((c, i) => {
+    const angle = (2 * Math.PI * i) / contact.length;
+    x += c * Math.cos(angle);
+    y += c * Math.sin(angle);
+  });
+  const phase = Math.atan2(y, x) / (2 * Math.PI);
+  return phase - Math.floor(phase);
+}
+
+/**
+ * Phase shifts that land a left and a right foot together: each is sampled `amount` (0 to 1) of
+ * the way toward their common middle, so at 1 the pair lands as one (a bound), at 0 as the clip
+ * has it. Sample the left leg at phase + `left`, the right at phase + `right`.
+ */
+export function pairShift(
+  left: number,
+  right: number,
+  amount: number,
+): { left: number; right: number } {
+  const gap = wrapPhase(right - left);
+  return { left: (-gap / 2) * amount, right: (gap / 2) * amount };
+}
+
+/** The body's motion over a stride, per sample, each in [-1, 1] and smooth around the cycle. */
+export type StrideMotion = {
+  /** Up in flight, down while the feet carry it. */
+  lift: number[];
+  /** Nose up while only the hind feet are down (the push), nose down on the front landing. */
+  rock: number[];
+  /** Gathered (the hind feet forward under a curled back) at 1, stretched out at -1. */
+  gather: number[];
+};
+
+/** Smooths a looping series with a small circular window and scales it into [-1, 1] around 0. */
+function loopNormalize(values: readonly number[], radius: number): number[] {
+  const n = values.length;
+  const smooth = values.map((_, i) => {
+    let total = 0;
+    let weights = 0;
+    for (let d = -radius; d <= radius; d++) {
+      const w = radius + 1 - Math.abs(d);
+      total += (values[(((i + d) % n) + n) % n] as number) * w;
+      weights += w;
+    }
+    return total / weights;
+  });
+  const mean = smooth.reduce((a, b) => a + b, 0) / Math.max(n, 1);
+  const centered = smooth.map((v) => v - mean);
+  const peak = Math.max(...centered.map(Math.abs), 1e-9);
+  return centered.map((v) => v / peak);
+}
+
+/** The body's bounce, rock and flex over a stride, from where the feet are. */
+export function strideMotion(feet: StrideFeet): StrideMotion {
+  const lh = footContact(feet.lh.height);
+  const rh = footContact(feet.rh.height);
+  const lf = footContact(feet.lf.height);
+  const rf = footContact(feet.rf.height);
+  const n = lh.length;
+  const at = (series: number[], i: number) => series[i] as number;
+  const lift: number[] = [];
+  const rock: number[] = [];
+  const gather: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const hind = (at(lh, i) + at(rh, i)) / 2;
+    const front = (at(lf, i) + at(rf, i)) / 2;
+    lift.push(-(hind + front));
+    rock.push(hind - front);
+    const hindForward = (at(feet.lh.forward, i) + at(feet.rh.forward, i)) / 2;
+    const frontForward = (at(feet.lf.forward, i) + at(feet.rf.forward, i)) / 2;
+    gather.push(-(frontForward - hindForward));
+  }
+  const radius = Math.max(1, Math.round(n / 24));
+  return {
+    lift: loopNormalize(lift, radius),
+    rock: loopNormalize(rock, radius),
+    gather: loopNormalize(gather, radius),
+  };
+}
+
+/** A looping table sampled evenly over [0, 1), read linearly between samples. */
+export function sampleLoop(table: readonly number[], phase: number): number {
+  const n = table.length;
+  if (n === 0) return 0;
+  const x = (phase - Math.floor(phase)) * n;
+  const i = Math.floor(x);
+  const t = x - i;
+  return (table[i % n] as number) * (1 - t) + (table[(i + 1) % n] as number) * t;
+}

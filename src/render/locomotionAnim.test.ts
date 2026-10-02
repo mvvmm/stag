@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bankAngle,
   clipTime,
+  contactPhase,
   createBend,
   createGaitDriver,
   type DriverOptions,
@@ -9,14 +10,18 @@ import {
   gaitBlend,
   lookYaw,
   nextStopPhase,
+  pairShift,
   pushOffCurve,
   type Spring,
+  type StrideFeet,
+  sampleLoop,
   snapSpring,
   stepBend,
   stepChain,
   stepGaits,
   stepShuffle,
   stepSpring,
+  strideMotion,
   sway,
 } from "@/render/locomotionAnim";
 
@@ -358,5 +363,71 @@ describe("stepShuffle", () => {
   it("commits a right-click by its path's length", () => {
     expect(stepShuffle({ time: 0, committed: false }, true, 0.6, options, 1 / 60)).toBe(true);
     expect(stepShuffle({ time: 0, committed: false }, true, 3, options, 1 / 60)).toBe(false);
+  });
+});
+
+/** A foot over 48 samples: lowest (planted) at `contact`, highest half a stride later. */
+const foot = (contact: number, forward = 0) => ({
+  height: Array.from({ length: 48 }, (_, i) => 1 - Math.cos(2 * Math.PI * (i / 48 - contact))),
+  forward: Array.from(
+    { length: 48 },
+    (_, i) => forward * Math.cos(2 * Math.PI * (i / 48 - contact)),
+  ),
+});
+const circular = (a: number, b: number) => Math.abs(a - b - Math.round(a - b));
+
+describe("contactPhase", () => {
+  it("finds when a foot is planted, around the loop", () => {
+    for (const c of [0, 0.1, 0.5, 0.93])
+      expect(circular(contactPhase(foot(c).height), c)).toBeLessThan(1e-4);
+  });
+});
+
+describe("pairShift", () => {
+  it("lands both feet together at 1 and leaves them be at 0", () => {
+    const left = 0.1;
+    const right = 0.35;
+    const bound = pairShift(left, right, 1);
+    // The left foot lands when phase + shift = left, the right when phase + shift = right.
+    expect(circular(left - bound.left, right - bound.right)).toBeLessThan(1e-12);
+    expect(pairShift(left, right, 0)).toEqual({ left: -0, right: 0 });
+    // The short way round the loop.
+    const wrapped = pairShift(0.95, 0.05, 1);
+    expect(wrapped.left).toBeCloseTo(-0.05, 12);
+    expect(wrapped.right).toBeCloseTo(0.05, 12);
+  });
+});
+
+describe("strideMotion", () => {
+  // Hind pair lands at 0, front pair at 0.5; each foot is furthest forward when it lands, so the
+  // hind feet are forward and the front ones back at 0 (gathered).
+  const feet: StrideFeet = {
+    lh: foot(0, 1),
+    rh: foot(0, 1),
+    lf: foot(0.5, 1),
+    rf: foot(0.5, 1),
+  };
+  const motion = strideMotion(feet);
+  const at = (series: number[], phase: number) => sampleLoop(series, phase);
+
+  it("stays in [-1, 1]", () => {
+    for (const series of [motion.lift, motion.rock, motion.gather]) {
+      for (const v of series) expect(Math.abs(v)).toBeLessThanOrEqual(1 + 1e-12);
+    }
+  });
+
+  it("is low on the landings and high in between", () => {
+    expect(at(motion.lift, 0)).toBeLessThan(at(motion.lift, 0.25));
+    expect(at(motion.lift, 0.5)).toBeLessThan(at(motion.lift, 0.75));
+  });
+
+  it("rocks nose up on the hind feet and down on the front", () => {
+    expect(at(motion.rock, 0)).toBeGreaterThan(0.5);
+    expect(at(motion.rock, 0.5)).toBeLessThan(-0.5);
+  });
+
+  it("gathers with the hind feet forward", () => {
+    expect(at(motion.gather, 0)).toBeGreaterThan(0.5);
+    expect(at(motion.gather, 0.5)).toBeLessThan(-0.5);
   });
 });
