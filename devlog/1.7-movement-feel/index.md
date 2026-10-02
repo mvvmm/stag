@@ -32,6 +32,10 @@ So the tiger now measures its own run when it loads. It finds when each foot is 
 
 ![Fourteen frames of a steady gallop: stretched out in flight, gathered with the legs under the body, landing in pairs](06-bound-gallop.png)
 
+**A stop we threw away.** We tried stopping leg by leg: planted feet held, the others landing and then stepping into the stance one at a time. It was technically right and looked uncanny, so we reverted it. The stop is back to the simpler blend for now, and we'll come back to it.
+
+**A living tail.** The tail now never sits still. Standing, it wanders slowly side to side, lifts and lowers, curls its tip, and now and then swings out further. Running, it swings in time with the stride, wanders on top of that and rides higher. The randomness is smooth noise of the view's time rather than `Math.random`, so pausing, frame stepping and replays still show exactly the same tail. The first amounts looked fine on paper and barely moved the tip, which we only noticed by measuring it.
+
 ## Media
 
 A/D spam after moving north: every flip swings through north, body curved, never round through south.

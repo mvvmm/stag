@@ -173,13 +173,60 @@ export function stepChain(
   }
 }
 
+/** A repeatable pseudo-random number in [0, 1) for integer `i` and `seed`. */
+function hash(i: number, seed: number): number {
+  let h = Math.imul(i | 0, 0x27d4eb2d) ^ Math.imul(seed | 0, 0x165667b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 /**
- * A slow, irregular sway in [-1, 1] at time `t` (s): two sines at unrelated rates, so it never
- * looks like a metronome. `rate` is the main one's cycles per second.
+ * Smooth noise in [-1, 1] along `x`: a random value at every whole number, eased between them, so
+ * it wanders without repeating. The same `x` and `seed` always give the same value, so a view
+ * driven by it replays and seeks like everything else on the view's time.
  */
-export function sway(t: number, rate: number): number {
-  const TAU = 2 * Math.PI;
-  return 0.7 * Math.sin(TAU * rate * t) + 0.3 * Math.sin(TAU * rate * 1.618 * t + 1.3);
+export function noise(x: number, seed: number): number {
+  const i = Math.floor(x);
+  const f = x - i;
+  const ease = f * f * f * (f * (f * 6 - 15) + 10);
+  const a = hash(i, seed) * 2 - 1;
+  const b = hash(i + 1, seed) * 2 - 1;
+  return a + (b - a) * ease;
+}
+
+export type FlickOptions = {
+  /** Time is cut into slots this long (s); each may hold one swing. */
+  every: number;
+  /** The chance a slot has a swing, 0 to 1. */
+  chance: number;
+  /** How long a swing lasts, s. */
+  length: number;
+};
+
+/**
+ * Now and then, a bigger swing: in [-1, 1] at time `t` (s), 0 between swings. Each slot of
+ * `every` seconds holds a swing with `chance`, at a random moment, to a random side, with a random
+ * size (half to full), shaped as one smooth bump of `length` seconds. Repeatable like `noise`.
+ */
+export function flicks(t: number, seed: number, options: FlickOptions): number {
+  if (options.every <= 0 || options.length <= 0) return 0;
+  const slot = Math.floor(t / options.every);
+  let total = 0;
+  // A swing may start late in one slot and still be going in the next.
+  const reach = Math.ceil(options.length / options.every);
+  for (let s = slot - reach; s <= slot; s++) {
+    if (hash(s, seed) >= options.chance) continue;
+    const start =
+      s * options.every + hash(s, seed + 1) * Math.max(options.every - options.length, 0);
+    const at = (t - start) / options.length;
+    if (at <= 0 || at >= 1) continue;
+    const side = hash(s, seed + 2) < 0.5 ? -1 : 1;
+    const size = 0.5 + 0.5 * hash(s, seed + 3);
+    const bump = Math.sin(Math.PI * at);
+    total += side * size * bump * bump;
+  }
+  return Math.max(-1, Math.min(1, total));
 }
 
 // 1.7: starts, stops, short moves and the spine. The sim turns and stops near instantly (like

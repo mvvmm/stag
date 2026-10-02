@@ -23,8 +23,10 @@ import {
   createGaitDriver,
   type DriverOptions,
   type FootTrack,
+  flicks,
   type Gait,
   lookYaw,
+  noise,
   pairShift,
   pushOffCurve,
   type ShuffleGate,
@@ -39,7 +41,6 @@ import {
   stepShuffle,
   stepSpring,
   strideMotion,
-  sway,
 } from "@/render/locomotionAnim";
 import { instantiateModel, modelMaterials } from "@/render/models";
 import { addRimLight } from "@/render/rimMaterial";
@@ -149,11 +150,24 @@ export const ANIM = defineTunables("anim", {
   /** Each tail bone springs after the one before it (Hz, damping ratio): lower = lazier whip. */
   tailFrequency: { value: 2.4, min: 0.3, max: 8, step: 0.05 },
   tailDamping: { value: 0.45, min: 0.05, max: 1.5, step: 0.01 },
-  /** Idle sway, degrees, and its main rate (Hz): a slow, irregular swish while standing. */
-  tailSway: { value: 8, min: 0, max: 40, step: 0.5 },
-  tailSwayRate: { value: 0.25, min: 0.02, max: 2, step: 0.01 },
-  /** Sway in time with the stride while moving, degrees. */
-  tailStride: { value: 5, min: 0, max: 30, step: 0.5 },
+  /** Standing, the tail wanders side to side (degrees, and how fast the wander changes: wanders
+   * per second), its lift and the curl of its tip wander too (degrees), and now and then it
+   * swings bigger: one swing of `tailFlick` degrees lasting `tailFlickTime` (s), in about
+   * `tailFlickChance` of every `tailFlickEvery` seconds. */
+  tailSway: { value: 28, min: 0, max: 40, step: 0.5 },
+  tailSwayRate: { value: 0.45, min: 0.02, max: 2, step: 0.01 },
+  tailLift: { value: 14, min: 0, max: 40, step: 0.5 },
+  tailCurl: { value: 25, min: 0, max: 60, step: 0.5 },
+  tailFlick: { value: 55, min: 0, max: 60, step: 0.5 },
+  tailFlickTime: { value: 0.9, min: 0.2, max: 3, step: 0.05 },
+  tailFlickEvery: { value: 2.5, min: 0.5, max: 10, step: 0.1 },
+  tailFlickChance: { value: 0.55, min: 0, max: 1, step: 0.05 },
+  /** Running, it swings in time with the stride (degrees), wanders faster on top (degrees, and
+   * wanders per second), and rides higher (degrees). */
+  tailStride: { value: 16, min: 0, max: 40, step: 0.5 },
+  tailRunSway: { value: 14, min: 0, max: 40, step: 0.5 },
+  tailRunRate: { value: 0.9, min: 0.05, max: 4, step: 0.05 },
+  tailRunLift: { value: 14, min: -30, max: 40, step: 0.5 },
   /** Head looking at the aim point: the most it turns (degrees) and how fast it follows (Hz). */
   headLook: { value: true },
   headMax: { value: 60, min: 0, max: 120, step: 1 },
@@ -193,6 +207,8 @@ const STRIDE_SAMPLES = 48;
 /** How fast the braking that drives the stop settle fades, s. */
 const BRAKE_FADE = 0.08;
 const TAIL_SHARE = [0.2, 0.25, 0.27, 0.28];
+/** The sign of a turn around the body's side axis that lifts the tail. */
+const TAIL_UP = 1;
 /** The sign of a turn around the body's side axis that lifts a bone's far end (the arch's rise). */
 const ARCH_UP = -1;
 
@@ -297,16 +313,29 @@ export function createTiger(scene: Scene): TigerBody | null {
   let lastFacing: number | null = null;
   const lean: Spring = { value: 0, velocity: 0 };
   const tilt: Spring = { value: 0, velocity: 0 };
-  /** The smoothed turn rate driving the tail, and the tail's chain (one spring per bone). */
+  /** The smoothed turn rate driving the tail, and the tail's chains (one spring per bone): side
+   * to side, and up and down. */
   const tailTurn: Spring = { value: 0, velocity: 0 };
   const tail: Spring[] = BONES.tail.map(() => ({ value: 0, velocity: 0 }));
+  const tailPitch: Spring[] = BONES.tail.map(() => ({ value: 0, velocity: 0 }));
   let time = 0;
   const look: Spring = { value: 0, velocity: 0 };
   const snap = () => {
     smoothSpeed = gaitSpeed;
     brake = 0;
     pushTime = Number.POSITIVE_INFINITY;
-    for (const spring of [lean, tilt, settle, tailTurn, ...tail, look, bend.front, bend.hips]) {
+    const springs = [
+      lean,
+      tilt,
+      settle,
+      tailTurn,
+      ...tail,
+      ...tailPitch,
+      look,
+      bend.front,
+      bend.hips,
+    ];
+    for (const spring of springs) {
       snapSpring(spring);
     }
     // The gaits jump straight to what they'd be showing.
@@ -618,17 +647,42 @@ export function createTiger(scene: Scene): TigerBody | null {
       rotateAroundWorld(neck, up, look.value * (LOOK_SHARE[0] as number));
       rotateAroundWorld(head, up, look.value * (LOOK_SHARE[1] as number));
 
-      // The tail: a whip-like chain driven by the smoothed turn (swinging out of it), a slow
-      // irregular sway while standing, and a small sway in time with the stride while moving.
+      // The tail is never still. Two whip-like chains (side to side, up and down) follow:
+      // - standing: a slow random wander, a wandering lift and tip curl, and now and then a
+      //   bigger swing to one side;
+      // - moving: a swing in time with the stride, a faster wander on top, carried higher;
+      // - always: swinging out of turns.
+      // The randomness is smooth noise of the view's time, so it pauses, steps and replays.
+      const moving01 = 1 - idle;
       stepSpring(tailTurn, turnRate, ANIM.tailDrive, 1, step);
       const turning = -tailTurn.value * ANIM.tail;
-      const standing = sway(time, ANIM.tailSwayRate) * ANIM.tailSway * idle;
-      const striding = Math.sin(2 * Math.PI * phase) * ANIM.tailStride * (1 - idle);
-      const drive =
-        Math.max(-ANIM.tailMax, Math.min(ANIM.tailMax, turning + standing + striding)) * DEG;
+      const flickOptions = {
+        every: ANIM.tailFlickEvery,
+        chance: ANIM.tailFlickChance,
+        length: ANIM.tailFlickTime,
+      };
+      const standing =
+        noise(time * ANIM.tailSwayRate, 11) * ANIM.tailSway +
+        flicks(time, 23, flickOptions) * ANIM.tailFlick;
+      const striding =
+        Math.sin(2 * Math.PI * phase) * ANIM.tailStride +
+        noise(time * ANIM.tailRunRate, 37) * ANIM.tailRunSway;
+      const swing = turning + standing * idle + striding * moving01;
+      const drive = Math.max(-ANIM.tailMax, Math.min(ANIM.tailMax, swing)) * DEG;
       stepChain(tail, drive, ANIM.tailFrequency, ANIM.tailDamping, step);
+      const lifting =
+        noise(time * ANIM.tailSwayRate * 0.6, 53) * ANIM.tailLift * idle +
+        (ANIM.tailRunLift + noise(time * ANIM.tailRunRate, 61) * ANIM.tailLift * 0.5) * moving01;
+      stepChain(tailPitch, lifting * DEG, ANIM.tailFrequency, ANIM.tailDamping, step);
+      // The tip curls on its own (a cat's hook), more while standing.
+      const curl =
+        noise(time * ANIM.tailSwayRate * 0.8, 71) * ANIM.tailCurl * (0.4 + 0.6 * idle) * DEG;
+      side.set(Math.cos(facing), 0, -Math.sin(facing));
       tailBones.forEach((node, i) => {
-        rotateAroundWorld(node, up, (tail[i]?.value ?? 0) * (TAIL_SHARE[i] as number));
+        const share = TAIL_SHARE[i] as number;
+        rotateAroundWorld(node, up, (tail[i]?.value ?? 0) * share);
+        const tip = i >= 2 ? curl * (i - 1) * 0.5 : 0;
+        rotateAroundWorld(node, side, ((tailPitch[i]?.value ?? 0) * share + tip) * TAIL_UP);
       });
     },
 

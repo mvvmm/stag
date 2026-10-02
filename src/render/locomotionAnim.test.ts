@@ -6,10 +6,12 @@ import {
   createBend,
   createGaitDriver,
   type DriverOptions,
+  flicks,
   type Gait,
   gaitBlend,
   lookYaw,
   nextStopPhase,
+  noise,
   pairShift,
   pushOffCurve,
   type Spring,
@@ -22,7 +24,6 @@ import {
   stepShuffle,
   stepSpring,
   strideMotion,
-  sway,
 } from "@/render/locomotionAnim";
 
 const GAITS: Gait[] = [
@@ -180,18 +181,44 @@ describe("stepChain", () => {
   });
 });
 
-describe("sway", () => {
-  it("stays in [-1, 1] and doesn't repeat every main period", () => {
-    let min = 0;
-    let max = 0;
-    for (let t = 0; t < 60; t += 0.01) {
-      const v = sway(t, 0.3);
-      min = Math.min(min, v);
-      max = Math.max(max, v);
+describe("noise", () => {
+  it("stays in [-1, 1], repeats for the same input, and moves smoothly", () => {
+    let last = noise(0, 7);
+    for (let x = 0; x < 50; x += 0.01) {
+      const v = noise(x, 7);
+      expect(Math.abs(v)).toBeLessThanOrEqual(1);
+      expect(Math.abs(v - last)).toBeLessThan(0.05);
+      last = v;
     }
-    expect(min).toBeGreaterThanOrEqual(-1);
-    expect(max).toBeLessThanOrEqual(1);
-    expect(sway(1, 0.3)).not.toBeCloseTo(sway(1 + 1 / 0.3, 0.3), 3);
+    expect(noise(3.3, 7)).toBe(noise(3.3, 7));
+    expect(noise(3.3, 7)).not.toBe(noise(3.3, 8));
+  });
+});
+
+describe("flicks", () => {
+  const options = { every: 2, chance: 0.5, length: 0.8 };
+  const samples = Array.from({ length: 20000 }, (_, i) => flicks(i / 100, 3, options));
+
+  it("is mostly still, with swings to both sides within [-1, 1]", () => {
+    const still = samples.filter((v) => v === 0).length / samples.length;
+    expect(still).toBeGreaterThan(0.6);
+    expect(Math.max(...samples)).toBeGreaterThan(0.3);
+    expect(Math.min(...samples)).toBeLessThan(-0.3);
+    for (const v of samples) expect(Math.abs(v)).toBeLessThanOrEqual(1);
+  });
+
+  it("swings about as often as asked", () => {
+    let swings = 0;
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[i - 1] === 0 && samples[i] !== 0) swings++;
+    }
+    // 200 s in 2 s slots at a 50% chance: about 50 swings.
+    expect(swings).toBeGreaterThan(35);
+    expect(swings).toBeLessThan(65);
+  });
+
+  it("repeats for the same time", () => {
+    expect(flicks(12.34, 3, options)).toBe(flicks(12.34, 3, options));
   });
 });
 
