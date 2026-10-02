@@ -1,6 +1,6 @@
 // `cf previews deploy`, plus the output-file entry Workers Builds reads the Preview URL from.
 // Workers Builds shows a Preview's URL on the PR from the entry `wrangler preview` appends to
-// `$WRANGLER_OUTPUT_FILE_DIRECTORY` (or `$WRANGLER_OUTPUT_FILE_PATH`); cf 1.0.0-beta.5 prints the
+// `$WRANGLER_OUTPUT_FILE_DIRECTORY` (or `$WRANGLER_OUTPUT_FILE_PATH`); cf (through 1.0.0-beta.10) prints the
 // same JSON to stdout but writes no file, so the PR comment says "No Preview URL". This writes
 // cf's result in that format. Delete it once cf writes the file itself (friction log, 1.6.1).
 // Builds' Preview deploy command: `node scripts/cf-previews-deploy.ts`; extra args go to cf.

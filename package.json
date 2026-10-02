@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
-    "@cloudflare/vite-plugin": "1.62.0",
+    "@cloudflare/vite-plugin": "1.62.4",
     "@gltf-transform/core": "^4.5.0",
     "@gltf-transform/extensions": "^4.5.0",
     "@gltf-transform/functions": "^4.5.0",
@@ -43,7 +43,7 @@
     "@tweakpane/core": "2.0.5",
     "@types/node": "^26.6.3",
     "agent-browser": "^0.38.1",
-    "cf": "1.0.0-beta.5",
+    "cf": "1.0.0-beta.10",
     "husky": "^9.1.7",
     "sharp": "0.35.4",
     "typescript": "^7.0.2",

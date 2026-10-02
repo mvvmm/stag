@@ -4,10 +4,10 @@ allowBuilds:
   agent-browser: false
   esbuild: true
   workerd: true
-# The cf CLI is a fast-moving beta (bumped every step), newer than the release-age window.
+# The cf CLI is a fast-moving beta (bumped every step), and its Cloudflare packages (the Vite
+# plugin and the wrangler it depends on) ship daily, newer than the release-age window.
 minimumReleaseAgeExclude:
-  - '@cloudflare/codemods@0.2.1'
-  - '@cloudflare/vite-plugin@1.62.0'
-  - cf@1.0.0-beta.5
-  # @cloudflare/vite-plugin's own dependency + peer (we don't use it directly).
-  - wrangler@4.143.0
+  - cf
+  - '@cloudflare/*'
+  - wrangler
+  - miniflare@5.20261001.0-alpha
