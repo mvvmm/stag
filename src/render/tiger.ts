@@ -122,10 +122,13 @@ export const ANIM = defineTunables("anim", {
   bound: { value: 0.8, min: 0, max: 1, step: 0.05 },
   /** The galloping body's motion, from where the feet are: bouncing up in flight and down on
    * the landings (m, real size), rocking nose up on the hind push and down on the front landing
-   * (degrees), and the back curling as the hind feet come under it (degrees). */
+   * (degrees), and the back arching into an upside-down V as the feet bunch up under it, then
+   * flattening (a little past straight, `stretch` of the arch) as they spread out (degrees at
+   * the peak). */
   bounce: { value: 0.08, min: 0, max: 0.3, step: 0.005 },
   rock: { value: 5, min: 0, max: 20, step: 0.5 },
-  flex: { value: 6, min: 0, max: 25, step: 0.5 },
+  flex: { value: 15, min: 0, max: 40, step: 0.5 },
+  stretch: { value: 0.35, min: 0, max: 1, step: 0.05 },
   /** Breathing while idle: chest pitch in degrees, and breaths per second. */
   breath: { value: 1.5, min: 0, max: 6, step: 0.1 },
   breathRate: { value: 0.35, min: 0.05, max: 2, step: 0.01 },
@@ -190,6 +193,8 @@ const STRIDE_SAMPLES = 48;
 /** How fast the braking that drives the stop settle fades, s. */
 const BRAKE_FADE = 0.08;
 const TAIL_SHARE = [0.2, 0.25, 0.27, 0.28];
+/** The sign of a turn around the body's side axis that lifts a bone's far end (the arch's rise). */
+const ARCH_UP = -1;
 
 type Property = "rotationQuaternion" | "position" | "scaling";
 type Leg = "lh" | "rh" | "lf" | "rf";
@@ -594,8 +599,15 @@ export function createTiger(scene: Scene): TigerBody | null {
       });
       side.set(Math.cos(facing), 0, -Math.sin(facing));
       const breathing = Math.sin(breath * 2 * Math.PI) * ANIM.breath * DEG * idle;
-      rotateAroundWorld(chest, side, -breathing + gather * ANIM.flex * DEG);
-      rotateAroundWorld(neck, side, breathing - gather * ANIM.flex * 0.5 * DEG);
+      rotateAroundWorld(chest, side, -breathing);
+      rotateAroundWorld(neck, side, breathing);
+      // The back's arch: the mid-back rises from the hips and falls to the shoulders (an upside-
+      // down V peaking at Spine2), and the neck gives it back so the head and front legs keep
+      // their angle. The hind legs hang off the lower spine, so they stay as the clip has them.
+      const arch = (gather >= 0 ? gather : gather * ANIM.stretch) * ANIM.flex * DEG * ARCH_UP;
+      rotateAroundWorld(chest, side, arch);
+      rotateAroundWorld(spine2, side, -2 * arch);
+      rotateAroundWorld(neck, side, arch);
 
       const lookTarget = ANIM.headLook
         ? lookYaw(root.position, facing + bend.front.value, aim, ANIM.headMax * DEG)
