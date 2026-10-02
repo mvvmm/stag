@@ -120,16 +120,16 @@ export const ANIM = defineTunables("anim", {
   /** The gallop as a bound (a cat's run, a string of pounces): how far each left and right leg
    * are pulled together in time, 0 = the clip's gallop (feet landing one by one), 1 = both hind
    * feet, then both front feet, land as one. */
-  bound: { value: 0.8, min: 0, max: 1, step: 0.05 },
+  bound: { value: 1, min: 0, max: 1, step: 0.05 },
   /** The galloping body's motion, from where the feet are: bouncing up in flight and down on
    * the landings (m, real size, up from the landings' height), rocking nose up on the hind push and down on the front landing
    * (degrees), and the back arching into an upside-down V as the feet bunch up under it, then
    * flattening (a little past straight, `stretch` of the arch) as they spread out (degrees at
    * the peak). */
-  bounce: { value: 0.08, min: 0, max: 0.3, step: 0.005 },
-  rock: { value: 5, min: 0, max: 30, step: 0.5 },
-  flex: { value: 15, min: 0, max: 40, step: 0.5 },
-  stretch: { value: 0.35, min: 0, max: 1, step: 0.05 },
+  bounce: { value: 0.18, min: 0, max: 0.3, step: 0.005 },
+  rock: { value: 12, min: 0, max: 30, step: 0.5 },
+  flex: { value: 32, min: 0, max: 40, step: 0.5 },
+  stretch: { value: 0.6, min: 0, max: 1, step: 0.05 },
   /** Breathing while idle: chest pitch in degrees, and breaths per second. */
   breath: { value: 1.5, min: 0, max: 6, step: 0.1 },
   breathRate: { value: 0.35, min: 0.05, max: 2, step: 0.01 },

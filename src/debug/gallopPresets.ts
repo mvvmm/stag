@@ -8,11 +8,11 @@ type Gallop = Record<(typeof GALLOP)[number], number>;
 
 /**
  * Named gallop styles to A/B quickly (1.7). They go through `tuning`, so a replay records them like
- * any other tunable change. Natural is the code defaults.
+ * any other tunable change. Pouncy is the code defaults.
  */
 const PRESETS: [id: string, label: string, values: Gallop | null][] = [
-  ["gallop.natural", "Natural (defaults)", null],
-  ["gallop.pouncy", "Pouncy", { bound: 1, bounce: 0.18, rock: 12, flex: 32, stretch: 0.6 }],
+  ["gallop.natural", "Natural", { bound: 0.8, bounce: 0.08, rock: 5, flex: 15, stretch: 0.35 }],
+  ["gallop.pouncy", "Pouncy (defaults)", null],
 ];
 
 export function defineGallopPresets(commands: CommandRegistry): void {
