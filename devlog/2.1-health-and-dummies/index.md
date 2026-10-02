@@ -26,6 +26,10 @@ A Training yard: an open room with three pillars and two dummies to try abilitie
 
 ## Media
 
+A playtest in the Training yard after the follow-ups: the tiger among the 2.6 m Guardians, now solid.
+
+[![The Training yard playtested](training-yard-playtest.jpg)](training-yard-playtest.mp4)
+
 The Guardian up close: the patrolling one gliding past the tiger, the static one behind.
 
 ![Two Forest Guardians and the tiger](02-guardian.png)
