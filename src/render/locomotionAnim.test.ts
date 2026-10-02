@@ -8,9 +8,12 @@ import {
   type DriverOptions,
   type Gait,
   gaitBlend,
+  legStopAt,
+  liftPhase,
   lookYaw,
   nextStopPhase,
   pairShift,
+  planStop,
   pushOffCurve,
   type Spring,
   type StrideFeet,
@@ -21,8 +24,10 @@ import {
   stepGaits,
   stepShuffle,
   stepSpring,
+  stopDone,
   strideMotion,
   sway,
+  touchdownPhase,
 } from "@/render/locomotionAnim";
 
 const GAITS: Gait[] = [
@@ -429,5 +434,72 @@ describe("strideMotion", () => {
   it("gathers with the hind feet forward", () => {
     expect(at(motion.gather, 0)).toBeGreaterThan(0.5);
     expect(at(motion.gather, 0.5)).toBeLessThan(-0.5);
+  });
+});
+
+describe("touchdownPhase and liftPhase", () => {
+  it("finds where a foot's contact starts, and where it's highest", () => {
+    // Planted around 0.3 (lowest), so it touches down a little before and lifts highest at 0.8.
+    const { height } = foot(0.3);
+    const down = touchdownPhase(height);
+    expect(down).toBeLessThan(0.3);
+    expect(down).toBeGreaterThan(0.1);
+    expect(circular(liftPhase(height), 0.8)).toBeLessThanOrEqual(1 / 48);
+  });
+});
+
+describe("planStop", () => {
+  const timing = { pause: 0.1, stagger: 0.05, step: 0.2, swingMax: 0.5 };
+
+  it("keeps planted feet where they are and lands the others first", () => {
+    const plan = planStop(
+      [
+        { ahead: 0.4, planted: true },
+        { ahead: 0.2, planted: false },
+        { ahead: 0.1, planted: false },
+        { ahead: 0, planted: true },
+      ],
+      2,
+      timing,
+    );
+    expect(plan.ahead).toEqual([0, 0.2, 0.1, 0]);
+    expect(plan.landAt).toEqual([0, 0.1, 0.05, 0]);
+    // Steps start after the last landing plus the pause, in landing order, a stagger apart.
+    expect(plan.stepAt[0]).toBeCloseTo(0.2, 12);
+    expect(plan.stepAt[3]).toBeCloseTo(0.25, 12);
+    expect(plan.stepAt[2]).toBeCloseTo(0.3, 12);
+    expect(plan.stepAt[1]).toBeCloseTo(0.35, 12);
+    expect(stopDone(plan, timing.step)).toBeCloseTo(0.55, 12);
+  });
+
+  it("strides a leg on to its touchdown and holds it, then steps it in with a lift", () => {
+    const plan = planStop([{ ahead: 0.3, planted: false }], 2, timing);
+    expect(legStopAt(plan, 0, 0.05, timing.step).advance).toBeCloseTo(0.1, 12);
+    const landed = legStopAt(plan, 0, 0.2, timing.step);
+    expect(landed.advance).toBeCloseTo(0.3, 12);
+    expect(landed.stand).toBe(0);
+    expect(landed.lift).toBe(0);
+    const mid = legStopAt(plan, 0, (plan.stepAt[0] as number) + timing.step / 2, timing.step);
+    expect(mid.stand).toBeCloseTo(0.5, 12);
+    expect(mid.lift).toBeCloseTo(1, 12);
+    const done = legStopAt(plan, 0, stopDone(plan, timing.step), timing.step);
+    expect(done).toEqual({ advance: 0.3, stand: 1, lift: 0 });
+  });
+
+  it("steps a leg that has only just lifted off straight in, before the others", () => {
+    const plan = planStop(
+      [
+        { ahead: 0.9, planted: false },
+        { ahead: 0.2, planted: false },
+        { ahead: 0, planted: true },
+      ],
+      2,
+      timing,
+    );
+    expect(plan.ahead).toEqual([0, 0.2, 0]);
+    expect(plan.stepAt[0]).toBe(0);
+    // The others wait for the landing (0.1 s) and the pause, then go in landing order.
+    expect(plan.stepAt[2]).toBeCloseTo(0.2, 12);
+    expect(plan.stepAt[1]).toBeCloseTo(0.25, 12);
   });
 });

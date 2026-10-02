@@ -32,6 +32,8 @@ So the tiger now measures its own run when it loads. It finds when each foot is 
 
 ![Fourteen frames of a steady gallop: stretched out in flight, gathered with the legs under the body, landing in pairs](06-bound-gallop.png)
 
+**Stopping, for real.** The stop still looked fake: the tiger rotated back into its standing pose, because every bone cross-faded at once and the feet slid into place. Each leg can now be in its own clip and stride phase. On a stop, feet on the ground stay planted, a leg about to land finishes its swing, and a leg that has only just lifted off comes straight down. Then the legs step into the stance one at a time, each foot lifting through the walk's mid-swing pose. Our first version finished the swings at the slowed-down cruise pace, and the front legs galloped in place for half a second before the tiger stood.
+
 ## Media
 
 A/D spam after moving north: every flip swings through north, body curved, never round through south.
