@@ -57,7 +57,7 @@
 - [ ] **2.4 First mobility ability:** Cat pounce/dash (movement override, collision, cooldown).
 - [ ] **2.5 First Cat damage ability.**
 - [ ] **2.6 HUD v1:** health bar, ability bar with cooldowns (HTML overlay).
-- [ ] **2.7 Combat juice:** hit flash, hitstop, screen shake, knockback, damage numbers.
+- [ ] **2.7 Combat juice:** hitstop, screen shake, knockback, a pass over the rest (hit flash, a small recoil, impact sparks and damage numbers at the impact came early, in 2.2).
 
 ## Phase 3: First Enemy (Vertical Slice)
 
