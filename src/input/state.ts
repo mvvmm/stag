@@ -172,6 +172,11 @@ export function createInputState(initialPreset: PresetId) {
       return aim;
     },
 
+    /** The body under the cursor (its `uid`), or null. */
+    get hover(): number | null {
+      return hover;
+    },
+
     /** The body under the cursor (its `uid`), or null; set by the shell's screen pick each frame. */
     setHover(uid: number | null): void {
       hover = uid;
