@@ -27,6 +27,9 @@ export type InputFrame = {
   moveCommand: Vec2 | null;
   /** Cursor on the ground plane. */
   aim: Vec2;
+  /** The `uid` of the body under the cursor on screen (picked by the view, so a tall enemy counts
+   * anywhere on its body), or null. The simulation decides whether it can be attacked. */
+  hover: number | null;
   held: ReadonlySet<Action>;
   /** Went down since the previous tick (reported to exactly one tick). */
   pressed: ReadonlySet<Action>;
@@ -45,6 +48,7 @@ export function emptyInputFrame(): InputFrame {
     move: { x: 0, z: 0 },
     moveCommand: null,
     aim: { x: 0, z: 0 },
+    hover: null,
     held: new Set(),
     pressed: new Set(),
     released: new Set(),

@@ -8,7 +8,10 @@ const transform = (x = 0) => ({ position: { x, y: 0, z: 0 }, rotation: { x: 0, y
 const build = () => {
   const world = createWorld();
   const a = world.add({ transform: transform(1), prevTransform: transform(1) });
-  const b = world.add({ transform: transform(2), player: { order: null, orders: 0, click: null } });
+  const b = world.add({
+    transform: transform(2),
+    player: { order: null, orders: 0, click: null, chase: false },
+  });
   return { world, a, b, rng: createRng(7) };
 };
 

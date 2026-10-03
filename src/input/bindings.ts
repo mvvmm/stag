@@ -39,13 +39,15 @@ export const MMO_PRESET: Preset = {
     right: ["KeyD", "ArrowRight"],
   },
   actions: {
-    primary: ["Mouse2"],
+    // The auto attack: click an enemy (hold to attack whatever's under the cursor while moving).
+    primary: ["Mouse0"],
     ability1: ["Digit1"],
     ability2: ["Digit2"],
     ability3: ["Digit3"],
     ultimate: ["Digit4"],
     dodge: ["Space"],
-    interact: ["Mouse0"],
+    // Left click is the auto attack; interact waits on F until 2.3 settles the keys.
+    interact: ["KeyF"],
     pause: ["Escape"],
     switchControls: ["KeyM"],
   },
@@ -56,7 +58,7 @@ export const MOBA_PRESET: Preset = {
   label: "MOBA (right-click)",
   move: { kind: "pointer", control: "Mouse2" },
   actions: {
-    // Same button as moving: the simulation decides between attack and move (later steps).
+    // Same button as moving: on an enemy it's an attack order, on the ground a move order.
     primary: ["Mouse2"],
     ability1: ["KeyQ"],
     ability2: ["KeyW"],
