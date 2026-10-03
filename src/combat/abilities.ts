@@ -53,6 +53,33 @@ export function inRange(caster: Entity, target: Targetable, range: number): bool
   return gapTo(caster, target) <= range;
 }
 
+/**
+ * The enemy of `caster` whose hurtbox is nearest `point` (center distance less its hurtbox), within
+ * `within` m of it, or undefined. Ties go to the earlier entity, for determinism.
+ */
+export function nearestEnemy(
+  world: World<Entity>,
+  caster: Entity,
+  point: Vec2,
+  within: number,
+): Targetable | undefined {
+  let best: Targetable | undefined;
+  let bestGap = within;
+  for (const entity of world.with("uid", "transform", "health", "hurtbox")) {
+    if (entity === caster || !hostile(caster, entity)) continue;
+    const { position, rotation } = entity.transform;
+    for (const offset of footprintCircles(entity.hurtbox, rotation.y)) {
+      const d = dmath.hypot(position.x + offset.x - point.x, position.z + offset.z - point.z);
+      const gap = Math.max(0, d - entity.hurtbox.radius);
+      if (gap < bestGap || (gap === bestGap && !best)) {
+        best = entity;
+        bestGap = gap;
+      }
+    }
+  }
+  return best;
+}
+
 /** What a cast request carries: the cursor's ground point and the body under it. */
 export type AimRequest = { point: Vec2; target: number | null };
 

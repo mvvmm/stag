@@ -39,6 +39,19 @@ export type Player = {
   click: Vec2 | null;
   /** moba's attack order: walk into range of the auto attack's target (`caster.target`). */
   chase: boolean;
+  /** moba's attack move (League's A, on S here), until its first attack starts or another order. */
+  attackMove: AttackMove | null;
+};
+
+/**
+ * An attack move: armed (S, waiting for the left click), then issued: chasing the enemy nearest the
+ * click (`point` null), or walking to `point` and attacking the first enemy that comes near.
+ */
+export type AttackMove = {
+  armed: boolean;
+  point: Vec2 | null;
+  /** `caster.casts` when it was armed: it's over once an attack starts. */
+  casts: number;
 };
 
 /** Kinematic movement on the ground plane (the player now, enemies later). */

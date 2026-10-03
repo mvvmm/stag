@@ -10,6 +10,10 @@ export const ACTIONS = [
   "dodge",
   "interact",
   "stop",
+  /** moba: arm an attack move (League's A); the next `confirm` click issues it. */
+  "attackMove",
+  /** moba: left click, to place an armed attack move. */
+  "confirm",
   "pause",
   // Shell actions (read through `sampleFrame`, never by the simulation):
   /** Swap the control scheme (WASD ↔ right-click), until 1.7 picks one. */

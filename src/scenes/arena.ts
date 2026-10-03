@@ -66,7 +66,7 @@ export function spawnRoom(world: World<Entity>, room: Room): void {
     transform,
     prevTransform: cloneTransform(transform),
     mover: { velocity: { x: 0, z: 0 }, desired: { x: 0, z: 0 }, turnSide: 1 },
-    player: { order: null, orders: 0, click: null, chase: false },
+    player: { order: null, orders: 0, click: null, chase: false, attackMove: null },
     solid: true,
     faction: "player",
     caster: catCaster(),

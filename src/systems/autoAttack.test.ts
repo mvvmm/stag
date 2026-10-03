@@ -6,6 +6,7 @@ import { CAT_AA } from "@/data/abilities";
 import { createWorld } from "@/ecs/world";
 import { type Action, emptyInputFrame, type InputFrame } from "@/input/actions";
 import { yardSim } from "@/scenes/arena";
+import { ATTACK_MOVE } from "@/systems/playerControl";
 import { createSimulation } from "@/systems/simulation";
 
 // The auto attack through the whole yard simulation: input → playerControl's target rules (both
@@ -165,5 +166,86 @@ describe("auto attack, moba", () => {
     expect(player.caster.target).toBeNull();
     expect(player.player.chase).toBe(false);
     expect(player.player.order).toBeNull();
+  });
+});
+
+describe("attack move, moba", () => {
+  const arm = { pressed: actions("attackMove"), held: actions("attackMove") };
+  const place = (at: { x: number; z: number }) => ({
+    pressed: actions("confirm"),
+    held: actions("confirm"),
+    aim: at,
+  });
+
+  it("S arms it, and a left click goes for the enemy nearest the click", () => {
+    const { player, fixed, total, tick, ticks } = setup();
+    tick(arm);
+    expect(player.player.attackMove?.armed).toBe(true);
+    // Arming alone does nothing.
+    ticks(30);
+    expect(player.transform.position).toEqual({ x: 0, y: 0, z: -5 });
+
+    // Next to the static dummy (and well away from the patrolling one, at its west end).
+    tick(place({ x: 1, z: 5 }));
+    expect(player.caster.target).toBe(fixed.uid);
+    expect(player.player.chase).toBe(true);
+    ticks(130 + period());
+    expect(total[fixed.uid]).toBeGreaterThanOrEqual(CAT_AA.damage);
+    // Over once it attacked; the attack order goes on.
+    expect(player.player.attackMove).toBeNull();
+    expect(player.caster.target).toBe(fixed.uid);
+  });
+
+  it("with no enemy near the click, walks there and goes for the first one that comes near", () => {
+    // The patrolling dummy stands still at its west end, (-5, 0).
+    tuning.set("dummy.patrolSpeed", 0);
+    const { player, patrol, tick, ticks } = setup();
+    tick(arm);
+    // West of the spawn, far from both dummies: nothing comes near, it just arrives.
+    tick(place({ x: -6, z: -5 }));
+    expect(player.caster.target).toBeNull();
+    expect(player.player.attackMove?.point).toEqual({ x: -6, z: -5 });
+    expect(player.player.order).not.toBeNull();
+    ticks(150);
+    expect(player.transform.position.x).toBeCloseTo(-6, 5);
+    expect(player.player.attackMove).toBeNull();
+
+    // Then north past the patrolling dummy (nothing within 3 m of the click): it's picked up on the
+    // way.
+    tick(arm);
+    tick(place({ x: -6, z: 6 }));
+    expect(player.caster.target).toBeNull();
+    ticks(60);
+    expect(player.caster.target).toBe(patrol.uid);
+    expect(player.player.chase).toBe(true);
+  });
+
+  it("goes for the first enemy only once one is within the acquire distance", () => {
+    const { player, fixed, tick, ticks } = setup();
+    tuning.set("attackMove.radius", 0);
+    tick(arm);
+    tick(place({ x: 3, z: 4 }));
+    expect(player.caster.target).toBeNull();
+    let picked = -1;
+    for (let i = 0; i < 300 && picked < 0; i++) {
+      tick();
+      if (player.caster.target === fixed.uid) picked = i;
+    }
+    expect(picked).toBeGreaterThan(0);
+    expect(gapTo(player, fixed)).toBeLessThanOrEqual(ATTACK_MOVE.acquire + 1e-9);
+    expect(gapTo(player, fixed)).toBeGreaterThan(ATTACK_MOVE.acquire - 0.1);
+  });
+
+  it("stop, a right-click and moving drop it", () => {
+    const { player, tick } = setup();
+    tick(arm);
+    tick({ pressed: actions("stop"), held: actions("stop") });
+    expect(player.player.attackMove).toBeNull();
+    tick(arm);
+    tick({ ...click(null), moveCommand: { x: 3, z: -5 } });
+    expect(player.player.attackMove).toBeNull();
+    tick(arm);
+    tick({ move: { x: 1, z: 0 } });
+    expect(player.player.attackMove).toBeNull();
   });
 });
