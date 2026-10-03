@@ -52,7 +52,7 @@
 ## Phase 2: Abilities & Combat Core
 
 - [x] **2.1 Health, damage & test dummies:** health, hit shapes (circle/cone/line), damage events; a Training yard with a static and a patrolling dummy (no AI) that refill instead of dying, so abilities have something to hit. → [plan](plans/2.1-health-and-dummies.md)
-- [ ] **2.2 Ability framework + Cat basic attack:** slots, cooldowns, cast states (instant/windup/channel), aiming, data-driven definitions, built so enemies can cast through it later (3.1); proven by the Cat's basic attack (a melee swipe on right mouse) damaging the Training yard dummies.
+- [ ] **2.2 Ability framework + Cat basic attack:** slots, cooldowns, cast states (instant/windup/channel), aiming, data-driven definitions, built so enemies can cast through it later (3.1); proven by the Cat's auto attack (single target: left click in WASD, right-click a target in MOBA) damaging the Training yard dummies. → [plan](plans/2.2-ability-framework.md)
 - [ ] **2.3 Keybinds & dodge decision:** final ability keys; decide whether dodge is universal or form-specific.
 - [ ] **2.4 First mobility ability:** Cat pounce/dash (movement override, collision, cooldown).
 - [ ] **2.5 First Cat damage ability.**
