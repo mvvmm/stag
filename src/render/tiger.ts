@@ -182,45 +182,50 @@ export const ANIM = defineTunables("anim", {
 });
 
 /**
- * The auto attack (2.2): a deliberate cross-body swipe, timed on the cast's windup so the paw
- * crosses the target when the hit lands, made to read from the top-down camera.
- * - Wind-up, over the first `cock` share of the windup: the paw is drawn up (`lift`) and far out
- *   to its own side (`out` degrees), the forearm folded (`curl`); the front rears (`rear`
- *   degrees, `rise` m) and sits back (`windBack` m); the shoulders (`twist`) and the whole body
- *   (`turn`) wind toward the paw.
- * - Strike, fastest at the hit: the paw sweeps in, reaching forward (`reach`), and crosses the
- *   middle (the target) on the hit; the forearm snaps straight, the body pounces in (`lunge` m,
- *   `pitch` nose down), the head dips (`dip`) and follows the paw (`look`).
- * - Follow-through, `follow` seconds: the swing carries on past the other side (`across`), the
- *   body and shoulders turning with it, over the first `through` share; then it all eases back.
+ * The auto attack (2.2), modelled on Nidalee's cougar auto attack in League (studied frame by frame):
+ * a coil, then the whole body exploding forward and up into a cross-body swipe, timed on the
+ * cast's windup so the paw crosses the target when the hit lands. Made to read from the top-down
+ * camera.
+ * - Coil, over the first `cock` share of the windup: the body sinks (`crouch` m), pulls back
+ *   (`windBack` m) and tips nose down (`coil` degrees); the shoulders (`twist`) and front
+ *   (`turn`) wind toward the striking paw, which is cocked far out to its side (`out` degrees) at
+ *   shoulder height (`lift`), the forearm folded (`curl`); the head draws back (`dip` < 0 is up)
+ *   and keeps its eyes on the target (`eyes`).
+ * - Strike, the rest of the windup, fastest at the hit: the body explodes forward and up, stretched
+ *   long at the target (`lunge` m, `rise` m, `rear` degrees nose up); the paw sweeps in, reaching
+ *   forward (`reach`), and crosses the middle (the target) on the hit.
+ * - Follow-through, `follow` seconds: still stretched, the swing carries on past the other side
+ *   (`across`), the body and shoulders turning with it and the head following the paw (`look`),
+ *   over the first `through` share; then it settles back into the stance.
+ * The hips swing against the front's turn (`hips`), the back bends with the pitch rather than the
+ * whole body tilting (`bodyPitch`), and the tail whips against the swing (`tailWhip`, `tailLift`).
  * A windup called off by a move order fades out over `fade` seconds from where it was.
  */
 export const SWIPE = defineTunables("swipe", {
-  cock: { value: 0.6, min: 0.05, max: 0.95, step: 0.01 },
-  lift: { value: 90, min: -90, max: 150, step: 1 },
-  out: { value: 80, min: -90, max: 120, step: 1 },
-  curl: { value: -80, min: -120, max: 120, step: 1 },
-  reach: { value: 80, min: -90, max: 150, step: 1 },
-  across: { value: 75, min: -90, max: 120, step: 1 },
-  windBack: { value: 0.08, min: 0, max: 0.5, step: 0.005 },
-  rear: { value: 16, min: 0, max: 45, step: 0.5 },
-  rise: { value: 0.12, min: 0, max: 0.5, step: 0.005 },
-  lunge: { value: 0.3, min: 0, max: 1, step: 0.01 },
-  pitch: { value: 8, min: -30, max: 30, step: 0.5 },
-  twist: { value: 22, min: -60, max: 60, step: 0.5 },
-  turn: { value: 18, min: -60, max: 60, step: 0.5 },
-  /** The hips swing back this share of the front's turn (the weight shift). */
+  cock: { value: 0.7, min: 0.05, max: 0.95, step: 0.01 },
+  lift: { value: 50, min: -90, max: 150, step: 1 },
+  out: { value: 95, min: -90, max: 150, step: 1 },
+  curl: { value: -70, min: -120, max: 120, step: 1 },
+  reach: { value: 75, min: -90, max: 150, step: 1 },
+  across: { value: 80, min: -90, max: 150, step: 1 },
+  crouch: { value: 0.1, min: 0, max: 0.5, step: 0.005 },
+  windBack: { value: 0.2, min: 0, max: 0.8, step: 0.005 },
+  coil: { value: 8, min: -30, max: 30, step: 0.5 },
+  rear: { value: 18, min: -30, max: 45, step: 0.5 },
+  rise: { value: 0.16, min: 0, max: 0.5, step: 0.005 },
+  lunge: { value: 0.45, min: 0, max: 1.5, step: 0.01 },
+  twist: { value: 24, min: -60, max: 60, step: 0.5 },
+  turn: { value: 20, min: -60, max: 60, step: 0.5 },
   hips: { value: 0.35, min: 0, max: 1, step: 0.05 },
-  /** The share of the rear-up and pounce that tilts the whole body; the rest bends the back. */
   bodyPitch: { value: 0.4, min: 0, max: 1, step: 0.05 },
-  /** The tail whips against the swing (degrees per degree of the front's turn) and lifts while it
-   * winds and strikes (degrees). */
   tailWhip: { value: 0.8, min: 0, max: 3, step: 0.05 },
   tailLift: { value: 18, min: 0, max: 60, step: 0.5 },
-  dip: { value: 12, min: -40, max: 40, step: 0.5 },
+  dip: { value: -8, min: -40, max: 40, step: 0.5 },
   look: { value: 0.4, min: 0, max: 1, step: 0.05 },
-  follow: { value: 0.42, min: 0, max: 1.5, step: 0.01 },
-  through: { value: 0.4, min: 0, max: 0.95, step: 0.01 },
+  /** How much of the coil's turn the head takes back, to keep its eyes on the target. */
+  eyes: { value: 0.8, min: 0, max: 1.5, step: 0.05 },
+  follow: { value: 0.4, min: 0, max: 1.5, step: 0.01 },
+  through: { value: 0.3, min: 0, max: 0.95, step: 0.01 },
   /** A glowing arc behind the striking paw. */
   trail: { value: true },
   fade: { value: 0.12, min: 0, max: 0.5, step: 0.01 },
@@ -738,17 +743,19 @@ export function createTiger(scene: Scene): TigerBody | null {
       const struck = swiping ? weight * swiping.strike * (1 - swiping.release) : 0;
       const carried = swiping ? weight * swiping.through * (1 - swiping.release) : 0;
       const lunge = -SWIPE.windBack * wound + SWIPE.lunge * struck;
-      // Rearing up while wound, then dropping into the pounce, nose down. Only `bodyPitch` of it
+      // Nose down in the coil, then up as the body stretches into the hit. Only `bodyPitch` of it
       // tilts the whole body (the rest bends the spine below), so the back curves instead of
       // tipping like a plank.
-      const rearing = (SWIPE.pitch * struck - SWIPE.rear * wound) * DEG;
+      const rearing = (SWIPE.coil * wound - SWIPE.rear * struck) * DEG;
       const swipePitch = rearing * SWIPE.bodyPitch;
       // How far the front half is turned toward the paw's side (wound) or with the swing past the
       // target (carried): bent through the spine, the hips swinging back against it.
       const swipeYaw = (attack?.side ?? 1) * (SWIPE.turn + SWIPE.twist) * (wound - carried) * DEG;
 
       body.position.y =
-        pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip + SWIPE.rise * wound) * scale;
+        pivot +
+        (lift * ANIM.bounce - push * ANIM.pushOffDip - SWIPE.crouch * wound + SWIPE.rise * struck) *
+          scale;
       body.position.z = lunge * scale;
       body.rotation.set(
         swipePitch + tilt.value + settle.value + (push * ANIM.pushOff - rock * ANIM.rock) * DEG,
@@ -811,9 +818,14 @@ export function createTiger(scene: Scene): TigerBody | null {
         // A turn around the side axis by a negative angle swings a hanging limb forward.
         rotateAroundWorld(upperArm, side, -raise);
         rotateAroundWorld(forearm, side, SWIPE.curl * wound * DEG);
-        rotateAroundWorld(neck, side, SWIPE.dip * struck * DEG);
-        // The head follows the paw.
-        rotateAroundWorld(head, up, sweep * SWIPE.look);
+        // The head draws back with the coil and goes with the body into the hit.
+        rotateAroundWorld(neck, side, SWIPE.dip * wound * DEG);
+        // Through the coil the eyes stay on the target (the head turns back against the front's
+        // wind); after the hit the head follows the paw through.
+        const windYaw = attack.side * (SWIPE.turn + SWIPE.twist) * wound * DEG;
+        const followYaw = -attack.side * SWIPE.across * carried * DEG;
+        rotateAroundWorld(neck, up, -windYaw * SWIPE.eyes * 0.5);
+        rotateAroundWorld(head, up, -windYaw * SWIPE.eyes * 0.5 + followYaw * SWIPE.look);
       }
       // The trail streams off the striking paw from the strike through the swing past the target.
       const trailing =
