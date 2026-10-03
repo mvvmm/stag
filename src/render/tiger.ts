@@ -1,5 +1,7 @@
 import {
   type Animation,
+  Color3,
+  Constants,
   type InstantiatedEntries,
   Matrix,
   Mesh,
@@ -7,6 +9,8 @@ import {
   PBRMaterial,
   Quaternion,
   type Scene,
+  StandardMaterial,
+  TrailMesh,
   TransformNode,
   Vector3,
 } from "@babylonjs/core";
@@ -43,6 +47,7 @@ import {
   stepSpring,
   strideMotion,
   swipePhase,
+  swipeSide,
 } from "@/render/locomotionAnim";
 import { instantiateModel, modelMaterials } from "@/render/models";
 import { addRimLight } from "@/render/rimMaterial";
@@ -195,6 +200,12 @@ export const SWIPE = defineTunables("swipe", {
   reach: { value: 80, min: -90, max: 150, step: 1 },
   across: { value: 30, min: -90, max: 90, step: 1 },
   windBack: { value: 0.08, min: 0, max: 0.5, step: 0.005 },
+  /** The whole body in it: the front rears up while the paw is cocked (degrees nose up, and the
+   * body rises, m), then drops into the pounce. */
+  rear: { value: 16, min: 0, max: 45, step: 0.5 },
+  rise: { value: 0.12, min: 0, max: 0.5, step: 0.005 },
+  /** A glowing arc behind the striking paw. */
+  trail: { value: true },
   lunge: { value: 0.3, min: 0, max: 1, step: 0.01 },
   pitch: { value: 8, min: -30, max: 30, step: 0.5 },
   /** The shoulders wind toward the paw while it's cocked and whip back through the strike. */
@@ -226,8 +237,9 @@ const BONES = {
   neck: "Bip01 Neck",
   head: "Bip01 Head",
   tail: ["Bip01 Tail", "Bip01 Tail1", "Bip01 Tail2", "Bip01 Tail3"],
-  /** The swiping leg. */
-  paw: ["Bip01 R Clavicle", "Bip01 R UpperArm", "Bip01 R Forearm"],
+  /** The swiping legs (shoulder, upper arm, forearm, paw tip), right and left. */
+  rightPaw: ["Bip01 R Clavicle", "Bip01 R UpperArm", "Bip01 R Forearm", "Bip01 R Finger0"],
+  leftPaw: ["Bip01 L Clavicle", "Bip01 L UpperArm", "Bip01 L Forearm", "Bip01 L Finger0"],
 } as const;
 /** How the head's turn is shared between the neck and the head, and the tail's between its bones. */
 const LOOK_SHARE = [0.45, 0.55];
@@ -305,11 +317,17 @@ export function createTiger(scene: Scene): TigerBody | null {
   const neck = bone(BONES.neck);
   const head = bone(BONES.head);
   const tailBones = BONES.tail.map(bone);
-  const [shoulder, upperArm, forearm] = BONES.paw.map(bone) as [
-    TransformNode,
-    TransformNode,
-    TransformNode,
-  ];
+  /** A swiping leg's bones, and the trail that follows its paw tip. */
+  const leg = (names: readonly string[]) => {
+    const [shoulder, upperArm, forearm, tip] = names.map(bone) as [
+      TransformNode,
+      TransformNode,
+      TransformNode,
+      TransformNode,
+    ];
+    return { shoulder, upperArm, forearm, trail: createSwipeTrail(scene, tip) };
+  };
+  const paws = { right: leg(BONES.rightPaw), left: leg(BONES.leftPaw) };
 
   // Clips in blend order: the idle, then the gaits.
   const clipNames = [IDLE_CLIP, ...GAIT_CLIPS.map((clip) => clip.name)];
@@ -340,7 +358,14 @@ export function createTiger(scene: Scene): TigerBody | null {
    * auto attack being played: when its cast started and its windup, in that time. */
   let tickTime = 0;
   let casts: number | null = null;
-  let attack: { start: number; windup: number; cancelled: number | null } | null = null;
+  /** The auto attack being played: when its cast started and its windup (view time), when it was
+   * called off (or null), and the paw: 1 = right, -1 = left. */
+  let attack: {
+    start: number;
+    windup: number;
+    cancelled: number | null;
+    side: 1 | -1;
+  } | null = null;
 
   // Per frame, on the view's time.
   let lastTime: number | null = null;
@@ -555,7 +580,12 @@ export function createTiger(scene: Scene): TigerBody | null {
       if (caster && casts !== null && caster.casts !== casts && caster.cast?.slot === "primary") {
         const def = abilityById(caster.cast.ability);
         const windup = def ? def.stats(player).windup : 0;
-        attack = { start: tickTime - caster.cast.elapsed, windup, cancelled: null };
+        attack = {
+          start: tickTime - caster.cast.elapsed,
+          windup,
+          cancelled: null,
+          side: swipeSide(caster.casts),
+        };
       } else if (
         attack &&
         attack.cancelled === null &&
@@ -691,9 +721,14 @@ export function createTiger(scene: Scene): TigerBody | null {
         ? swiping.weight *
           (-SWIPE.windBack * swiping.cock * (1 - swiping.strike) + SWIPE.lunge * strike)
         : 0;
-      const swipePitch = swiping ? swiping.weight * SWIPE.pitch * strike * DEG : 0;
+      // Rearing up while cocked, then dropping into the pounce, nose down.
+      const reared = swiping ? swiping.weight * swiping.cock * (1 - swiping.strike) : 0;
+      const swipePitch = swiping
+        ? (swiping.weight * SWIPE.pitch * strike - SWIPE.rear * reared) * DEG
+        : 0;
 
-      body.position.y = pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip) * scale;
+      body.position.y =
+        pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip + SWIPE.rise * reared) * scale;
       body.position.z = lunge * scale;
       body.rotation.set(
         swipePitch + tilt.value + settle.value + (push * ANIM.pushOff - rock * ANIM.rock) * DEG,
@@ -729,10 +764,12 @@ export function createTiger(scene: Scene): TigerBody | null {
       // The swiping paw: drawn up and out, then reaching forward and across into the hit. The
       // shoulder turns the whole leg (the sweep), the upper arm raises it forward, the forearm
       // curls back while cocked and snaps straight in the strike.
-      if (swiping) {
+      if (swiping && attack) {
+        const { shoulder, upperArm, forearm } = attack.side === 1 ? paws.right : paws.left;
         const cocked = swiping.cock * (1 - swiping.strike) * swiping.weight;
         const striking = strike * swiping.weight;
-        const sweep = (SWIPE.out * cocked - SWIPE.across * striking) * DEG;
+        // Out to its own side, then across: mirrored for the left paw.
+        const sweep = attack.side * (SWIPE.out * cocked - SWIPE.across * striking) * DEG;
         const raise = (SWIPE.lift * cocked + SWIPE.reach * striking) * DEG;
         side.set(Math.cos(facing), 0, -Math.sin(facing));
         rotateAroundWorld(shoulder, up, sweep);
@@ -742,10 +779,15 @@ export function createTiger(scene: Scene): TigerBody | null {
         rotateAroundWorld(neck, side, SWIPE.dip * striking * DEG);
         // The upper body winds toward the paw, then whips the other way into the hit (the spine
         // carries the shoulders; the paw's own sweep rides on top).
-        const twist = SWIPE.twist * (cocked - striking) * DEG;
+        const twist = attack.side * SWIPE.twist * (cocked - striking) * DEG;
         rotateAroundWorld(chest, up, twist * 0.5);
         rotateAroundWorld(spine2, up, twist * 0.5);
       }
+      // The trail streams off the striking paw from the strike through the first of the release.
+      const trailing =
+        !!swiping && SWIPE.trail && swiping.strike > 0 && swiping.release < 0.5 && !!attack;
+      paws.right.trail.update(trailing && attack?.side === 1, step);
+      paws.left.trail.update(trailing && attack?.side === -1, step);
 
       // The tail is never still. Two whip-like chains (side to side, up and down) follow:
       // - standing: a slow random wander, a wandering lift and tip curl, and now and then a
@@ -787,10 +829,79 @@ export function createTiger(scene: Scene): TigerBody | null {
     },
 
     dispose() {
+      paws.right.trail.dispose();
+      paws.left.trail.dispose();
       entries.dispose();
       rig.dispose();
       body.dispose();
       root.dispose();
+    },
+  };
+}
+
+/** sRGB: the swipe trail, hot orange. */
+const TRAIL_COLOR = Color3.FromHexString("#ffa646");
+/** Seconds the trail takes to fade once the paw has struck. */
+const TRAIL_FADE = 0.15;
+
+/**
+ * A glowing ribbon behind a paw tip while it strikes (Babylon's TrailMesh, following a node on the
+ * tip bone; additive, unlit and unfogged, so bloom picks it up). `update(active, step)` every frame:
+ * it starts fresh when a strike starts, fades out over `TRAIL_FADE` after, and holds still while
+ * paused.
+ */
+function createSwipeTrail(scene: Scene, tip: TransformNode) {
+  // Not parented to the tip: the rig is scaled to centimeters, and the trail takes its width from
+  // the generator's world scale. It's moved onto the tip every frame instead.
+  const generator = new TransformNode("swipeTrailTip", scene);
+  const trail = new TrailMesh("swipeTrail", generator, scene, {
+    diameter: 0.12,
+    length: 14,
+    sections: 4,
+    autoStart: false,
+  });
+  const material = new StandardMaterial("swipeTrail", scene);
+  material.disableLighting = true;
+  // Brighter than white-hot so the bloom catches it.
+  material.emissiveColor = TRAIL_COLOR.toLinearSpace().scale(2.5);
+  material.alphaMode = Constants.ALPHA_ADD;
+  material.disableDepthWrite = true;
+  material.backFaceCulling = false;
+  material.fogEnabled = false;
+  trail.material = material;
+  trail.isPickable = false;
+  trail.setEnabled(false);
+  let running = false;
+  let fade = 0;
+  return {
+    update(active: boolean, step: number): void {
+      refreshWorld(tip);
+      generator.position.copyFrom(tip.getAbsolutePosition());
+      if (active && !running) {
+        trail.reset();
+        trail.start();
+        trail.setEnabled(true);
+        running = true;
+        fade = 1;
+      } else if (!active && running) {
+        trail.stop();
+        running = false;
+      }
+      // Frozen while the view time stands still (paused), like everything else.
+      if (running) {
+        if (step > 0) trail.start();
+        else trail.stop();
+      }
+      if (!running && fade > 0) {
+        fade = Math.max(0, fade - step / TRAIL_FADE);
+        if (fade === 0) trail.setEnabled(false);
+      }
+      material.alpha = fade;
+    },
+    dispose(): void {
+      trail.dispose();
+      material.dispose();
+      generator.dispose();
     },
   };
 }

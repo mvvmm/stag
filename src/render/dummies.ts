@@ -17,6 +17,8 @@ import type { Entity } from "@/ecs/world";
 import type { HoverMetadata } from "@/render/aim";
 import { bodyView } from "@/render/bodyView";
 import { addHighlight } from "@/render/highlightMaterial";
+import { createHitFx } from "@/render/hitFx";
+import { hashInt, swipeSide } from "@/render/locomotionAnim";
 import { greyboxMaterial } from "@/render/materials";
 import { instantiateModel } from "@/render/models";
 import type { SceneContext } from "@/scenes/scene";
@@ -40,13 +42,13 @@ const BAR_CHIP = Color3.FromHexString("#ecd9a8");
 const CHIP_HOLD = 0.35;
 const CHIP_DRAIN = 1.5;
 
-/** Damage numbers: seconds on screen, how far they rise (m), and how many can show at once. */
+/** Damage numbers (popping where a hit lands): seconds on screen, how far they rise (m), and how
+ * many can show at once. */
 const NUMBER_LIFE = 0.9;
 const NUMBER_FADE = 0.35;
 const NUMBER_RISE = 0.7;
 const NUMBER_POOL = 24;
 const NUMBER_SIZE = 0.55;
-const NUMBER_Y = BAR_Y + 0.25;
 /** Side-to-side offsets (m) cycled through, so numbers from quick hits don't stack exactly. */
 const NUMBER_SPREAD = [0, 0.22, -0.18, 0.12, -0.26, 0.05];
 
@@ -54,6 +56,18 @@ const NUMBER_SPREAD = [0, 0.22, -0.18, 0.12, -0.26, 0.05];
  * tall as the dummy plus `PICK_TOP`, so a click anywhere on (or just next to) the body counts. */
 const PICK_PAD = 0.15;
 const PICK_TOP = 0.3;
+
+/** A hit: how high on the body the paw lands (m), the white flash (s at full, then s to fade),
+ * and the recoil away from the hit (m, s to snap back to, time constant of the settle). */
+const HIT_Y = 0.95;
+const FLASH_HOLD = 0.035;
+const FLASH_FADE = 0.08;
+const FLASH_PEAK = 0.5;
+const RECOIL = 0.2;
+const RECOIL_IN = 0.04;
+const RECOIL_SETTLE = 0.1;
+/** The recoil also tips the body back, radians per m of recoil. */
+const RECOIL_TILT = 0.6;
 
 /** The grey-box stand-in. */
 const STAND_IN_COLOR = new Color3(0.42, 0.47, 0.4);
@@ -89,24 +103,44 @@ export function createDummyViews(ctx: SceneContext): Mesh[] {
 
   const bars = dummies.map((entity) => healthBar(ctx, overlay, entity));
   const numbers = damageNumbers(ctx, overlay);
+  const impacts = createHitFx(ctx, overlay);
+  const player = world.with("player", "transform").first;
 
+  // A hit lands where the paw meets the body: the side facing the attacker (the player, the only
+  // thing that hits for now), at chest height. There it bursts and scratches, the number pops, and
+  // the body flashes and recoils.
   ctx.onTick(() => {
     const now = ctx.viewTime();
-    for (const entity of dummies) {
+    dummies.forEach((entity, i) => {
+      if (entity.health.taken.length === 0) return;
       const { position } = entity.transform;
-      for (const amount of entity.health.taken) numbers.spawn(amount, position.x, position.z, now);
-    }
+      const from = player?.transform.position ?? { x: position.x, z: position.z - 1 };
+      let dx = position.x - from.x;
+      let dz = position.z - from.z;
+      const d = Math.hypot(dx, dz) || 1;
+      dx /= d;
+      dz /= d;
+      const radius = entity.hurtbox?.radius ?? DUMMY_HURTBOX.radius;
+      const contact = { x: position.x - dx * radius, y: HIT_Y, z: position.z - dz * radius };
+      const casts = player?.caster?.casts ?? 0;
+      for (const amount of entity.health.taken) {
+        impacts.spawn(contact, swipeSide(casts), hashInt(casts), now);
+        numbers.spawn(amount, contact.x, contact.y + 0.75, contact.z, now);
+      }
+      bodies[i]?.hit(now, { x: dx, z: dz });
+    });
   });
 
   ctx.onBeforeRender(() => {
     const time = ctx.viewTime();
     const hover = ctx.input.hover;
     bodies.forEach((body, i) => {
-      body.update(time);
       body.highlight(hover !== null && dummies[i]?.uid === hover);
+      body.update(time);
     });
     for (const bar of bars) bar.update(time);
     numbers.update(time);
+    impacts.update(time);
   });
 
   ctx.onFrame(() => {
@@ -161,7 +195,7 @@ function dummyBody(ctx: SceneContext, entity: DummyEntity, index: number) {
       materials.add(ctx.own(mesh.material));
     }
   }
-  const glows = [...materials].map(addHighlight);
+  const highlights = [...materials].map(addHighlight);
 
   // Clicking: an invisible cylinder the screen pick finds (`render/aim.ts`).
   if (entity.uid !== undefined) {
@@ -182,16 +216,49 @@ function dummyBody(ctx: SceneContext, entity: DummyEntity, index: number) {
   // Each dummy bobs out of step with the others.
   const phase = index * 1.7;
   const patrols = entity.dummy.kind === "patrol";
-  let highlighted = false;
+  let hovered = false;
+  /** The last hit: when, and the way it pushes (a unit vector on the ground). */
+  let hitAt = Number.NEGATIVE_INFINITY;
+  let push = { x: 0, z: 0 };
   return {
     root,
     /** Makes the body glow (hovered), or not. */
     highlight(on: boolean) {
-      if (on === highlighted) return;
-      highlighted = on;
-      for (const glow of glows) glow(on ? 1 : 0);
+      hovered = on;
+    },
+    /** A hit landed at `time`, pushing the body `away` (a unit vector on the ground). */
+    hit(time: number, away: { x: number; z: number }) {
+      hitAt = time;
+      push = away;
     },
     update(time: number) {
+      // The flash: white for a moment, then fading; the hover glow gives way to it.
+      const age = time - hitAt;
+      const flash =
+        age < 0
+          ? 0
+          : age < FLASH_HOLD
+            ? FLASH_PEAK
+            : Math.max(0, FLASH_PEAK * (1 - (age - FLASH_HOLD) / FLASH_FADE));
+      for (const h of highlights) {
+        h.flash(flash);
+        h.glow(hovered ? 1 - flash : 0);
+      }
+      // The recoil: knocked back fast, then settling; in the root's frame (it's turned to face).
+      const recoil =
+        age < 0
+          ? 0
+          : age < RECOIL_IN
+            ? (RECOIL * age) / RECOIL_IN
+            : RECOIL * Math.exp(-(age - RECOIL_IN) / RECOIL_SETTLE);
+      const yaw = root.rotation.y;
+      const cos = Math.cos(yaw);
+      const sin = Math.sin(yaw);
+      const lx = push.x * cos - push.z * sin;
+      const lz = push.x * sin + push.z * cos;
+      float.position.x = lx * recoil;
+      float.position.z = lz * recoil;
+
       const useStandIn = !model || bodyView.hitboxes;
       standIn.setEnabled(useStandIn);
       modelRoot.setEnabled(!useStandIn);
@@ -200,8 +267,9 @@ function dummyBody(ctx: SceneContext, entity: DummyEntity, index: number) {
       // Leans into its glide, by how fast it's going (a view of the sim's velocity).
       const v = entity.mover?.velocity;
       const speed = v ? Math.hypot(v.x, v.z) : 0;
-      float.rotation.x = patrols ? LEAN * Math.min(1, speed / 2) : 0;
-      float.rotation.z = 0.03 * bob;
+      // Tipped back by a hit (away from it: about the axis across the push).
+      float.rotation.x = (patrols ? LEAN * Math.min(1, speed / 2) : 0) + lz * recoil * RECOIL_TILT;
+      float.rotation.z = 0.03 * bob - lx * recoil * RECOIL_TILT;
     },
   };
 }
@@ -277,6 +345,7 @@ function damageNumbers(ctx: SceneContext, overlay: Scene) {
     texture: DynamicTexture;
     born: number;
     x: number;
+    y: number;
     z: number;
   };
   const slots: Slot[] = [];
@@ -302,18 +371,19 @@ function damageNumbers(ctx: SceneContext, overlay: Scene) {
     material.useAlphaFromDiffuseTexture = true;
     material.backFaceCulling = false;
     mesh.material = material;
-    slots.push({ mesh, texture, born: Number.NEGATIVE_INFINITY, x: 0, z: 0 });
+    slots.push({ mesh, texture, born: Number.NEGATIVE_INFINITY, x: 0, y: 0, z: 0 });
   }
   let next = 0;
 
   return {
-    spawn(amount: number, x: number, z: number, time: number) {
+    spawn(amount: number, x: number, y: number, z: number, time: number) {
       const slot = slots[next % NUMBER_POOL] as Slot;
       const spread = NUMBER_SPREAD[next % NUMBER_SPREAD.length] ?? 0;
       next++;
       drawNumber(slot.texture, Math.round(amount));
       slot.born = time;
       slot.x = x + spread;
+      slot.y = y;
       slot.z = z;
     },
     update(time: number) {
@@ -325,9 +395,9 @@ function damageNumbers(ctx: SceneContext, overlay: Scene) {
         if (!alive) continue;
         const t = age / NUMBER_LIFE;
         const rise = NUMBER_RISE * (1 - (1 - t) * (1 - t));
-        slot.mesh.position.set(slot.x, NUMBER_Y + rise, slot.z);
-        // A quick pop, then settle.
-        const pop = age < 0.08 ? 0.7 + (0.5 * age) / 0.08 : Math.max(1, 1.2 - (age - 0.08) * 2);
+        slot.mesh.position.set(slot.x, slot.y + rise, slot.z);
+        // Punched in big at the hit, then settling.
+        const pop = age < 0.05 ? 1.7 - (0.3 * age) / 0.05 : Math.max(1, 1.4 - (age - 0.05) * 3);
         slot.mesh.scaling.setAll(pop);
         const fadeFrom = NUMBER_LIFE - NUMBER_FADE;
         slot.mesh.visibility = age < fadeFrom ? 1 : 1 - (age - fadeFrom) / NUMBER_FADE;
