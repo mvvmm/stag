@@ -2,10 +2,10 @@ import {
   type AbstractMesh,
   Color3,
   DynamicTexture,
+  type Material,
   Matrix,
   Mesh,
   MeshBuilder,
-  type PBRMaterial,
   type Scene,
   StandardMaterial,
   TransformNode,
@@ -14,7 +14,9 @@ import {
 import { debugDraw } from "@/core/debugDraw";
 import { DUMMY_HEIGHT, DUMMY_HURTBOX } from "@/data/dummies";
 import type { Entity } from "@/ecs/world";
+import type { HoverMetadata } from "@/render/aim";
 import { bodyView } from "@/render/bodyView";
+import { addHighlight } from "@/render/highlightMaterial";
 import { greyboxMaterial } from "@/render/materials";
 import { instantiateModel } from "@/render/models";
 import type { SceneContext } from "@/scenes/scene";
@@ -48,6 +50,16 @@ const NUMBER_Y = BAR_Y + 0.25;
 /** Side-to-side offsets (m) cycled through, so numbers from quick hits don't stack exactly. */
 const NUMBER_SPREAD = [0, 0.22, -0.18, 0.12, -0.26, 0.05];
 
+/** Picking: an invisible cylinder round each dummy, this much wider than its hurtbox (m) and as
+ * tall as the dummy plus `PICK_TOP`, so a click anywhere on (or just next to) the body counts. */
+const PICK_PAD = 0.15;
+const PICK_TOP = 0.3;
+/** The ring under the auto attack's target: how far out from the hurtbox (m), its thickness (m) and
+ * color (sRGB). */
+const TARGET_PAD = 0.12;
+const TARGET_THICKNESS = 0.05;
+const TARGET_COLOR = Color3.FromHexString("#c8402e");
+
 /** The grey-box stand-in. */
 const STAND_IN_COLOR = new Color3(0.42, 0.47, 0.4);
 
@@ -63,26 +75,28 @@ const LEAN = 0.12;
 
 type DummyEntity = Entity & Required<Pick<Entity, "dummy" | "health" | "transform">>;
 
+/** The body under the cursor (`input.hover`) glows; the player's auto attack target gets a
+ * ring. */
+
 /**
  * Builds the dummies' bodies (each bound to its entity), their bars and their damage numbers.
  * Returns the bodies, for the shadow casters.
  */
 export function createDummyViews(ctx: SceneContext): Mesh[] {
-  const { world, scene, overlay } = ctx;
+  const { world, overlay } = ctx;
   const dummies: DummyEntity[] = [...world.with("dummy", "health", "transform")];
   if (dummies.length === 0) return [];
 
-  const standInMaterial = ctx.own(
-    greyboxMaterial("dummyStandIn", scene, STAND_IN_COLOR, { roughness: 0.8 }),
-  );
   const bodies = dummies.map((entity, i) => {
-    const body = dummyBody(ctx, entity, i, standInMaterial);
+    const body = dummyBody(ctx, entity, i);
     ctx.bindMesh(entity, body.root);
     return body;
   });
 
   const bars = dummies.map((entity) => healthBar(ctx, overlay, entity));
   const numbers = damageNumbers(ctx, overlay);
+  const ring = targetRing(ctx, overlay);
+  const player = world.with("player", "caster").first;
 
   ctx.onTick(() => {
     const now = ctx.viewTime();
@@ -94,9 +108,17 @@ export function createDummyViews(ctx: SceneContext): Mesh[] {
 
   ctx.onBeforeRender(() => {
     const time = ctx.viewTime();
-    for (const body of bodies) body.update(time);
+    const hover = ctx.input.hover;
+    bodies.forEach((body, i) => {
+      body.update(time);
+      body.highlight(hover !== null && dummies[i]?.uid === hover);
+    });
     for (const bar of bars) bar.update(time);
     numbers.update(time);
+    const target = player?.caster.target ?? null;
+    const index = target === null ? -1 : dummies.findIndex((entity) => entity.uid === target);
+    const targeted = bodies[index];
+    ring.show(targeted ? targeted.root.position : null, dummies[index]);
   });
 
   ctx.onFrame(() => {
@@ -117,12 +139,7 @@ export function createDummyViews(ctx: SceneContext): Mesh[] {
  * A dummy's body: an empty root the entity moves, a float node that hovers, bobs and leans into a
  * glide, and under it the model and the grey-box stand-in (one shown at a time).
  */
-function dummyBody(
-  ctx: SceneContext,
-  entity: DummyEntity,
-  index: number,
-  standInMaterial: PBRMaterial,
-) {
+function dummyBody(ctx: SceneContext, entity: DummyEntity, index: number) {
   const { scene } = ctx;
   const root = ctx.own(new Mesh(`dummy-${index}`, scene));
   const float = ctx.own(new TransformNode(`dummyFloat-${index}`, scene));
@@ -133,11 +150,15 @@ function dummyBody(
   const shape = VertexData.CreateCapsule({ radius, height: DUMMY_HEIGHT, tessellation: 16 });
   shape.transform(Matrix.Translation(0, DUMMY_HEIGHT / 2, 0));
   shape.applyToMesh(standIn);
+  // Its own materials (the stand-in's and the model's copies), so it glows on its own when hovered.
+  const standInMaterial = ctx.own(
+    greyboxMaterial(`dummyStandIn-${index}`, scene, STAND_IN_COLOR, { roughness: 0.8 }),
+  );
   standIn.material = standInMaterial;
   standIn.receiveShadows = true;
   standIn.parent = root;
 
-  const model = instantiateModel("guardian");
+  const model = instantiateModel("guardian", { cloneMaterials: true });
   const modelRoot = ctx.own(new TransformNode(`dummyModel-${index}`, scene));
   modelRoot.parent = float;
   if (model) {
@@ -146,12 +167,42 @@ function dummyBody(
     fitModel(modelRoot);
     for (const mesh of modelRoot.getChildMeshes()) mesh.receiveShadows = true;
   }
+  const materials = new Set<Material>([standInMaterial]);
+  for (const mesh of modelRoot.getChildMeshes()) {
+    if (mesh.material && !materials.has(mesh.material)) {
+      materials.add(ctx.own(mesh.material));
+    }
+  }
+  const glows = [...materials].map(addHighlight);
+
+  // Clicking: an invisible cylinder the screen pick finds (`render/aim.ts`).
+  if (entity.uid !== undefined) {
+    const height = DUMMY_HEIGHT + PICK_TOP;
+    const pick = ctx.own(
+      MeshBuilder.CreateCylinder(
+        `dummyPick-${index}`,
+        { height, diameter: (radius + PICK_PAD) * 2, tessellation: 12 },
+        scene,
+      ),
+    );
+    pick.position.y = height / 2;
+    pick.parent = root;
+    pick.isVisible = false;
+    pick.metadata = { hoverUid: entity.uid } satisfies HoverMetadata;
+  }
 
   // Each dummy bobs out of step with the others.
   const phase = index * 1.7;
   const patrols = entity.dummy.kind === "patrol";
+  let highlighted = false;
   return {
     root,
+    /** Makes the body glow (hovered), or not. */
+    highlight(on: boolean) {
+      if (on === highlighted) return;
+      highlighted = on;
+      for (const glow of glows) glow(on ? 1 : 0);
+    },
     update(time: number) {
       const useStandIn = !model || bodyView.hitboxes;
       standIn.setEnabled(useStandIn);
@@ -163,6 +214,34 @@ function dummyBody(
       const speed = v ? Math.hypot(v.x, v.z) : 0;
       float.rotation.x = patrols ? LEAN * Math.min(1, speed / 2) : 0;
       float.rotation.z = 0.03 * bob;
+    },
+  };
+}
+
+/** A thin ring on the ground round the auto attack's target, in the overlay scene. */
+function targetRing(ctx: SceneContext, overlay: Scene) {
+  const radius = DUMMY_HURTBOX.radius + TARGET_PAD;
+  const ring = ctx.own(
+    MeshBuilder.CreateTorus(
+      "targetRing",
+      { diameter: radius * 2, thickness: TARGET_THICKNESS, tessellation: 48 },
+      overlay,
+    ),
+  );
+  ring.isPickable = false;
+  const material = ctx.own(new StandardMaterial("targetRing", overlay));
+  material.disableLighting = true;
+  material.emissiveColor = TARGET_COLOR.toLinearSpace();
+  ring.material = material;
+  ring.setEnabled(false);
+  return {
+    /** Puts the ring under `at` (sized for `entity`'s hurtbox), or hides it (null). */
+    show(at: { x: number; z: number } | null, entity?: Entity) {
+      ring.setEnabled(at !== null);
+      if (!at) return;
+      ring.position.set(at.x, 0.04, at.z);
+      const hurtbox = entity?.hurtbox?.radius ?? DUMMY_HURTBOX.radius;
+      ring.scaling.setAll((hurtbox + TARGET_PAD) / radius);
     },
   };
 }

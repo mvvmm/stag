@@ -40,12 +40,17 @@ export async function preloadModels(scene: Scene): Promise<void> {
 
 /**
  * A copy of a model in the scene: its own nodes, skeleton and (stopped) animation groups, sharing
- * the container's materials and textures. `dispose()` removes the copy; null if it didn't load.
+ * the container's materials and textures (or with its own copies of the materials, still sharing
+ * the textures, with `cloneMaterials`: dispose those yourself). `dispose()` removes the copy; null
+ * if it didn't load.
  */
-export function instantiateModel(id: ModelId): InstantiatedEntries | null {
+export function instantiateModel(
+  id: ModelId,
+  { cloneMaterials = false }: { cloneMaterials?: boolean } = {},
+): InstantiatedEntries | null {
   const container = containers.get(id);
   if (!container) return null;
-  const entries = container.instantiateModelsToScene((name) => name, false, {
+  const entries = container.instantiateModelsToScene((name) => name, cloneMaterials, {
     doNotInstantiate: true,
   });
   for (const group of entries.animationGroups) group.stop();

@@ -14,7 +14,7 @@ import type { InputFrame, ShellFrame } from "@/input/actions";
 import { PRESETS, type PresetId } from "@/input/bindings";
 import { attachInputDom, loadPreset, savePreset } from "@/input/dom";
 import { createInputState, type InputState } from "@/input/state";
-import { cameraYaw, createGroundAim } from "@/render/aim";
+import { cameraYaw, createGroundAim, createHoverPick } from "@/render/aim";
 import { type Atmosphere, createAtmosphere } from "@/render/atmosphere";
 import {
   clampToRect,
@@ -187,6 +187,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
   const dom = attachInputDom(input, canvas);
   const cursor = createSoftwareCursor(canvas);
   const groundAim = createGroundAim(scene);
+  const hoverPick = createHoverPick(scene);
 
   // Auto-pause while the tab is hidden or the window is unfocused; independent of a manual pause.
   const updateAutoPause = () => {
@@ -323,6 +324,12 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     const pointer = dom.pointer;
     const aim = pointer && groundAim.project(pointer.x, pointer.y, scene.activeCamera ?? camera);
     if (aim) input.setAim(aim);
+    // The body under the cursor on screen, for clicking enemies: only while the mouse is the
+    // game's (not borrowed by a debug tool, not in the pause menu).
+    const canHover = pointer && input.mouseButtons && !pauseMenu.value.open;
+    input.setHover(
+      canHover ? hoverPick.pick(pointer.x, pointer.y, scene.activeCamera ?? camera) : null,
+    );
     yaw = cameraYaw(camera);
 
     const shellFrame = input.sampleFrame();
@@ -336,7 +343,7 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     // The menu needs the real pointer (the moba scheme locks it to the canvas).
     if (pauseMenu.value.open && dom.locked) document.exitPointerLock();
     dom.syncLock();
-    cursor.update(dom.locked ? dom.pointer : null);
+    cursor.update(dom.locked ? dom.pointer : null, input.hover !== null);
     for (const listener of frameListeners) listener(shellFrame);
 
     const { alpha } = loop.advance(frameSeconds);

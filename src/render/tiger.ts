@@ -13,6 +13,7 @@ import {
 import { TICK_DT } from "@/core/constants";
 import { wrapAngle } from "@/core/math";
 import { defineTunables } from "@/core/tuning";
+import { abilityById } from "@/data/abilities";
 import type { Entity } from "@/ecs/world";
 import type { InputFrame } from "@/input/actions";
 import {
@@ -174,6 +175,21 @@ export const ANIM = defineTunables("anim", {
   headFrequency: { value: 2.5, min: 0.3, max: 10, step: 0.1 },
 });
 
+/**
+ * The auto attack (2.2), from the model's `attack` clip: it opens with both front paws raised and
+ * slams them down by `impact` (s into the clip). During the windup the clip plays from `start` to
+ * `impact`, sped up or slowed to fit, so the slam lands with the hit; it fades in over `fadeIn`
+ * (s), then plays on for `follow` seconds after the hit while fading back out.
+ */
+export const ATTACK_ANIM = defineTunables("attackAnim", {
+  start: { value: 0, min: 0, max: 2, step: 0.01 },
+  impact: { value: 0.3, min: 0.05, max: 3, step: 0.01 },
+  fadeIn: { value: 0.07, min: 0, max: 0.5, step: 0.01 },
+  follow: { value: 0.3, min: 0, max: 1.5, step: 0.01 },
+  /** How much of the body the clip takes over at its peak (the rest stays the gait). */
+  weight: { value: 1, min: 0, max: 1, step: 0.05 },
+});
+
 /** The model faces −X in its file: this yaw turns it to face +Z (the sim's yaw 0). */
 const MODEL_YAW = -Math.PI / 2;
 /** The model is in centimeters. */
@@ -187,6 +203,7 @@ const GAIT_CLIPS = [
   { name: "run", offset: 0.077 },
 ] as const;
 const IDLE_CLIP = "idle";
+const ATTACK_CLIP = "attack";
 /** Longer than this between two frames (a replay seek), the springs snap instead of swinging. */
 const MAX_STEP = 0.25;
 
@@ -229,8 +246,9 @@ const LEGS: Record<Leg, { top: string; foot: string }> = {
   lf: { top: "Bip01 L Clavicle", foot: "Bip01 L Finger0" },
   rf: { top: "Bip01 R Clavicle", foot: "Bip01 R Finger0" },
 };
-/** The run clip's index in blend order (the idle, walk, trot, run). */
+/** The run clip's index in blend order (the idle, walk, trot, run, attack). */
 const RUN = 3;
+const ATTACK = 4;
 
 export type TigerBody = {
   /** An empty mesh carrying the model: bind it to the player (mesh sync moves it). */
@@ -274,8 +292,8 @@ export function createTiger(scene: Scene): TigerBody | null {
   const head = bone(BONES.head);
   const tailBones = BONES.tail.map(bone);
 
-  // Clips in blend order: the idle, then the gaits.
-  const clipNames = [IDLE_CLIP, ...GAIT_CLIPS.map((clip) => clip.name)];
+  // Clips in blend order: the idle, the gaits, then the attack (layered over them).
+  const clipNames = [IDLE_CLIP, ...GAIT_CLIPS.map((clip) => clip.name), ATTACK_CLIP];
   const channels = collectChannels(entries, clipNames);
   const durations = clipNames.map((name) => {
     const group = entries.animationGroups.find((g) => g.name === name);
@@ -299,6 +317,13 @@ export function createTiger(scene: Scene): TigerBody | null {
   let forwardSpeed = 0;
   let aim = { x: 0, z: 0 };
   let hasTick = false;
+  /** Simulation time at the end of the last tick seen (the view time that shows it), and the
+   * auto attack being played: when its cast started and its windup, in that time. */
+  let tickTime = 0;
+  let casts: number | null = null;
+  let attack: { start: number; windup: number } | null = null;
+  /** The attack clip's time and weight this frame. */
+  let attackTime = 0;
 
   // Per frame, on the view's time.
   let lastTime: number | null = null;
@@ -338,6 +363,8 @@ export function createTiger(scene: Scene): TigerBody | null {
     for (const spring of springs) {
       snapSpring(spring);
     }
+    // A seek: an attack that hasn't started yet, or long over, isn't shown.
+    attack = null;
     // The gaits jump straight to what they'd be showing.
     Object.assign(driver, createGaitDriver(GAIT_CLIPS.length));
     stepGaits(
@@ -393,6 +420,7 @@ export function createTiger(scene: Scene): TigerBody | null {
   /** A channel's time in clip `i` at the shared stride `phase`. */
   const timeOf = (channel: Channel, i: number, phase: number) => {
     if (i === 0) return 0;
+    if (i === ATTACK) return attackTime;
     const clip = GAIT_CLIPS[i - 1] as (typeof GAIT_CLIPS)[number];
     const shift = i === RUN && channel.leg ? legShift[channel.leg] : 0;
     return clipTime(phase + shift, clip.offset, durations[i] as number);
@@ -500,6 +528,22 @@ export function createTiger(scene: Scene): TigerBody | null {
     stopScores = scoreStops();
   };
 
+  /** The attack clip's weight at `viewTime` (and sets `attackTime`), 0 when none is playing. */
+  const attackPose = (viewTime: number): number => {
+    if (!attack) return 0;
+    const since = viewTime - attack.start;
+    const { start, impact, fadeIn, follow, weight } = ATTACK_ANIM;
+    const windup = Math.max(attack.windup, 1e-3);
+    if (since < 0 || since > windup + follow) return 0;
+    const span = Math.max(0, impact - start);
+    attackTime = since <= windup ? start + (span * since) / windup : impact + (since - windup);
+    attackTime = Math.min(attackTime, (durations[ATTACK] as number) - 1e-3);
+    const rise = fadeIn > 0 ? Math.min(1, since / fadeIn) : 1;
+    const fall = since <= windup || follow <= 0 ? 1 : 1 - (since - windup) / follow;
+    const smooth = (x: number) => x * x * (3 - 2 * x);
+    return weight * smooth(Math.min(rise, Math.max(0, fall)));
+  };
+
   const up = Vector3.Up();
   const side = new Vector3();
 
@@ -507,6 +551,15 @@ export function createTiger(scene: Scene): TigerBody | null {
     root,
 
     tick(player, input) {
+      tickTime += TICK_DT;
+      // A new auto attack: it started `elapsed` before the end of this tick.
+      const caster = player.caster;
+      if (caster && casts !== null && caster.casts !== casts && caster.cast?.slot === "primary") {
+        const def = abilityById(caster.cast.ability);
+        const windup = def ? def.stats(player).windup : 0;
+        attack = { start: tickTime - caster.cast.elapsed, windup };
+      }
+      casts = caster?.casts ?? null;
       const velocity = player.mover?.velocity;
       const transform = player.transform;
       if (!transform) return;
@@ -573,9 +626,11 @@ export function createTiger(scene: Scene): TigerBody | null {
       breath = (breath + ANIM.breathRate * step) % 1;
       time += step;
       if (analysedBound !== ANIM.bound) analyse();
-      applyPose(driver.weights, phase);
+      const attackWeight = attackPose(viewTime);
+      const weights = [...driver.weights.map((w) => w * (1 - attackWeight)), attackWeight];
+      applyPose(weights, phase);
       // The gallop's own body motion, as much as the gallop shows.
-      const galloping = driver.weights[RUN] as number;
+      const galloping = (driver.weights[RUN] as number) * (1 - attackWeight);
       // Up from where the landings are, never below: the feet don't sink into the floor.
       const lowest = Math.min(...motion.lift);
       const lift = ((sampleLoop(motion.lift, phase) - lowest) / (1 - lowest || 1)) * galloping;

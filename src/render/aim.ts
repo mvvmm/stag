@@ -1,4 +1,4 @@
-import { type Camera, Ray, type Scene, Vector3 } from "@babylonjs/core";
+import { type AbstractMesh, type Camera, Ray, type Scene, Vector3 } from "@babylonjs/core";
 import { GROUND_Y } from "@/core/constants";
 import { rayToGround, type Vec2 } from "@/core/math";
 
@@ -13,6 +13,29 @@ export function createGroundAim(scene: Scene) {
     project(x: number, y: number, camera: Camera): Vec2 | null {
       scene.createPickingRayToRef(x, y, null, ray, camera);
       return rayToGround(ray.origin, ray.direction, GROUND_Y);
+    },
+  };
+}
+
+/** What a mesh carries to be hovered: the uid of the body it stands for (`metadata.hoverUid`). */
+export type HoverMetadata = { hoverUid: number };
+
+const isHoverTarget = (mesh: AbstractMesh): boolean =>
+  typeof (mesh.metadata as Partial<HoverMetadata> | null)?.hoverUid === "number" &&
+  mesh.isEnabled();
+
+/**
+ * The body under a pointer (CSS pixels relative to the canvas) on screen: the uid of the nearest
+ * enabled mesh tagged with `metadata.hoverUid` (invisible pick shapes count), or null.
+ */
+export function createHoverPick(scene: Scene) {
+  const ray = new Ray(Vector3.Zero(), Vector3.Forward());
+  return {
+    pick(x: number, y: number, camera: Camera): number | null {
+      scene.createPickingRayToRef(x, y, null, ray, camera);
+      const hit = scene.pickWithRay(ray, isHoverTarget);
+      const metadata = hit?.pickedMesh?.metadata as HoverMetadata | undefined;
+      return metadata?.hoverUid ?? null;
     },
   };
 }
