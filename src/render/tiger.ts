@@ -209,6 +209,14 @@ export const SWIPE = defineTunables("swipe", {
   pitch: { value: 8, min: -30, max: 30, step: 0.5 },
   twist: { value: 22, min: -60, max: 60, step: 0.5 },
   turn: { value: 18, min: -60, max: 60, step: 0.5 },
+  /** The hips swing back this share of the front's turn (the weight shift). */
+  hips: { value: 0.35, min: 0, max: 1, step: 0.05 },
+  /** The share of the rear-up and pounce that tilts the whole body; the rest bends the back. */
+  bodyPitch: { value: 0.4, min: 0, max: 1, step: 0.05 },
+  /** The tail whips against the swing (degrees per degree of the front's turn) and lifts while it
+   * winds and strikes (degrees). */
+  tailWhip: { value: 0.8, min: 0, max: 3, step: 0.05 },
+  tailLift: { value: 18, min: 0, max: 60, step: 0.5 },
   dip: { value: 12, min: -40, max: 40, step: 0.5 },
   look: { value: 0.4, min: 0, max: 1, step: 0.05 },
   follow: { value: 0.42, min: 0, max: 1.5, step: 0.01 },
@@ -235,6 +243,8 @@ const IDLE_CLIP = "idle";
 const MAX_STEP = 0.25;
 
 const BONES = {
+  /** The lower spine: the hind legs and the tail hang off it. */
+  spine: "Bip01 Spine",
   chest: "Bip01 Spine1",
   spine2: "Bip01 Spine2",
   neck: "Bip01 Neck",
@@ -315,6 +325,7 @@ export function createTiger(scene: Scene): TigerBody | null {
     if (!node) throw new Error(`tiger: no bone "${name}"`);
     return node;
   };
+  const spine = bone(BONES.spine);
   const chest = bone(BONES.chest);
   const spine2 = bone(BONES.spine2);
   const neck = bone(BONES.neck);
@@ -727,17 +738,21 @@ export function createTiger(scene: Scene): TigerBody | null {
       const struck = swiping ? weight * swiping.strike * (1 - swiping.release) : 0;
       const carried = swiping ? weight * swiping.through * (1 - swiping.release) : 0;
       const lunge = -SWIPE.windBack * wound + SWIPE.lunge * struck;
-      // Rearing up while wound, then dropping into the pounce, nose down.
-      const swipePitch = (SWIPE.pitch * struck - SWIPE.rear * wound) * DEG;
-      // The whole body winds toward the paw's side, then turns with the swing past the target.
-      const swipeTurn = (attack?.side ?? 1) * SWIPE.turn * (wound - carried) * DEG;
+      // Rearing up while wound, then dropping into the pounce, nose down. Only `bodyPitch` of it
+      // tilts the whole body (the rest bends the spine below), so the back curves instead of
+      // tipping like a plank.
+      const rearing = (SWIPE.pitch * struck - SWIPE.rear * wound) * DEG;
+      const swipePitch = rearing * SWIPE.bodyPitch;
+      // How far the front half is turned toward the paw's side (wound) or with the swing past the
+      // target (carried): bent through the spine, the hips swinging back against it.
+      const swipeYaw = (attack?.side ?? 1) * (SWIPE.turn + SWIPE.twist) * (wound - carried) * DEG;
 
       body.position.y =
         pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip + SWIPE.rise * wound) * scale;
       body.position.z = lunge * scale;
       body.rotation.set(
         swipePitch + tilt.value + settle.value + (push * ANIM.pushOff - rock * ANIM.rock) * DEG,
-        bend.hips.value + swipeTurn,
+        bend.hips.value,
         -lean.value,
       );
 
@@ -769,6 +784,22 @@ export function createTiger(scene: Scene): TigerBody | null {
       // The swiping paw: drawn up and out, then reaching forward and across into the hit. The
       // shoulder turns the whole leg (the sweep), the upper arm raises it forward, the forearm
       // curls back while cocked and snaps straight in the strike.
+      if (swiping) {
+        // The spine carries the swing: the hips (and the hind legs and tail on them) swing back
+        // a share of it, the front turns the rest, spread from the mid back to the neck. A cat
+        // shifting its weight, not a plank on a pivot.
+        const hips = -SWIPE.hips * swipeYaw;
+        const front = swipeYaw - hips;
+        rotateAroundWorld(spine, up, hips);
+        rotateAroundWorld(chest, up, front * 0.45);
+        rotateAroundWorld(spine2, up, front * 0.35);
+        rotateAroundWorld(neck, up, front * 0.2);
+        // The rest of the rear-up and pounce bends the back: the chest and upper back lift (or
+        // drop), the hips stay with the ground.
+        const bendPitch = rearing * (1 - SWIPE.bodyPitch);
+        rotateAroundWorld(chest, side, bendPitch * 0.55);
+        rotateAroundWorld(spine2, side, bendPitch * 0.45);
+      }
       if (swiping && attack) {
         const { shoulder, upperArm, forearm } = attack.side === 1 ? paws.right : paws.left;
         // Far out to its own side, back to the middle (the target) on the hit, then on past the
@@ -783,10 +814,6 @@ export function createTiger(scene: Scene): TigerBody | null {
         rotateAroundWorld(neck, side, SWIPE.dip * struck * DEG);
         // The head follows the paw.
         rotateAroundWorld(head, up, sweep * SWIPE.look);
-        // The shoulders wind with the paw and swing through with it, on top of the body's turn.
-        const twist = attack.side * SWIPE.twist * (wound - carried) * DEG;
-        rotateAroundWorld(chest, up, twist * 0.5);
-        rotateAroundWorld(spine2, up, twist * 0.5);
       }
       // The trail streams off the striking paw from the strike through the swing past the target.
       const trailing =
@@ -814,12 +841,15 @@ export function createTiger(scene: Scene): TigerBody | null {
       const striding =
         Math.sin(2 * Math.PI * phase) * ANIM.tailStride +
         noise(time * ANIM.tailRunRate, 37) * ANIM.tailRunSway;
-      const swing = turning + standing * idle + striding * moving01;
+      // In a swipe the tail whips against the front's swing and lifts while it winds.
+      const swipeTail = swiping ? -(swipeYaw / DEG) * SWIPE.tailWhip : 0;
+      const swing = turning + standing * idle + striding * moving01 + swipeTail;
       const drive = Math.max(-ANIM.tailMax, Math.min(ANIM.tailMax, swing)) * DEG;
       stepChain(tail, drive, ANIM.tailFrequency, ANIM.tailDamping, step);
       const lifting =
         noise(time * ANIM.tailSwayRate * 0.6, 53) * ANIM.tailLift * idle +
-        (ANIM.tailRunLift + noise(time * ANIM.tailRunRate, 61) * ANIM.tailLift * 0.5) * moving01;
+        (ANIM.tailRunLift + noise(time * ANIM.tailRunRate, 61) * ANIM.tailLift * 0.5) * moving01 +
+        SWIPE.tailLift * (wound + struck);
       stepChain(tailPitch, lifting * DEG, ANIM.tailFrequency, ANIM.tailDamping, step);
       // The tip curls on its own (a cat's hook), more while standing.
       const curl =
