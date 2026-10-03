@@ -111,6 +111,7 @@ Run-based roguelite: short runs, death ends the run, some progress carries over.
 
 ## 9. Art Direction
 
+- **Everything custom:** every model and animation in the shipped game is our own (made in Blender or whatever fits), not from asset packs. Pack models are only placeholders until the art pass (Phase 9).
 - **Painterly dark stylized:** moderate-poly models, hand-painted-style textures, and atmosphere driven by **lighting, fog, shadow, and color grading** rather than polygon count.
 - Reference mood: Darksiders, V Rising, Diablo IV's atmosphere at lower fidelity.
 - Telegraphs and threats must stay **highly readable** against a dark scene (strong silhouettes, clear VFX language for danger zones).
