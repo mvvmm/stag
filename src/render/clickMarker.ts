@@ -5,6 +5,7 @@ import {
   type Scene,
   StandardMaterial,
   TransformNode,
+  Vector3,
 } from "@babylonjs/core";
 import type { Vec2 } from "@/core/math";
 
@@ -14,10 +15,14 @@ const POP = 0.12;
 const FADE = 0.4;
 const START_SCALE = 0.6;
 const DIAMETER = 0.7;
-/** The chevron: how far out from the ring's center (m), and its size (m). */
-const CHEVRON_AT = DIAMETER / 2 + 0.22;
-const CHEVRON_ARM = 0.26;
-const CHEVRON_WIDTH = 0.07;
+/** The chevron: how far out from the ring's center its tip is (m), its half width and depth (m),
+ * and the thickness of its stroke (m). */
+const CHEVRON_AT = DIAMETER / 2 + 0.16;
+const CHEVRON_HALF_WIDTH = 0.08;
+const CHEVRON_DEPTH = 0.08;
+const CHEVRON_STROKE = 0.03;
+/** How pointed the tip is: 1 = a sharp V, higher = rounder. */
+const CHEVRON_ROUND = 1.5;
 
 /** sRGB colors: a move order's marker, and an attack move's. */
 export const MOVE_MARKER = new Color3(0.45, 0.9, 1);
@@ -43,28 +48,40 @@ export function createClickMarker(scene: Scene, color: Color3 = MOVE_MARKER) {
   material.emissiveColor = color;
   ring.material = material;
 
-  // The chevron: two bars in a ">" pointing along the pivot's +Z, out past the ring.
+  // The chevron: one soft stroke, a "^" pointing along the pivot's +Z with a rounded tip and
+  // gently curved arms, round at both ends.
   const pivot = new TransformNode("clickMarkerChevron", scene);
   pivot.parent = root;
   const chevron = new Mesh("clickMarkerChevronArms", scene);
   chevron.parent = pivot;
-  for (const sign of [1, -1]) {
-    const arm = MeshBuilder.CreateBox(
-      "clickMarkerChevronArm",
-      { width: CHEVRON_WIDTH, height: 0.01, depth: CHEVRON_ARM },
+  const path: Vector3[] = [];
+  const steps = 16;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    // From one arm's end to the other's: back by |x|^round from the tip.
+    const u = 2 * t - 1;
+    const x = u * CHEVRON_HALF_WIDTH;
+    const z = -CHEVRON_DEPTH * Math.abs(u) ** CHEVRON_ROUND;
+    path.push(new Vector3(x, 0, z));
+  }
+  const stroke = MeshBuilder.CreateTube(
+    "clickMarkerChevronStroke",
+    { path, radius: CHEVRON_STROKE / 2, tessellation: 8 },
+    scene,
+  );
+  stroke.parent = chevron;
+  for (const end of [path[0], path[path.length - 1]]) {
+    const cap = MeshBuilder.CreateSphere(
+      "clickMarkerChevronCap",
+      { diameter: CHEVRON_STROKE, segments: 6 },
       scene,
     );
-    arm.material = material;
-    arm.isPickable = false;
-    // Each arm runs from the tip back and out to one side (a box's long axis is its Z, turned by
-    // rotation.y toward +X).
-    arm.rotation.y = -sign * 0.75;
-    arm.position.set(
-      sign * Math.sin(0.75) * (CHEVRON_ARM / 2),
-      0,
-      -Math.cos(0.75) * (CHEVRON_ARM / 2),
-    );
-    arm.parent = chevron;
+    cap.position.copyFrom(end as Vector3);
+    cap.parent = chevron;
+  }
+  for (const part of chevron.getChildMeshes()) {
+    part.material = material;
+    part.isPickable = false;
   }
   chevron.position.z = CHEVRON_AT;
   chevron.isPickable = false;
