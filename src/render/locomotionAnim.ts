@@ -566,3 +566,56 @@ export function sampleLoop(table: readonly number[], phase: number): number {
   const t = x - i;
   return (table[i % n] as number) * (1 - t) + (table[(i + 1) % n] as number) * t;
 }
+
+/** Where a paw swipe is at a moment: each part from 0 to 1, and how much of it shows. */
+export type SwipePhase = {
+  /** The paw drawn up and back (the anticipation), over the first part of the windup. */
+  cock: number;
+  /** The strike, accelerating into the hit at the end of the windup. */
+  strike: number;
+  /** Back to rest after the hit, over the follow-through. */
+  release: number;
+  /** How much of the swipe shows: 1, fading to 0 after a cancel (and 0 outside the swipe). */
+  weight: number;
+};
+
+const NO_SWIPE: SwipePhase = { cock: 0, strike: 0, release: 0, weight: 0 };
+
+/**
+ * A paw swipe timed on its windup, so the paw lands on the target exactly when the hit does:
+ * cocked over the first `cockShare` of the windup, the strike over the rest (ease-in: fastest at
+ * the hit), then `follow` seconds back to rest. `since` is the time since the cast started;
+ * `cancelled` how long ago the windup was called off (null if it wasn't), after which it fades out
+ * over `fade` seconds from where it was.
+ */
+export function swipePhase(
+  since: number,
+  windup: number,
+  follow: number,
+  cockShare: number,
+  cancelled: number | null,
+  fade: number,
+): SwipePhase {
+  if (since < 0) return NO_SWIPE;
+  const w = Math.max(windup, 1e-3);
+  // Called off, it holds the pose it had then while it fades.
+  const at = cancelled === null ? since : since - cancelled;
+  let phase: SwipePhase;
+  if (at < w) {
+    const p = at / w;
+    const share = Math.min(0.95, Math.max(0.05, cockShare));
+    const cock = smoothstep(Math.min(1, p / share));
+    const s = p <= share ? 0 : (p - share) / (1 - share);
+    phase = { cock, strike: s * s, release: 0, weight: 1 };
+  } else {
+    const q = follow > 0 ? (at - w) / follow : 1;
+    if (q >= 1) return NO_SWIPE;
+    phase = { cock: 1, strike: 1, release: smoothstep(q), weight: 1 };
+  }
+  if (cancelled !== null) {
+    const out = fade > 0 ? 1 - cancelled / fade : 0;
+    if (out <= 0) return NO_SWIPE;
+    phase.weight = smoothstep(out);
+  }
+  return phase;
+}

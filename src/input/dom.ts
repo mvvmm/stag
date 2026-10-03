@@ -1,3 +1,4 @@
+import { DEBUG } from "@/debug/enabled";
 import { DEFAULT_PRESET, isPresetId, type PresetId } from "@/input/bindings";
 import type { InputState } from "@/input/state";
 
@@ -166,8 +167,12 @@ export function attachInputDom(input: InputState, canvas: HTMLCanvasElement) {
   };
 }
 
-/** The remembered control preset, or the default when storage is empty or unavailable. */
+/**
+ * The control preset to start with: the default (right-click) for players; in debug builds the one
+ * last picked in the pane, when there is one.
+ */
 export function loadPreset(): PresetId {
+  if (!DEBUG) return DEFAULT_PRESET;
   try {
     const stored = localStorage.getItem(PRESET_STORAGE_KEY);
     return isPresetId(stored) ? stored : DEFAULT_PRESET;

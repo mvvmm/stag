@@ -24,6 +24,7 @@ import {
   stepShuffle,
   stepSpring,
   strideMotion,
+  swipePhase,
 } from "@/render/locomotionAnim";
 
 const GAITS: Gait[] = [
@@ -456,5 +457,32 @@ describe("strideMotion", () => {
   it("gathers with the hind feet forward", () => {
     expect(at(motion.gather, 0)).toBeGreaterThan(0.5);
     expect(at(motion.gather, 0.5)).toBeLessThan(-0.5);
+  });
+});
+
+describe("swipePhase", () => {
+  const at = (since: number, cancelled: number | null = null) =>
+    swipePhase(since, 0.3, 0.25, 0.6, cancelled, 0.1);
+
+  it("cocks, then strikes into the hit at the end of the windup, then releases", () => {
+    expect(at(-0.01).weight).toBe(0);
+    expect(at(0)).toEqual({ cock: 0, strike: 0, release: 0, weight: 1 });
+    expect(at(0.18).cock).toBeCloseTo(1, 9);
+    expect(at(0.18).strike).toBe(0);
+    // Fastest at the hit: the second half of the strike covers more than the first.
+    const mid = at(0.24).strike;
+    expect(mid).toBeLessThan(0.5);
+    expect(at(0.2999).strike).toBeGreaterThan(0.99);
+    expect(at(0.3)).toEqual({ cock: 1, strike: 1, release: 0, weight: 1 });
+    expect(at(0.425).release).toBeCloseTo(0.5, 9);
+    expect(at(0.55).weight).toBe(0);
+  });
+
+  it("holds its pose and fades out after a cancel", () => {
+    const before = at(0.1);
+    const fading = at(0.15, 0.05);
+    expect(fading.cock).toBeCloseTo(before.cock, 12);
+    expect(fading.weight).toBeCloseTo(0.5, 9);
+    expect(at(0.25, 0.1).weight).toBe(0);
   });
 });

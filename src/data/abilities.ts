@@ -54,6 +54,9 @@ export type AbilityDef = {
   rootsChannel: boolean;
   /** Moving cancels the channel (only for channels that don't root). */
   movingCancels: boolean;
+  /** The auto attack's windup is called off, its cooldown refunded, when the controller drops or
+   * switches `caster.target` before it's over (a move order, stop, another target), like League. */
+  interruptible: boolean;
   stats(caster: Entity): AbilityStats;
 };
 
@@ -67,8 +70,8 @@ export const ABILITIES = defineTunables("abilities", {
 export const CAT_AA = defineTunables("catAA", {
   /** Attacks per second. */
   attackSpeed: { value: 0.7, min: 0.1, max: 5, step: 0.05 },
-  /** The windup (rooted, the hit lands at its end), as a share of the time between attacks, so
-   * attack speed shortens it too. */
+  /** The windup (rooted, the hit lands at its end; a move order before then cancels the attack),
+   * as a share of the time between attacks, so attack speed shortens it too. */
   windupShare: { value: 0.18, min: 0, max: 0.9, step: 0.01 },
   /** Reach, edge to edge: from the cat's movement circle to the target's hurtbox, m. */
   range: { value: 1.2, min: 0, max: 10, step: 0.05 },
@@ -82,6 +85,7 @@ export const catAutoAttack: AbilityDef = {
   rootsWindup: true,
   rootsChannel: false,
   movingCancels: false,
+  interruptible: true,
   stats() {
     const period = 1 / CAT_AA.attackSpeed;
     return {
