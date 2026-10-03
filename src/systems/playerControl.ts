@@ -1,22 +1,36 @@
 import type { World } from "miniplex";
+import { enemyOf, inRange, type Targetable } from "@/combat/abilities";
 import { debugDraw } from "@/core/debugDraw";
 import { dmath } from "@/core/dmath";
 import type { Vec2 } from "@/core/math";
 import type { Rng } from "@/core/rng";
-import type { Entity, MoveOrder } from "@/ecs/world";
+import { abilityById } from "@/data/abilities";
+import { type Entity, type MoveOrder, SLOTS } from "@/ecs/world";
 import type { InputFrame } from "@/input/actions";
 import { navGraphOf } from "@/nav/graph";
 import { findPath } from "@/nav/path";
 import { movementStats } from "@/systems/movementStats";
 
+/** A chase repaths once its target is this far (m) from where the path ends. */
+const CHASE_REPATH = 0.25;
+
 /**
- * Turns input into the player's desired velocity for `locomotion`:
+ * Turns input into the player's desired velocity for `locomotion`, and its auto attack target and
+ * ability presses for `casting`:
  * - WASD asks for `move · speed` and drops any click-to-move order.
  * - A move command (right-click) paths around obstacles to the cursor. Holding the button steers: it
  *   repaths whenever the cursor moves (a query is well under a millisecond).
  * - Following an order runs at full speed through the corners and brakes on the last leg just in
  *   time (`√(2·decel·distance)`) to land on the goal, where it stops dead.
- * - `stop` drops the order, so the player brakes.
+ * - `stop` drops the order and the attack target, so the player brakes.
+ * - The auto attack (`primary`) attacks the enemy you click (`input.hover`, picked on screen), and
+ *   keeps attacking it until another order (abilities don't count):
+ *   - WASD: holding the button over an enemy makes it the target, so A + click moves left and
+ *     attacks whatever's under the cursor whenever the attack is ready and it's in range. Moving
+ *     or clicking off any enemy drops the target. An enemy out of range waits until you walk up.
+ *   - moba: a right-click on an enemy is an attack order (the cat chases it into range), on the
+ *     ground a move order. Holding the button is the same as clicking again every tick.
+ * - Ability keys queue a cast at the cursor (`caster.queued`), for `casting` to start when it can.
  */
 export function playerControlSystem(
   world: World<Entity>,
@@ -30,11 +44,38 @@ export function playerControlSystem(
     const position = transform.position;
     const command = input.moveCommand;
 
-    if (input.pressed.has("stop")) player.order = null;
+    const caster = entity.caster;
+    const hovered = caster ? enemyOf(world, entity, input.hover) : undefined;
+
+    if (input.pressed.has("stop")) {
+      player.order = null;
+      player.chase = false;
+      if (caster) caster.target = null;
+    }
     const moving = input.move.x !== 0 || input.move.z !== 0;
+    if (caster) {
+      if (moving || (input.pressed.has("primary") && !hovered)) {
+        caster.target = null;
+        player.chase = false;
+      }
+      if (input.held.has("primary") && hovered) {
+        caster.target = hovered.uid;
+        player.chase = command !== null;
+      }
+      for (const slot of SLOTS) {
+        if (slot === "primary" || !input.pressed.has(slot) || !caster.slots[slot]) continue;
+        caster.queued = { slot, age: 0, point: { ...input.aim }, target: input.hover };
+      }
+    }
     if (moving) {
       player.order = null;
+    } else if (command && hovered && caster) {
+      // An attack order: the chase below walks it into range.
+      caster.target = hovered.uid;
+      player.chase = true;
     } else if (command) {
+      if (caster) caster.target = null;
+      player.chase = false;
       const fresh = player.click === null;
       if (fresh) player.orders++;
       const last = player.click;
@@ -43,6 +84,7 @@ export function playerControlSystem(
       }
     }
     player.click = command ? { x: command.x, z: command.z } : null;
+    chase(world, entity, stats.radius);
 
     mover.desired.x = moving ? input.move.x * stats.speed : 0;
     mover.desired.z = moving ? input.move.z * stats.speed : 0;
@@ -84,6 +126,42 @@ export function playerControlSystem(
       debugDraw.circle(current.goal, 0.2, { color: "magenta", category: "path" });
     }
   }
+}
+
+/**
+ * moba's attack order: while the target is out of the auto attack's range, walk a path to it
+ * (repathing as it moves); once in range, stop and let `casting` attack.
+ */
+function chase(world: World<Entity>, entity: Entity, radius: number): void {
+  const { player, caster, transform } = entity;
+  if (!player?.chase || !caster || !transform) return;
+  const target = enemyOf(world, entity, caster.target);
+  const range = primaryRange(entity);
+  if (!target || range === null) {
+    player.chase = false;
+    return;
+  }
+  if (inRange(entity, target, range)) {
+    player.order = null;
+    return;
+  }
+  const at = target.transform.position;
+  const goal = player.order?.goal;
+  if (!goal || distance(goal, at) > CHASE_REPATH) {
+    player.order = order(world, radius, transform.position, { x: at.x, z: at.z });
+  }
+  if (debugDraw.enabled) drawChase(transform.position, target);
+}
+
+/** The range of the auto attack in the primary slot, if it's a targeted one. */
+function primaryRange(entity: Entity): number | null {
+  const slot = entity.caster?.slots.primary;
+  const def = slot && abilityById(slot.ability);
+  return def?.aim === "target" ? def.stats(entity).range : null;
+}
+
+function drawChase(from: Vec2, target: Targetable): void {
+  debugDraw.line(from, target.transform.position, { color: "red", category: "path" });
 }
 
 /** The order for a move command to `click`: the path there (or as close as it gets). */

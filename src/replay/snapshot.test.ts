@@ -32,7 +32,7 @@ describe("snapshotWorld / restoreSnapshot", () => {
   it("restores an identical world and RNG", () => {
     const world = createWorld();
     const rng = createRng(4);
-    world.add({ player: { order: null, orders: 0, click: { x: -0, z: 2 } } });
+    world.add({ player: { order: null, orders: 0, click: { x: -0, z: 2 }, chase: false } });
     world.add({
       transform: { position: { x: 1, y: 2, z: 3 }, rotation: { x: 0, y: 0.5, z: 0 } },
     });

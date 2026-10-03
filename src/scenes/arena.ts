@@ -1,11 +1,14 @@
 import type { World } from "miniplex";
+import { CAT_SLOTS } from "@/data/abilities";
 import { DUMMY_HURTBOX, type DummySpawn } from "@/data/dummies";
 import { greyboxRoom } from "@/data/rooms/greybox";
 import { gymRoom } from "@/data/rooms/gym";
 import type { Room } from "@/data/rooms/room";
 import { yardRoom } from "@/data/rooms/yard";
-import { cloneTransform, type Entity } from "@/ecs/world";
+import { addWithUid } from "@/ecs/uid";
+import { type Caster, cloneTransform, type Entity } from "@/ecs/world";
 import type { SceneSim } from "@/scenes/sim";
+import { castingSystem } from "@/systems/casting";
 import { DUMMY, dummySystem } from "@/systems/dummy";
 import { locomotionSystem } from "@/systems/locomotion";
 import { patrolSystem } from "@/systems/patrol";
@@ -27,6 +30,9 @@ export function roomSim(id: string, label: string, room: Room): SceneSim {
             { name: "dummy", run: dummySystem },
           ]
         : []),
+      // After every controller (they set targets and desired velocities), before locomotion (a
+      // cast roots and turns its caster).
+      { name: "casting", run: castingSystem },
       { name: "locomotion", run: locomotionSystem },
     ],
     spawn(world) {
@@ -56,13 +62,24 @@ export function spawnRoom(world: World<Entity>, room: Room): void {
     position: { x: room.spawn.x, y: 0, z: room.spawn.z },
     rotation: { x: 0, y: 0, z: 0 },
   };
-  world.add({
+  addWithUid(world, {
     transform,
     prevTransform: cloneTransform(transform),
     mover: { velocity: { x: 0, z: 0 }, desired: { x: 0, z: 0 }, turnSide: 1 },
-    player: { order: null, orders: 0, click: null },
+    player: { order: null, orders: 0, click: null, chase: false },
     solid: true,
+    faction: "player",
+    caster: catCaster(),
   });
+}
+
+/** The Cat's abilities, all ready. */
+function catCaster(): Caster {
+  const slots: Caster["slots"] = {};
+  for (const [slot, ability] of Object.entries(CAT_SLOTS) as [keyof Caster["slots"], string][]) {
+    slots[slot] = { ability, cooldown: 0 };
+  }
+  return { slots, cast: null, target: null, queued: null, casts: 0 };
 }
 
 /** A training dummy at full health, solid like every body. */
@@ -78,10 +95,11 @@ function spawnDummy(world: World<Entity>, spawn: DummySpawn): void {
     hurtbox: { ...DUMMY_HURTBOX },
     dummy: { kind: spawn.kind, sinceHit: 0, lastHealth: max },
     solid: true,
+    faction: "enemy",
   };
   if (spawn.kind === "patrol") {
     dummy.mover = { velocity: { x: 0, z: 0 }, desired: { x: 0, z: 0 }, turnSide: 1 };
     dummy.patrol = { a: { ...spawn.a }, b: { ...spawn.b }, towardB: true, wait: 0 };
   }
-  world.add(dummy);
+  addWithUid(world, dummy);
 }
