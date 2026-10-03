@@ -138,7 +138,9 @@ function compress(src: string): void {
   renameSync(tmp, out);
   poster(out, jpg);
 
-  run("git", ["rm", "--cached", "--quiet", "--ignore-unmatch", "--", src]);
+  // The source leaves the index (forced: it may be staged with content the commit never had).
+  // An .mp4 source is replaced in place by its compressed self, so there's nothing to remove.
+  if (src !== out) run("git", ["rm", "--cached", "-f", "--quiet", "--ignore-unmatch", "--", src]);
   run("git", ["add", "--", out, jpg]);
 
   console.log(

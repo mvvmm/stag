@@ -37,6 +37,7 @@ export function createInputState(initialPreset: PresetId) {
   /** The pointer-move control went down since the last tick (so a click shorter than a tick still moves). */
   let moveClicked = false;
   let aim: Vec2 = { x: 0, z: 0 };
+  let hover: number | null = null;
   /** Who borrowed the mouse (debug free camera, entity picker). While any has, buttons are ignored. */
   const mouseBorrowers = new Set<string>();
 
@@ -171,6 +172,16 @@ export function createInputState(initialPreset: PresetId) {
       return aim;
     },
 
+    /** The body under the cursor (its `uid`), or null. */
+    get hover(): number | null {
+      return hover;
+    },
+
+    /** The body under the cursor (its `uid`), or null; set by the shell's screen pick each frame. */
+    setHover(uid: number | null): void {
+      hover = uid;
+    },
+
     /** Latest cursor position on the ground, set by the renderer each frame. */
     setAim(point: Vec2): void {
       aim = { x: point.x, z: point.z };
@@ -188,6 +199,7 @@ export function createInputState(initialPreset: PresetId) {
         move: { x: quantizeDown(move.x), z: quantizeDown(move.z) },
         moveCommand: moveCommand(),
         aim: { x: quantize(aim.x), z: quantize(aim.z) },
+        hover,
         held: new Set(held),
         pressed: new Set(tickLatch.pressed),
         released: new Set(tickLatch.released),

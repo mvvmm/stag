@@ -76,6 +76,9 @@ const AIM = 8;
 const HELD = 16;
 const PRESSED = 32;
 const RELEASED = 64;
+/** Added in 2.2; older files never set it, so their hover stays null. */
+const HOVER = 128;
+const HOVER_NONE = 256;
 
 type Packed = {
   moveX: number;
@@ -87,6 +90,8 @@ type Packed = {
   held: number;
   pressed: number;
   released: number;
+  /** The hovered body's uid, or null. */
+  hover: number | null;
 };
 
 const EMPTY: Packed = {
@@ -98,6 +103,7 @@ const EMPTY: Packed = {
   held: 0,
   pressed: 0,
   released: 0,
+  hover: null,
 };
 
 const ACTION_BIT = new Map<Action, number>(ACTIONS.map((action, i) => [action, 1 << i]));
@@ -119,6 +125,7 @@ const pack = (frame: InputFrame): Packed => ({
   held: toMask(frame.held),
   pressed: toMask(frame.pressed),
   released: toMask(frame.released),
+  hover: frame.hover,
 });
 
 /** Appends one tick's input at a time to a delta-encoded list. */
@@ -166,6 +173,14 @@ export function createInputEncoder() {
       if (next.released !== last.released) {
         mask |= RELEASED;
         fields.push(next.released);
+      }
+      if (next.hover !== last.hover) {
+        if (next.hover === null) {
+          mask |= HOVER_NONE;
+        } else {
+          mask |= HOVER;
+          fields.push(next.hover);
+        }
       }
       if (mask) {
         data.push(ticks - lastRecordTick, mask, ...fields);
@@ -227,6 +242,8 @@ export function createInputDecoder(data: readonly number[], actions: readonly st
         if (mask & HELD) next.held = read();
         if (mask & PRESSED) next.pressed = read();
         if (mask & RELEASED) next.released = read();
+        if (mask & HOVER) next.hover = read();
+        if (mask & HOVER_NONE) next.hover = null;
         state = next;
         const delta = data[cursor];
         nextRecordTick = delta === undefined ? Number.POSITIVE_INFINITY : tick + delta;
@@ -238,6 +255,7 @@ export function createInputDecoder(data: readonly number[], actions: readonly st
           ? { x: fromQuantUnits(state.command[0]), z: fromQuantUnits(state.command[1]) }
           : null,
         aim: { x: fromQuantUnits(state.aimX), z: fromQuantUnits(state.aimZ) },
+        hover: state.hover,
         held: toSet(state.held),
         pressed: toSet(state.pressed),
         released: toSet(state.released),

@@ -20,4 +20,13 @@ export const simCommands: Record<string, SimCommand> = {
       else world.addComponent(player, "noclip", true);
     },
   },
+  "cheats.noCooldowns": {
+    label: "No cooldowns",
+    run(world) {
+      const player = world.with("player").first;
+      if (!player) return;
+      if (player.noCooldowns) world.removeComponent(player, "noCooldowns");
+      else world.addComponent(player, "noCooldowns", true);
+    },
+  },
 };

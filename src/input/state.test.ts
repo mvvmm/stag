@@ -12,7 +12,7 @@ describe("createInputState: actions", () => {
     const input = createInputState("mmo");
 
     input.controlDown("Digit1");
-    input.controlDown("Mouse2");
+    input.controlDown("Mouse0");
     let frame = input.sampleTick(0);
     expect([...frame.pressed]).toEqual(["ability1", "primary"]);
     expect([...frame.held]).toEqual(["ability1", "primary"]);
@@ -220,12 +220,12 @@ describe("createInputState: click to move", () => {
 describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
   it("releases held buttons with edges and ignores new presses, but keeps keys", () => {
     const input = createInputState("mmo");
-    input.controlDown("Mouse2");
+    input.controlDown("Mouse0");
     input.controlDown("Digit1");
     input.sampleTick(0);
 
     input.borrowMouse("freeCamera", true);
-    input.controlDown("Mouse0");
+    input.controlDown("Mouse2");
     input.controlDown("Space");
     const frame = input.sampleTick(0);
     expect([...frame.released]).toEqual(["primary"]);
@@ -252,13 +252,13 @@ describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
     input.borrowMouse("picker", true);
     input.borrowMouse("freeCamera", false);
     expect(input.mouseButtons).toBe(false);
-    input.controlDown("Mouse2");
+    input.controlDown("Mouse0");
     expect(input.sampleTick(0).pressed.size).toBe(0);
 
     input.borrowMouse("picker", false);
     expect(input.mouseButtons).toBe(true);
-    input.controlUp("Mouse2");
-    input.controlDown("Mouse2");
+    input.controlUp("Mouse0");
+    input.controlDown("Mouse0");
     expect([...input.sampleTick(0).pressed]).toEqual(["primary"]);
   });
 });

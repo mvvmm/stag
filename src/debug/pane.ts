@@ -369,8 +369,15 @@ export function createPane(tools: DevTools) {
     set noclip(on: boolean) {
       if (on !== cheats.noclip) tools.commands.run("cheats.noclip");
     },
+    get noCooldowns() {
+      return !!shell.world.with("player").first?.noCooldowns;
+    },
+    set noCooldowns(on: boolean) {
+      if (on !== cheats.noCooldowns) tools.commands.run("cheats.noCooldowns");
+    },
   };
   gameplayFolder.addBinding(cheats, "noclip");
+  gameplayFolder.addBinding(cheats, "noCooldowns", { label: "no cooldowns" });
   // The player's speed over the last few seconds, to see the accel/decel ramps while tuning.
   const playerSpeed = {
     get speed() {

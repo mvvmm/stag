@@ -24,6 +24,9 @@ const script: InputFrame[] = [
   frame({ moveCommand: { x: 2, z: 4 }, aim: { x: 2, z: 4 } }),
   frame({ moveCommand: { x: 2, z: 4 }, aim: { x: 2, z: 4 } }),
   frame({ released: set("dodge"), aim: { x: 2, z: 4 } }),
+  frame({ hover: 3, held: set("primary") }),
+  frame({ hover: 3, held: set("primary") }),
+  frame({ hover: 0 }),
   frame(),
 ];
 

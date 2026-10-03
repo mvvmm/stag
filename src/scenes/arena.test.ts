@@ -27,7 +27,13 @@ describe("arena spawn", () => {
     expect(players).toHaveLength(1);
     expect(players[0]?.transform.position).toEqual({ ...greyboxRoom.spawn, y: 0 });
     expect(players[0]?.mover.velocity).toEqual({ x: 0, z: 0 });
-    expect(players[0]?.player).toEqual({ order: null, orders: 0, click: null });
+    expect(players[0]?.player).toEqual({
+      order: null,
+      orders: 0,
+      click: null,
+      chase: false,
+      attackMove: null,
+    });
   });
 
   it("spawns the same world regardless of the seed", () => {

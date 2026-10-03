@@ -6,7 +6,7 @@
 
 - **Small, playable increments.** Every step should end with something runnable we can try out and tune.
 - **Go deep before wide.** Prove the full run loop with **Cat** alone, then add the other forms.
-- **Grey-box first, atmosphere early.** Use fog, lighting and post-processing from the start. Real models come in a dedicated art pass once the loop works.
+- **Grey-box first, atmosphere early.** Use fog, lighting and post-processing from the start. Real models come in a dedicated art pass once the loop works: entirely custom models and animations, nothing from asset packs in the shipped game.
 - **Handmade before procedural.** Hand-build rooms first to learn what makes a good arena, then encode those lessons in the generator.
 - **Data-driven content.** Abilities, augments, enemies and rooms are defined as data, so adding content doesn't require new systems.
 - **Milestones are playtest gates.** Deploy and play at every ✅ milestone before moving on.
@@ -20,7 +20,7 @@
 | Platform | Desktop only, keyboard + mouse; current browsers with WebGPU (other devices and older browsers get an Unsupported screen) |
 | UI | Hybrid: in-world UI (health bars, telegraphs, damage numbers) in Babylon; screen UI (HUD, menus, reward picks) as a light HTML overlay |
 | Rooms | Hand-built in code/data first, procedural generation later |
-| Art | Stylized asset packs (glTF) + our own lighting/post-processing; grey-box until the art pass |
+| Art | **Everything custom** (decided 2026-10-03): our own models and full hand-made animations for every character, enemy and environment piece, made in Blender (or whatever fits) and exported as glTF, plus our own lighting/post-processing. Until the art pass: grey-box and placeholder pack models (credited in CREDITS.md), which all get replaced |
 | Hosting | Cloudflare Workers (static assets, `cloudflare.config.ts`, deployed with the `cf` CLI) via Workers Builds: `main` → production, PR branches → Worker Previews (public repo `mvvmm/stag`, required CI checks); R2 for large assets; D1 for server data; Astro if we need a marketing site |
 | Saves | localStorage first (versioned); optional D1 cloud sync later (anonymous ID, no logins) |
 
@@ -52,12 +52,12 @@
 ## Phase 2: Abilities & Combat Core
 
 - [x] **2.1 Health, damage & test dummies:** health, hit shapes (circle/cone/line), damage events; a Training yard with a static and a patrolling dummy (no AI) that refill instead of dying, so abilities have something to hit. → [plan](plans/2.1-health-and-dummies.md)
-- [ ] **2.2 Ability framework + Cat basic attack:** slots, cooldowns, cast states (instant/windup/channel), aiming, data-driven definitions, built so enemies can cast through it later (3.1); proven by the Cat's basic attack (a melee swipe on right mouse) damaging the Training yard dummies.
+- [x] **2.2 Ability framework + Cat basic attack:** slots, cooldowns, cast states (instant/windup/channel), aiming, data-driven definitions, built so enemies can cast through it later (3.1); proven by the Cat's auto attack (single target: left click in WASD, right-click a target in MOBA) damaging the Training yard dummies. → [plan](plans/2.2-ability-framework.md)
 - [ ] **2.3 Keybinds & dodge decision:** final ability keys; decide whether dodge is universal or form-specific.
 - [ ] **2.4 First mobility ability:** Cat pounce/dash (movement override, collision, cooldown).
 - [ ] **2.5 First Cat damage ability.**
 - [ ] **2.6 HUD v1:** health bar, ability bar with cooldowns (HTML overlay).
-- [ ] **2.7 Combat juice:** hit flash, hitstop, screen shake, knockback, damage numbers.
+- [ ] **2.7 Combat juice:** hitstop, screen shake, knockback, a pass over the rest (hit flash, a small recoil, impact sparks and damage numbers at the impact came early, in 2.2).
 
 ## Phase 3: First Enemy (Vertical Slice)
 
@@ -117,9 +117,11 @@
 
 ## Phase 9: Art & Audio Pass (Biome 1)
 
+Everything is custom: our own models and full hand-made animations (Blender or whatever fits, exported as glTF) for every character, enemy and environment piece, replacing every placeholder. The steps below will likely split further when we get here (e.g. one step per character).
+
 - [ ] **9.1 Asset pipeline:** glTF loading, asset manifest, preloading/loading screen, R2 for large assets.
-- [ ] **9.2 Biome 1 environment kit** (cursed forest), integrated with the generator.
-- [ ] **9.3 Druid, Cat, and enemy models + animations.**
+- [ ] **9.2 Biome 1 environment kit** (cursed forest), custom-made, integrated with the generator.
+- [ ] **9.3 Druid, Cat, and enemy models + animations:** custom models with full hand-made animation sets (locomotion, idles, attacks, abilities, hits, deaths), replacing the placeholder tiger and dummies. The procedural animation code written for the tiger (`render/tiger.ts`) gets retired or cut down to touch-up layers (breathing, head look, tail life). The Cat's auto attack reference is in the [2.2 plan](plans/2.2-ability-framework.md): Nidalee's frame-by-frame breakdown, and the timing contract (the paw lands on the damage tick at the end of the windup, which scales with attack speed).
 - [ ] **9.4 VFX language:** telegraphs, abilities, hits, deaths.
 - [ ] **9.5 Audio:** SFX, ambience, music, audio system.
 - [ ] **9.6 Performance pass:** profiling, instancing, shadow/draw-call budgets.

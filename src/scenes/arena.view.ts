@@ -10,6 +10,7 @@ import {
 import { footprintCircles, halfSpine } from "@/collision/body";
 import { debugDraw } from "@/core/debugDraw";
 import type { Vec2 } from "@/core/math";
+import { abilityById } from "@/data/abilities";
 import {
   boxCorners,
   type ObstacleShape,
@@ -19,11 +20,12 @@ import {
 import type { Entity } from "@/ecs/world";
 import { type NavGraph, navGraphOf } from "@/nav/graph";
 import { bodyView } from "@/render/bodyView";
-import { createClickMarker } from "@/render/clickMarker";
+import { ATTACK_MARKER, createClickMarker } from "@/render/clickMarker";
 import { createDummyViews } from "@/render/dummies";
 import { createFloorMaterial } from "@/render/floorMaterial";
 import { greyboxMaterial } from "@/render/materials";
 import { createOcclusionFader } from "@/render/occlusion";
+import { createRangeRing } from "@/render/rangeRing";
 import { createTiger } from "@/render/tiger";
 import { arenaSim, gymSim, yardSim } from "@/scenes/arena";
 import type { SceneContext, SceneDef } from "@/scenes/scene";
@@ -151,6 +153,33 @@ function setup(ctx: SceneContext): void {
   const fader = createOcclusionFader(scene, ctx.camera, obstacleMeshes, focus);
   const marker = createClickMarker(ctx.overlay);
   ctx.onDispose(() => marker.dispose());
+  // An attack move's marker is red, with a chevron pointing at the enemy it picked (if it did).
+  const attackMarker = createClickMarker(ctx.overlay, ATTACK_MARKER);
+  ctx.onDispose(() => attackMarker.dispose());
+  // The left click that places an armed attack move (seen from the tick it lands on).
+  let armed = !!player.player.attackMove?.armed;
+  ctx.onTick((input) => {
+    if (armed && input.pressed.has("confirm")) {
+      const uid = player.caster?.target ?? null;
+      const target =
+        uid === null ? null : world.with("uid", "transform").entities.find((e) => e.uid === uid);
+      const mesh = target ? ctx.meshOf(target) : undefined;
+      attackMarker.show(
+        input.aim,
+        target ? () => mesh?.position ?? target.transform.position : null,
+      );
+    }
+    armed = !!player.player.attackMove?.armed;
+  });
+  // While an attack move is armed (S, until the left click places it): the auto attack's
+  // reach, from the body's movement circle like the range itself.
+  const reach = createRangeRing(ctx.overlay);
+  ctx.onDispose(() => reach.dispose());
+  const reachRadius = () => {
+    const slot = player.caster?.slots.primary;
+    const def = slot && abilityById(slot.ability);
+    return PLAYER.radius + (def ? def.stats(player).range : 0);
+  };
   let orders = player.player.orders;
   ctx.onBeforeRender(() => {
     showBody();
@@ -163,6 +192,8 @@ function setup(ctx: SceneContext): void {
       marker.show(player.player.order?.goal ?? player.transform.position);
     }
     marker.update(seconds);
+    attackMarker.update(seconds);
+    reach.show(player.player.attackMove?.armed ? playerMesh.position : null, reachRadius());
   });
 
   ctx.onFrame(() => {
