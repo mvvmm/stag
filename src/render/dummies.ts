@@ -54,11 +54,6 @@ const NUMBER_SPREAD = [0, 0.22, -0.18, 0.12, -0.26, 0.05];
  * tall as the dummy plus `PICK_TOP`, so a click anywhere on (or just next to) the body counts. */
 const PICK_PAD = 0.15;
 const PICK_TOP = 0.3;
-/** The ring under the auto attack's target: how far out from the hurtbox (m), its thickness (m) and
- * color (sRGB). */
-const TARGET_PAD = 0.12;
-const TARGET_THICKNESS = 0.05;
-const TARGET_COLOR = Color3.FromHexString("#c8402e");
 
 /** The grey-box stand-in. */
 const STAND_IN_COLOR = new Color3(0.42, 0.47, 0.4);
@@ -75,8 +70,7 @@ const LEAN = 0.12;
 
 type DummyEntity = Entity & Required<Pick<Entity, "dummy" | "health" | "transform">>;
 
-/** The body under the cursor (`input.hover`) glows; the player's auto attack target gets a
- * ring. */
+/** The body under the cursor (`input.hover`) glows. */
 
 /**
  * Builds the dummies' bodies (each bound to its entity), their bars and their damage numbers.
@@ -95,8 +89,6 @@ export function createDummyViews(ctx: SceneContext): Mesh[] {
 
   const bars = dummies.map((entity) => healthBar(ctx, overlay, entity));
   const numbers = damageNumbers(ctx, overlay);
-  const ring = targetRing(ctx, overlay);
-  const player = world.with("player", "caster").first;
 
   ctx.onTick(() => {
     const now = ctx.viewTime();
@@ -115,10 +107,6 @@ export function createDummyViews(ctx: SceneContext): Mesh[] {
     });
     for (const bar of bars) bar.update(time);
     numbers.update(time);
-    const target = player?.caster.target ?? null;
-    const index = target === null ? -1 : dummies.findIndex((entity) => entity.uid === target);
-    const targeted = bodies[index];
-    ring.show(targeted ? targeted.root.position : null, dummies[index]);
   });
 
   ctx.onFrame(() => {
@@ -214,34 +202,6 @@ function dummyBody(ctx: SceneContext, entity: DummyEntity, index: number) {
       const speed = v ? Math.hypot(v.x, v.z) : 0;
       float.rotation.x = patrols ? LEAN * Math.min(1, speed / 2) : 0;
       float.rotation.z = 0.03 * bob;
-    },
-  };
-}
-
-/** A thin ring on the ground round the auto attack's target, in the overlay scene. */
-function targetRing(ctx: SceneContext, overlay: Scene) {
-  const radius = DUMMY_HURTBOX.radius + TARGET_PAD;
-  const ring = ctx.own(
-    MeshBuilder.CreateTorus(
-      "targetRing",
-      { diameter: radius * 2, thickness: TARGET_THICKNESS, tessellation: 48 },
-      overlay,
-    ),
-  );
-  ring.isPickable = false;
-  const material = ctx.own(new StandardMaterial("targetRing", overlay));
-  material.disableLighting = true;
-  material.emissiveColor = TARGET_COLOR.toLinearSpace();
-  ring.material = material;
-  ring.setEnabled(false);
-  return {
-    /** Puts the ring under `at` (sized for `entity`'s hurtbox), or hides it (null). */
-    show(at: { x: number; z: number } | null, entity?: Entity) {
-      ring.setEnabled(at !== null);
-      if (!at) return;
-      ring.position.set(at.x, 0.04, at.z);
-      const hurtbox = entity?.hurtbox?.radius ?? DUMMY_HURTBOX.radius;
-      ring.scaling.setAll((hurtbox + TARGET_PAD) / radius);
     },
   };
 }

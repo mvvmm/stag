@@ -29,11 +29,11 @@ Small in scope, deep in replayability: we get longevity from a tight core loop t
 ## 4. Camera & Controls
 
 - **Camera:** angled top-down / isometric-style 3D view (Hades / V Rising-like). Chosen for threat readability (telegraphs, enemies, and terrain visible at once) and for achievable visual quality.
-- **Movement:** two schemes, both kept as a player setting (decided at the 1.7 movement feel gate). **WASD is the default**; every ability and enemy has to work with both.
-  - **MMO preset:** **WASD** direct control of the character (WoW-style "I'm steering my body" feel). Abilities on `1`/`2`/`3` + `4` (ultimate), left mouse = auto attack (click an enemy; hold to attack whatever's under the cursor while moving), interact on `F` until 2.3.
-  - **MOBA preset:** League-style **right-click to move** (hold to steer; right-click on an enemy attacks), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `A` = stop, `S` = attack move (League's A and S, swapped on purpose: arm it (a range circle shows the auto attack's reach until you click), then left-click to go for the enemy nearest the click, or walk there and attack the first enemy on the way). League's camera too: the cursor is locked inside the window, the camera is free and pans at the screen edges, and `Space` centers it on the character (held: follows). Dodge is provisionally `F` here.
-  - The pause menu (`Esc`) picks the scheme, and `M` switches anytime. The setting moves into the 6.1 pause menu and the 16.1 settings.
-- **Aiming:** mouse aims abilities (cursor projected onto the ground) in both schemes.
+- **Movement:** **right-click to move** (League-style) is the scheme. 1.7 kept two schemes as a player setting with WASD the default; in 2.2 we dropped WASD for players ("right click is the correct movement scheme for us"). Its code stays, reachable from the debug pane, in case it comes back, but new features don't consider it.
+  - **MMO preset (dormant since 2.2):** **WASD** direct control of the character (WoW-style "I'm steering my body" feel). Abilities on `1`/`2`/`3` + `4` (ultimate), left mouse = auto attack (click an enemy; hold to attack whatever's under the cursor while moving), interact on `F` until 2.3.
+  - **MOBA preset (the scheme):** League-style **right-click to move** (hold to steer; right-click on an enemy attacks; a move order during the auto attack's short windup cancels it, like League), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `A` = stop, `S` = attack move (League's A and S, swapped on purpose: arm it (a range circle shows the auto attack's reach until you click), then left-click to go for the enemy nearest the click, or walk there and attack the first enemy on the way). League's camera too: the cursor is locked inside the window, the camera is free and pans at the screen edges, and `Space` centers it on the character (held: follows). Dodge is provisionally `F` here.
+  - There's no scheme to pick in the pause menu any more, and `M` no longer switches.
+- **Aiming:** mouse aims abilities (cursor projected onto the ground).
 - **Abilities:** 3 basics + 1 ultimate; keys per preset above. Bindings are data, and remapping comes in 16.1.
 
 > Open: final keybinds (2.3); whether dodge (provisionally `Space`) is universal or form-specific; controller support.

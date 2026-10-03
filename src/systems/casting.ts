@@ -15,6 +15,8 @@ type CasterEntity = Entity & { caster: Caster };
  * Runs every caster's abilities (the player now, enemies in 3.1), after its controller has set
  * `caster.target` and `caster.queued` and before locomotion moves it:
  * - cooldowns count down, and a buffered press expires after `abilities.buffer` seconds
+ * - an auto attack still winding up is called off (cooldown refunded) if the target was dropped or
+ *   switched (a move order, stop, another target)
  * - a running cast advances: the windup, then the effects (once, or every pulse of a channel)
  * - with no cast running, a buffered press starts once its slot is ready and its aim is valid;
  *   otherwise the auto attack (the primary slot) starts on `caster.target` whenever it's ready and
@@ -35,7 +37,8 @@ export function castingSystem(world: World<Entity>, dt: number): void {
     if (caster.target !== null && !enemyOf(world, entity, caster.target)) caster.target = null;
 
     if (caster.cast) {
-      cancelIfMoving(entity);
+      interruptIfRetargeted(entity);
+      if (caster.cast) cancelIfMoving(entity);
       if (caster.cast) advance(world, entity, dt);
     }
     if (!caster.cast) tryStart(world, entity);
@@ -151,6 +154,20 @@ function advance(world: World<Entity>, entity: CasterEntity, dt: number): void {
     cast.pulses++;
   }
   if (cast.elapsed + EPSILON >= channel.duration) caster.cast = null;
+}
+
+/**
+ * An interruptible auto attack still winding up is called off when its controller has dropped or
+ * switched the target since it started; the slot is ready again at once (League's attack cancel).
+ */
+function interruptIfRetargeted(entity: CasterEntity): void {
+  const { caster } = entity;
+  const cast = caster.cast;
+  if (cast?.phase !== "windup" || cast.slot !== "primary") return;
+  if (caster.target === cast.aim.target || !abilityById(cast.ability)?.interruptible) return;
+  caster.cast = null;
+  const slot = caster.slots.primary;
+  if (slot) slot.cooldown = 0;
 }
 
 /** A channel that moving cancels ends when its caster's controller asks to move. */

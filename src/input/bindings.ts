@@ -49,7 +49,6 @@ export const MMO_PRESET: Preset = {
     // Left click is the auto attack; interact waits on F until 2.3 settles the keys.
     interact: ["KeyF"],
     pause: ["Escape"],
-    switchControls: ["KeyM"],
   },
 };
 
@@ -72,13 +71,13 @@ export const MOBA_PRESET: Preset = {
     attackMove: ["KeyS"],
     confirm: ["Mouse0"],
     pause: ["Escape"],
-    switchControls: ["KeyM"],
     centerCamera: ["Space"],
   },
 };
 
 export const PRESETS: Record<PresetId, Preset> = { mmo: MMO_PRESET, moba: MOBA_PRESET };
-export const DEFAULT_PRESET: PresetId = "mmo";
+/** Right-click is the only player-facing scheme since 2.2 (WASD stays for the debug pane). */
+export const DEFAULT_PRESET: PresetId = "moba";
 
 export function isPresetId(value: unknown): value is PresetId {
   return typeof value === "string" && value in PRESETS;

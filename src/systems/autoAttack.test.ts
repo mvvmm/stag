@@ -159,6 +159,29 @@ describe("auto attack, moba", () => {
     expect(total[patrol.uid]).toBeGreaterThanOrEqual(CAT_AA.damage * 5);
   });
 
+  it("a move order during the windup cancels the attack, and it moves at once", () => {
+    const { player, fixed, total, tick, ticks, place } = setup();
+    place(0, 2.4);
+    tick(command(fixed.uid, { x: 0, z: 3.5 }));
+    ticks(5);
+    expect(player.caster.cast?.phase).toBe("windup");
+    tick(command(null, { x: 0, z: -2 }));
+    expect(player.caster.cast).toBeNull();
+    expect(player.caster.slots.primary?.cooldown).toBe(0);
+    expect(player.mover.velocity.z).toBeLessThan(0);
+    ticks(120);
+    expect(total[fixed.uid]).toBe(0);
+  });
+
+  it("re-clicking the same target during the windup doesn't cancel it", () => {
+    const { player, fixed, total, tick, ticks, place } = setup();
+    place(0, 2.4);
+    for (let i = 0; i < 30; i++) tick(command(fixed.uid, { x: 0, z: 3.5 }));
+    ticks(5);
+    expect(total[fixed.uid]).toBe(CAT_AA.damage);
+    expect(player.caster.casts).toBe(1);
+  });
+
   it("stop drops the attack order", () => {
     const { player, fixed, tick } = setup();
     tick(command(fixed.uid, { x: 0, z: 3.5 }));
@@ -221,7 +244,7 @@ describe("attack move, moba", () => {
   });
 
   it("goes for the first enemy only once one is within the acquire distance", () => {
-    const { player, fixed, tick, ticks } = setup();
+    const { player, fixed, tick } = setup();
     tuning.set("attackMove.radius", 0);
     tick(arm);
     tick(place({ x: 3, z: 4 }));

@@ -42,6 +42,7 @@ import {
   stepShuffle,
   stepSpring,
   strideMotion,
+  swipePhase,
 } from "@/render/locomotionAnim";
 import { instantiateModel, modelMaterials } from "@/render/models";
 import { addRimLight } from "@/render/rimMaterial";
@@ -176,18 +177,31 @@ export const ANIM = defineTunables("anim", {
 });
 
 /**
- * The auto attack (2.2), from the model's `attack` clip: it opens with both front paws raised and
- * slams them down by `impact` (s into the clip). During the windup the clip plays from `start` to
- * `impact`, sped up or slowed to fit, so the slam lands with the hit; it fades in over `fadeIn`
- * (s), then plays on for `follow` seconds after the hit while fading back out.
+ * The auto attack (2.2): a swipe with the right front paw, timed on the cast's windup so the paw
+ * meets the target when the hit lands: a hook that reads from the top-down camera. Over the first
+ * `cock` share of the windup the paw is drawn up and out to the side (`lift`, `out` degrees, the
+ * forearm folded back `curl`) as the body sits back (`windBack` m) and the shoulders wind toward it
+ * (`twist`); then it strikes, fastest at the hit: the leg reaches forward (`reach`) and sweeps
+ * across in front (`across`), the forearm snaps straight, the shoulders whip back, the body lunges
+ * (`lunge` m) and pitches into it (`pitch`), the head dips (`dip`). It eases back over `follow`
+ * seconds. A windup called off by a
+ * move order fades out over `fade` seconds from where it was.
  */
-export const ATTACK_ANIM = defineTunables("attackAnim", {
-  start: { value: 0, min: 0, max: 2, step: 0.01 },
-  impact: { value: 0.3, min: 0.05, max: 3, step: 0.01 },
-  fadeIn: { value: 0.07, min: 0, max: 0.5, step: 0.01 },
+export const SWIPE = defineTunables("swipe", {
+  cock: { value: 0.55, min: 0.05, max: 0.95, step: 0.01 },
+  lift: { value: 100, min: -90, max: 150, step: 1 },
+  out: { value: 70, min: -90, max: 90, step: 1 },
+  curl: { value: -80, min: -120, max: 120, step: 1 },
+  reach: { value: 80, min: -90, max: 150, step: 1 },
+  across: { value: 30, min: -90, max: 90, step: 1 },
+  windBack: { value: 0.08, min: 0, max: 0.5, step: 0.005 },
+  lunge: { value: 0.3, min: 0, max: 1, step: 0.01 },
+  pitch: { value: 8, min: -30, max: 30, step: 0.5 },
+  /** The shoulders wind toward the paw while it's cocked and whip back through the strike. */
+  twist: { value: 15, min: -45, max: 45, step: 0.5 },
+  dip: { value: 12, min: -40, max: 40, step: 0.5 },
   follow: { value: 0.3, min: 0, max: 1.5, step: 0.01 },
-  /** How much of the body the clip takes over at its peak (the rest stays the gait). */
-  weight: { value: 1, min: 0, max: 1, step: 0.05 },
+  fade: { value: 0.12, min: 0, max: 0.5, step: 0.01 },
 });
 
 /** The model faces −X in its file: this yaw turns it to face +Z (the sim's yaw 0). */
@@ -203,7 +217,6 @@ const GAIT_CLIPS = [
   { name: "run", offset: 0.077 },
 ] as const;
 const IDLE_CLIP = "idle";
-const ATTACK_CLIP = "attack";
 /** Longer than this between two frames (a replay seek), the springs snap instead of swinging. */
 const MAX_STEP = 0.25;
 
@@ -213,6 +226,8 @@ const BONES = {
   neck: "Bip01 Neck",
   head: "Bip01 Head",
   tail: ["Bip01 Tail", "Bip01 Tail1", "Bip01 Tail2", "Bip01 Tail3"],
+  /** The swiping leg. */
+  paw: ["Bip01 R Clavicle", "Bip01 R UpperArm", "Bip01 R Forearm"],
 } as const;
 /** How the head's turn is shared between the neck and the head, and the tail's between its bones. */
 const LOOK_SHARE = [0.45, 0.55];
@@ -246,9 +261,8 @@ const LEGS: Record<Leg, { top: string; foot: string }> = {
   lf: { top: "Bip01 L Clavicle", foot: "Bip01 L Finger0" },
   rf: { top: "Bip01 R Clavicle", foot: "Bip01 R Finger0" },
 };
-/** The run clip's index in blend order (the idle, walk, trot, run, attack). */
+/** The run clip's index in blend order (the idle, walk, trot, run). */
 const RUN = 3;
-const ATTACK = 4;
 
 export type TigerBody = {
   /** An empty mesh carrying the model: bind it to the player (mesh sync moves it). */
@@ -291,9 +305,14 @@ export function createTiger(scene: Scene): TigerBody | null {
   const neck = bone(BONES.neck);
   const head = bone(BONES.head);
   const tailBones = BONES.tail.map(bone);
+  const [shoulder, upperArm, forearm] = BONES.paw.map(bone) as [
+    TransformNode,
+    TransformNode,
+    TransformNode,
+  ];
 
-  // Clips in blend order: the idle, the gaits, then the attack (layered over them).
-  const clipNames = [IDLE_CLIP, ...GAIT_CLIPS.map((clip) => clip.name), ATTACK_CLIP];
+  // Clips in blend order: the idle, then the gaits.
+  const clipNames = [IDLE_CLIP, ...GAIT_CLIPS.map((clip) => clip.name)];
   const channels = collectChannels(entries, clipNames);
   const durations = clipNames.map((name) => {
     const group = entries.animationGroups.find((g) => g.name === name);
@@ -321,9 +340,7 @@ export function createTiger(scene: Scene): TigerBody | null {
    * auto attack being played: when its cast started and its windup, in that time. */
   let tickTime = 0;
   let casts: number | null = null;
-  let attack: { start: number; windup: number } | null = null;
-  /** The attack clip's time and weight this frame. */
-  let attackTime = 0;
+  let attack: { start: number; windup: number; cancelled: number | null } | null = null;
 
   // Per frame, on the view's time.
   let lastTime: number | null = null;
@@ -363,8 +380,6 @@ export function createTiger(scene: Scene): TigerBody | null {
     for (const spring of springs) {
       snapSpring(spring);
     }
-    // A seek: an attack that hasn't started yet, or long over, isn't shown.
-    attack = null;
     // The gaits jump straight to what they'd be showing.
     Object.assign(driver, createGaitDriver(GAIT_CLIPS.length));
     stepGaits(
@@ -420,7 +435,6 @@ export function createTiger(scene: Scene): TigerBody | null {
   /** A channel's time in clip `i` at the shared stride `phase`. */
   const timeOf = (channel: Channel, i: number, phase: number) => {
     if (i === 0) return 0;
-    if (i === ATTACK) return attackTime;
     const clip = GAIT_CLIPS[i - 1] as (typeof GAIT_CLIPS)[number];
     const shift = i === RUN && channel.leg ? legShift[channel.leg] : 0;
     return clipTime(phase + shift, clip.offset, durations[i] as number);
@@ -528,22 +542,6 @@ export function createTiger(scene: Scene): TigerBody | null {
     stopScores = scoreStops();
   };
 
-  /** The attack clip's weight at `viewTime` (and sets `attackTime`), 0 when none is playing. */
-  const attackPose = (viewTime: number): number => {
-    if (!attack) return 0;
-    const since = viewTime - attack.start;
-    const { start, impact, fadeIn, follow, weight } = ATTACK_ANIM;
-    const windup = Math.max(attack.windup, 1e-3);
-    if (since < 0 || since > windup + follow) return 0;
-    const span = Math.max(0, impact - start);
-    attackTime = since <= windup ? start + (span * since) / windup : impact + (since - windup);
-    attackTime = Math.min(attackTime, (durations[ATTACK] as number) - 1e-3);
-    const rise = fadeIn > 0 ? Math.min(1, since / fadeIn) : 1;
-    const fall = since <= windup || follow <= 0 ? 1 : 1 - (since - windup) / follow;
-    const smooth = (x: number) => x * x * (3 - 2 * x);
-    return weight * smooth(Math.min(rise, Math.max(0, fall)));
-  };
-
   const up = Vector3.Up();
   const side = new Vector3();
 
@@ -557,7 +555,15 @@ export function createTiger(scene: Scene): TigerBody | null {
       if (caster && casts !== null && caster.casts !== casts && caster.cast?.slot === "primary") {
         const def = abilityById(caster.cast.ability);
         const windup = def ? def.stats(player).windup : 0;
-        attack = { start: tickTime - caster.cast.elapsed, windup };
+        attack = { start: tickTime - caster.cast.elapsed, windup, cancelled: null };
+      } else if (
+        attack &&
+        attack.cancelled === null &&
+        caster?.cast?.slot !== "primary" &&
+        tickTime - attack.start < attack.windup - 1e-6
+      ) {
+        // Called off before the hit (a move order): it fades out from where it is.
+        attack.cancelled = tickTime;
       }
       casts = caster?.casts ?? null;
       const velocity = player.mover?.velocity;
@@ -626,11 +632,9 @@ export function createTiger(scene: Scene): TigerBody | null {
       breath = (breath + ANIM.breathRate * step) % 1;
       time += step;
       if (analysedBound !== ANIM.bound) analyse();
-      const attackWeight = attackPose(viewTime);
-      const weights = [...driver.weights.map((w) => w * (1 - attackWeight)), attackWeight];
-      applyPose(weights, phase);
+      applyPose(driver.weights, phase);
       // The gallop's own body motion, as much as the gallop shows.
-      const galloping = (driver.weights[RUN] as number) * (1 - attackWeight);
+      const galloping = driver.weights[RUN] as number;
       // Up from where the landings are, never below: the feet don't sink into the floor.
       const lowest = Math.min(...motion.lift);
       const lift = ((sampleLoop(motion.lift, phase) - lowest) / (1 - lowest || 1)) * galloping;
@@ -670,9 +674,29 @@ export function createTiger(scene: Scene): TigerBody | null {
         snapSpring(bend.hips);
       }
 
+      // The swipe: where it is, and how far the body sits back, lunges and pitches into it.
+      const swipe = attack
+        ? swipePhase(
+            viewTime - attack.start,
+            attack.windup,
+            SWIPE.follow,
+            SWIPE.cock,
+            attack.cancelled === null ? null : viewTime - attack.cancelled,
+            SWIPE.fade,
+          )
+        : null;
+      const swiping = swipe && swipe.weight > 0 ? swipe : null;
+      const strike = swiping ? swiping.strike * (1 - swiping.release) : 0;
+      const lunge = swiping
+        ? swiping.weight *
+          (-SWIPE.windBack * swiping.cock * (1 - swiping.strike) + SWIPE.lunge * strike)
+        : 0;
+      const swipePitch = swiping ? swiping.weight * SWIPE.pitch * strike * DEG : 0;
+
       body.position.y = pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip) * scale;
+      body.position.z = lunge * scale;
       body.rotation.set(
-        tilt.value + settle.value + (push * ANIM.pushOff - rock * ANIM.rock) * DEG,
+        swipePitch + tilt.value + settle.value + (push * ANIM.pushOff - rock * ANIM.rock) * DEG,
         bend.hips.value,
         -lean.value,
       );
@@ -701,6 +725,27 @@ export function createTiger(scene: Scene): TigerBody | null {
       stepSpring(look, lookTarget, ANIM.headFrequency, 1, step);
       rotateAroundWorld(neck, up, look.value * (LOOK_SHARE[0] as number));
       rotateAroundWorld(head, up, look.value * (LOOK_SHARE[1] as number));
+
+      // The swiping paw: drawn up and out, then reaching forward and across into the hit. The
+      // shoulder turns the whole leg (the sweep), the upper arm raises it forward, the forearm
+      // curls back while cocked and snaps straight in the strike.
+      if (swiping) {
+        const cocked = swiping.cock * (1 - swiping.strike) * swiping.weight;
+        const striking = strike * swiping.weight;
+        const sweep = (SWIPE.out * cocked - SWIPE.across * striking) * DEG;
+        const raise = (SWIPE.lift * cocked + SWIPE.reach * striking) * DEG;
+        side.set(Math.cos(facing), 0, -Math.sin(facing));
+        rotateAroundWorld(shoulder, up, sweep);
+        // A turn around the side axis by a negative angle swings a hanging limb forward.
+        rotateAroundWorld(upperArm, side, -raise);
+        rotateAroundWorld(forearm, side, SWIPE.curl * cocked * DEG);
+        rotateAroundWorld(neck, side, SWIPE.dip * striking * DEG);
+        // The upper body winds toward the paw, then whips the other way into the hit (the spine
+        // carries the shoulders; the paw's own sweep rides on top).
+        const twist = SWIPE.twist * (cocked - striking) * DEG;
+        rotateAroundWorld(chest, up, twist * 0.5);
+        rotateAroundWorld(spine2, up, twist * 0.5);
+      }
 
       // The tail is never still. Two whip-like chains (side to side, up and down) follow:
       // - standing: a slow random wander, a wandering lift and tip curl, and now and then a

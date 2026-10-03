@@ -26,6 +26,7 @@ function ability(id: string, def: Partial<AbilityDef>, stats: Partial<AbilitySta
     rootsWindup: false,
     rootsChannel: false,
     movingCancels: false,
+    interruptible: false,
     ...def,
     stats: () => ({ cooldown: 1, windup: 0, range: 5, channel: null, effects: [], ...stats }),
   };
@@ -122,6 +123,30 @@ describe("casting: the Cat's auto attack", () => {
     caster.mover.desired = { x: 4, z: 0 };
     tick();
     expect(caster.mover.desired).toEqual({ x: 4, z: 0 });
+  });
+
+  it("is called off, cooldown refunded, if the target is dropped or switched during the windup", () => {
+    const { caster, body, tick, ticks } = setup();
+    const dummy = body(0, 2);
+    const other = body(0.5, 2);
+    caster.caster.target = dummy.uid;
+    ticks(5);
+    caster.caster.target = null;
+    tick();
+    expect(caster.caster.cast).toBeNull();
+    expect(caster.caster.slots.primary?.cooldown).toBe(0);
+    expect(damage(dummy)).toBe(0);
+
+    caster.caster.target = dummy.uid;
+    ticks(5);
+    caster.caster.target = other.uid;
+    // The old windup is dropped and a new one starts on the new target right away.
+    tick();
+    expect(caster.caster.cast?.aim.target).toBe(other.uid);
+    expect(caster.caster.casts).toBe(3);
+    until(tick, () => caster.caster.cast === null);
+    expect(damage(other)).toBe(CAT_AA.damage);
+    expect(damage(dummy)).toBe(0);
   });
 
   it("always lands once started, even if the target walks out of range", () => {
