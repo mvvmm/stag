@@ -182,36 +182,39 @@ export const ANIM = defineTunables("anim", {
 });
 
 /**
- * The auto attack (2.2): a swipe with the right front paw, timed on the cast's windup so the paw
- * meets the target when the hit lands: a hook that reads from the top-down camera. Over the first
- * `cock` share of the windup the paw is drawn up and out to the side (`lift`, `out` degrees, the
- * forearm folded back `curl`) as the body sits back (`windBack` m) and the shoulders wind toward it
- * (`twist`); then it strikes, fastest at the hit: the leg reaches forward (`reach`) and sweeps
- * across in front (`across`), the forearm snaps straight, the shoulders whip back, the body lunges
- * (`lunge` m) and pitches into it (`pitch`), the head dips (`dip`). It eases back over `follow`
- * seconds. A windup called off by a
- * move order fades out over `fade` seconds from where it was.
+ * The auto attack (2.2): a deliberate cross-body swipe, timed on the cast's windup so the paw
+ * crosses the target when the hit lands, made to read from the top-down camera.
+ * - Wind-up, over the first `cock` share of the windup: the paw is drawn up (`lift`) and far out
+ *   to its own side (`out` degrees), the forearm folded (`curl`); the front rears (`rear`
+ *   degrees, `rise` m) and sits back (`windBack` m); the shoulders (`twist`) and the whole body
+ *   (`turn`) wind toward the paw.
+ * - Strike, fastest at the hit: the paw sweeps in, reaching forward (`reach`), and crosses the
+ *   middle (the target) on the hit; the forearm snaps straight, the body pounces in (`lunge` m,
+ *   `pitch` nose down), the head dips (`dip`) and follows the paw (`look`).
+ * - Follow-through, `follow` seconds: the swing carries on past the other side (`across`), the
+ *   body and shoulders turning with it, over the first `through` share; then it all eases back.
+ * A windup called off by a move order fades out over `fade` seconds from where it was.
  */
 export const SWIPE = defineTunables("swipe", {
-  cock: { value: 0.55, min: 0.05, max: 0.95, step: 0.01 },
-  lift: { value: 100, min: -90, max: 150, step: 1 },
-  out: { value: 70, min: -90, max: 90, step: 1 },
+  cock: { value: 0.6, min: 0.05, max: 0.95, step: 0.01 },
+  lift: { value: 90, min: -90, max: 150, step: 1 },
+  out: { value: 80, min: -90, max: 120, step: 1 },
   curl: { value: -80, min: -120, max: 120, step: 1 },
   reach: { value: 80, min: -90, max: 150, step: 1 },
-  across: { value: 30, min: -90, max: 90, step: 1 },
+  across: { value: 75, min: -90, max: 120, step: 1 },
   windBack: { value: 0.08, min: 0, max: 0.5, step: 0.005 },
-  /** The whole body in it: the front rears up while the paw is cocked (degrees nose up, and the
-   * body rises, m), then drops into the pounce. */
   rear: { value: 16, min: 0, max: 45, step: 0.5 },
   rise: { value: 0.12, min: 0, max: 0.5, step: 0.005 },
-  /** A glowing arc behind the striking paw. */
-  trail: { value: true },
   lunge: { value: 0.3, min: 0, max: 1, step: 0.01 },
   pitch: { value: 8, min: -30, max: 30, step: 0.5 },
-  /** The shoulders wind toward the paw while it's cocked and whip back through the strike. */
-  twist: { value: 15, min: -45, max: 45, step: 0.5 },
+  twist: { value: 22, min: -60, max: 60, step: 0.5 },
+  turn: { value: 18, min: -60, max: 60, step: 0.5 },
   dip: { value: 12, min: -40, max: 40, step: 0.5 },
-  follow: { value: 0.3, min: 0, max: 1.5, step: 0.01 },
+  look: { value: 0.4, min: 0, max: 1, step: 0.05 },
+  follow: { value: 0.42, min: 0, max: 1.5, step: 0.01 },
+  through: { value: 0.4, min: 0, max: 0.95, step: 0.01 },
+  /** A glowing arc behind the striking paw. */
+  trail: { value: true },
   fade: { value: 0.12, min: 0, max: 0.5, step: 0.01 },
 });
 
@@ -713,26 +716,28 @@ export function createTiger(scene: Scene): TigerBody | null {
             SWIPE.cock,
             attack.cancelled === null ? null : viewTime - attack.cancelled,
             SWIPE.fade,
+            SWIPE.through,
           )
         : null;
       const swiping = swipe && swipe.weight > 0 ? swipe : null;
-      const strike = swiping ? swiping.strike * (1 - swiping.release) : 0;
-      const lunge = swiping
-        ? swiping.weight *
-          (-SWIPE.windBack * swiping.cock * (1 - swiping.strike) + SWIPE.lunge * strike)
-        : 0;
-      // Rearing up while cocked, then dropping into the pounce, nose down.
-      const reared = swiping ? swiping.weight * swiping.cock * (1 - swiping.strike) : 0;
-      const swipePitch = swiping
-        ? (swiping.weight * SWIPE.pitch * strike - SWIPE.rear * reared) * DEG
-        : 0;
+      const weight = swiping?.weight ?? 0;
+      // How wound up it is (back to 0 by the hit), how far into the strike (held until it eases
+      // back), and how far it's carried on past the hit.
+      const wound = swiping ? weight * swiping.cock * (1 - swiping.strike) : 0;
+      const struck = swiping ? weight * swiping.strike * (1 - swiping.release) : 0;
+      const carried = swiping ? weight * swiping.through * (1 - swiping.release) : 0;
+      const lunge = -SWIPE.windBack * wound + SWIPE.lunge * struck;
+      // Rearing up while wound, then dropping into the pounce, nose down.
+      const swipePitch = (SWIPE.pitch * struck - SWIPE.rear * wound) * DEG;
+      // The whole body winds toward the paw's side, then turns with the swing past the target.
+      const swipeTurn = (attack?.side ?? 1) * SWIPE.turn * (wound - carried) * DEG;
 
       body.position.y =
-        pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip + SWIPE.rise * reared) * scale;
+        pivot + (lift * ANIM.bounce - push * ANIM.pushOffDip + SWIPE.rise * wound) * scale;
       body.position.z = lunge * scale;
       body.rotation.set(
         swipePitch + tilt.value + settle.value + (push * ANIM.pushOff - rock * ANIM.rock) * DEG,
-        bend.hips.value,
+        bend.hips.value + swipeTurn,
         -lean.value,
       );
 
@@ -766,26 +771,26 @@ export function createTiger(scene: Scene): TigerBody | null {
       // curls back while cocked and snaps straight in the strike.
       if (swiping && attack) {
         const { shoulder, upperArm, forearm } = attack.side === 1 ? paws.right : paws.left;
-        const cocked = swiping.cock * (1 - swiping.strike) * swiping.weight;
-        const striking = strike * swiping.weight;
-        // Out to its own side, then across: mirrored for the left paw.
-        const sweep = attack.side * (SWIPE.out * cocked - SWIPE.across * striking) * DEG;
-        const raise = (SWIPE.lift * cocked + SWIPE.reach * striking) * DEG;
+        // Far out to its own side, back to the middle (the target) on the hit, then on past the
+        // other side: mirrored for the left paw.
+        const sweep = attack.side * (SWIPE.out * wound - SWIPE.across * carried) * DEG;
+        const raise = (SWIPE.lift * wound + SWIPE.reach * struck) * DEG;
         side.set(Math.cos(facing), 0, -Math.sin(facing));
         rotateAroundWorld(shoulder, up, sweep);
         // A turn around the side axis by a negative angle swings a hanging limb forward.
         rotateAroundWorld(upperArm, side, -raise);
-        rotateAroundWorld(forearm, side, SWIPE.curl * cocked * DEG);
-        rotateAroundWorld(neck, side, SWIPE.dip * striking * DEG);
-        // The upper body winds toward the paw, then whips the other way into the hit (the spine
-        // carries the shoulders; the paw's own sweep rides on top).
-        const twist = attack.side * SWIPE.twist * (cocked - striking) * DEG;
+        rotateAroundWorld(forearm, side, SWIPE.curl * wound * DEG);
+        rotateAroundWorld(neck, side, SWIPE.dip * struck * DEG);
+        // The head follows the paw.
+        rotateAroundWorld(head, up, sweep * SWIPE.look);
+        // The shoulders wind with the paw and swing through with it, on top of the body's turn.
+        const twist = attack.side * SWIPE.twist * (wound - carried) * DEG;
         rotateAroundWorld(chest, up, twist * 0.5);
         rotateAroundWorld(spine2, up, twist * 0.5);
       }
-      // The trail streams off the striking paw from the strike through the first of the release.
+      // The trail streams off the striking paw from the strike through the swing past the target.
       const trailing =
-        !!swiping && SWIPE.trail && swiping.strike > 0 && swiping.release < 0.5 && !!attack;
+        !!swiping && SWIPE.trail && swiping.strike > 0 && swiping.release < 0.3 && !!attack;
       paws.right.trail.update(trailing && attack?.side === 1, step);
       paws.left.trail.update(trailing && attack?.side === -1, step);
 

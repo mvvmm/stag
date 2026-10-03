@@ -467,16 +467,26 @@ describe("swipePhase", () => {
 
   it("cocks, then strikes into the hit at the end of the windup, then releases", () => {
     expect(at(-0.01).weight).toBe(0);
-    expect(at(0)).toEqual({ cock: 0, strike: 0, release: 0, weight: 1 });
+    expect(at(0)).toEqual({ cock: 0, strike: 0, through: 0, release: 0, weight: 1 });
     expect(at(0.18).cock).toBeCloseTo(1, 9);
     expect(at(0.18).strike).toBe(0);
     // Fastest at the hit: the second half of the strike covers more than the first.
     const mid = at(0.24).strike;
     expect(mid).toBeLessThan(0.5);
     expect(at(0.2999).strike).toBeGreaterThan(0.99);
-    expect(at(0.3)).toEqual({ cock: 1, strike: 1, release: 0, weight: 1 });
+    expect(at(0.3)).toEqual({ cock: 1, strike: 1, through: 1, release: 0, weight: 1 });
     expect(at(0.425).release).toBeCloseTo(0.5, 9);
     expect(at(0.55).weight).toBe(0);
+  });
+
+  it("carries on across after the hit before easing back", () => {
+    const follow = (since: number) => swipePhase(since, 0.3, 0.4, 0.6, null, 0.1, 0.4);
+    expect(follow(0.3)).toEqual({ cock: 1, strike: 1, through: 0, release: 0, weight: 1 });
+    // Fast out of the hit: more than half way across in the first half of it.
+    expect(follow(0.38).through).toBeGreaterThan(0.7);
+    expect(follow(0.46).through).toBeCloseTo(1, 9);
+    expect(follow(0.46).release).toBeCloseTo(0, 9);
+    expect(follow(0.58).release).toBeCloseTo(0.5, 9);
   });
 
   it("holds its pose and fades out after a cancel", () => {
