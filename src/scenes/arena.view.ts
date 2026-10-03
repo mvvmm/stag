@@ -20,7 +20,7 @@ import {
 import type { Entity } from "@/ecs/world";
 import { type NavGraph, navGraphOf } from "@/nav/graph";
 import { bodyView } from "@/render/bodyView";
-import { createClickMarker } from "@/render/clickMarker";
+import { ATTACK_MARKER, createClickMarker } from "@/render/clickMarker";
 import { createDummyViews } from "@/render/dummies";
 import { createFloorMaterial } from "@/render/floorMaterial";
 import { greyboxMaterial } from "@/render/materials";
@@ -153,6 +153,24 @@ function setup(ctx: SceneContext): void {
   const fader = createOcclusionFader(scene, ctx.camera, obstacleMeshes, focus);
   const marker = createClickMarker(ctx.overlay);
   ctx.onDispose(() => marker.dispose());
+  // An attack move's marker is red, with a chevron pointing at the enemy it picked (if it did).
+  const attackMarker = createClickMarker(ctx.overlay, ATTACK_MARKER);
+  ctx.onDispose(() => attackMarker.dispose());
+  // The left click that places an armed attack move (seen from the tick it lands on).
+  let armed = !!player.player.attackMove?.armed;
+  ctx.onTick((input) => {
+    if (armed && input.pressed.has("confirm")) {
+      const uid = player.caster?.target ?? null;
+      const target =
+        uid === null ? null : world.with("uid", "transform").entities.find((e) => e.uid === uid);
+      const mesh = target ? ctx.meshOf(target) : undefined;
+      attackMarker.show(
+        input.aim,
+        target ? () => mesh?.position ?? target.transform.position : null,
+      );
+    }
+    armed = !!player.player.attackMove?.armed;
+  });
   // While an attack move is armed (S, until the left click places it): the auto attack's
   // reach, from the body's movement circle like the range itself.
   const reach = createRangeRing(ctx.overlay);
@@ -174,6 +192,7 @@ function setup(ctx: SceneContext): void {
       marker.show(player.player.order?.goal ?? player.transform.position);
     }
     marker.update(seconds);
+    attackMarker.update(seconds);
     reach.show(player.player.attackMove?.armed ? playerMesh.position : null, reachRadius());
   });
 
