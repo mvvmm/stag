@@ -4,4 +4,4 @@ import { createSceneRegistry } from "@/scenes/registry";
 import type { SceneSim } from "@/scenes/sim";
 
 /** Every scene's simulation half, Babylon-free (headless replays). Same ids as `scenes/index.ts`. */
-export const sims = createSceneRegistry<SceneSim>([arenaSim, gymSim, yardSim, stressSim], "arena");
+export const sims = createSceneRegistry<SceneSim>([yardSim, arenaSim, gymSim, stressSim], "yard");

@@ -41,11 +41,11 @@ export function roomSim(id: string, label: string, room: Room): SceneSim {
   };
 }
 
-/** The grey-box combat room (the default scene). */
+/** The grey-box combat room. */
 export const arenaSim = roomSim("arena", "Arena (grey-box)", greyboxRoom);
 /** The collision test bench. */
 export const gymSim = roomSim("gym", "Collision gym", gymRoom);
-/** Dummies to try abilities on. */
+/** Dummies to try abilities on (the default scene). */
 export const yardSim = roomSim("yard", "Training yard", yardRoom);
 
 /**
