@@ -173,7 +173,6 @@ function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, rad
     player.chase = false;
     move.point = click;
     player.order = order(world, radius, transform.position, click);
-    player.orders++;
     return;
   }
 
