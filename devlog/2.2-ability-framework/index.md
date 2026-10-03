@@ -30,6 +30,10 @@ The first thing in the game that deals damage. The cat's **auto attack** hits on
 
 ## Media
 
+A playtest in the Training yard with right-click controls: moving between the Guardians, attacking both (the patrolling one too), every hit landing with its burst, scratches, flash and number.
+
+[![Auto attack playtest in the Training yard](auto-attack-playtest.jpg)](auto-attack-playtest.mp4)
+
 An attack move armed: the pale ring is the auto attack's reach until the left click places it. Placed, it pops a red marker with a little chevron pointing at the enemy it picked.
 
 ![The tiger with the attack move's reach ring around it, between the two Guardians](04-attack-move.png)
