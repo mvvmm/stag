@@ -17,6 +17,7 @@ The first thing in the game that deals damage. The cat's **auto attack** hits on
 - **Attack move, our way round.** In MOBA, `S` arms an attack move and `A` stops: League's keys, swapped. While it's armed, a pale ring shows the auto attack's reach; the left click that places it hides it. A left click goes for the enemy nearest the click, or walks there and attacks the first enemy that comes near.
 - **Right-click only.** Settling the attack cancel showed that WASD's hold-to-attack-while-moving and League's cancel-on-move can't share a rule. We dropped WASD for players: right-click is the game's scheme now, and the WASD code waits in the debug pane in case it comes back.
 - **A swipe you can feel.** The model's own attack is a two-paw slam that barely shows from above. It became a procedural hook: the paw cocks out to the side, then sweeps across in front of the cat with a lunge and a shoulder whip, and meets the target on the very tick the damage lands.
+- **League as the reference.** We put a recording of Nidalee's auto attack next to ours and compared them frame by frame. Most of League's "life" is at the point of contact: a starburst and claw slashes where the paw lands, the number punching in right there, the target reacting. So that's what we built, plus a rear-up and pounce, a glowing paw trail, and a random paw each attack (random from a hash of the attack count, so replays still match).
 - **Slow base numbers.** 0.7 attacks per second, so augments and upgrades have somewhere to go. The windup is a share of the attack period, so attack speed shortens it too.
 
 ## Surprises & problems
@@ -26,6 +27,11 @@ The first thing in the game that deals damage. The cat's **auto attack** hits on
 - **One new entity changed every replay checksum.** The uid counter is an entity, and checksums hash entities by their index. Before rewriting the fixtures, we checked that every recorded run still moved identically.
 
 ## Media
+
+The hit as it lands, two attacks: a right-paw hook arcing over the head (left), and a left-paw one across the shoulders (right). The trail, the impact burst and scratches, the dummy's flash and recoil, and the number punched in at the contact.
+
+![Two auto attacks landing: glowing paw trails, impact bursts and a 20 at the contact point](03-impact.png)
+
 
 The `abilities` debug category mid-windup: the auto attack's reach round the cat (blue), the line to the target (green: in range), and the cast's phase.
 
