@@ -259,6 +259,19 @@ describe("attack move, moba", () => {
     expect(gapTo(player, fixed)).toBeGreaterThan(ATTACK_MOVE.acquire - 0.1);
   });
 
+  it("stays armed if S is pressed while a right-click is still held", () => {
+    const { player, fixed, tick } = setup();
+    const steer = { ...click(null), moveCommand: { x: 2, z: -5 } };
+    tick(steer);
+    tick({ ...steer, pressed: actions("attackMove"), held: actions("primary", "attackMove") });
+    // Still steering for a few ticks, then letting go.
+    for (let i = 0; i < 3; i++) tick({ ...hold(null), moveCommand: { x: 2, z: -5 } });
+    tick();
+    expect(player.player.attackMove?.armed).toBe(true);
+    tick(place({ x: 1, z: 5 }));
+    expect(player.caster.target).toBe(fixed.uid);
+  });
+
   it("stop, a right-click and moving drop it", () => {
     const { player, tick } = setup();
     tick(arm);

@@ -43,7 +43,7 @@ export const ATTACK_MOVE = defineTunables("attackMove", {
  * - moba's attack move: `attackMove` (S) arms it (the view shows the auto attack's reach) and a
  *   left click (`confirm`) issues it: chase the enemy nearest the click, or with none near it walk
  *   there and go for the first enemy that comes near on the way. It's over once an attack starts;
- *   stop, a right-click or moving drop it.
+ *   stop, a new right-click or moving drop it (a right-click still held from before doesn't).
  * - Ability keys queue a cast at the cursor (`caster.queued`), for `casting` to start when it can.
  */
 export function playerControlSystem(
@@ -67,7 +67,10 @@ export function playerControlSystem(
       if (caster) caster.target = null;
     }
     const moving = input.move.x !== 0 || input.move.z !== 0;
-    if (input.pressed.has("stop") || moving || command) player.attackMove = null;
+    // A new right-click replaces an attack move; one still held from before doesn't (pressing S
+    // while steering, then letting go, must keep it armed).
+    const freshCommand = command !== null && player.click === null;
+    if (input.pressed.has("stop") || moving || freshCommand) player.attackMove = null;
     if (caster) {
       if (moving || (input.pressed.has("primary") && !hovered)) {
         caster.target = null;
