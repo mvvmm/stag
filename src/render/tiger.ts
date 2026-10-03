@@ -199,8 +199,6 @@ export const ANIM = defineTunables("anim", {
  *   over the first `through` share; then it settles back into the stance.
  * The hips swing against the front's turn (`hips`), the back bends with the pitch rather than the
  * whole body tilting (`bodyPitch`), and the tail whips against the swing (`tailWhip`, `tailLift`).
- * The hind feet don't slide with the lunge: they stay planted through the coil and the push-off
- * (the legs load, then extend behind), then hop (`hopFrom`, `hop`) and land as the body settles.
  * A windup called off by a move order fades out over `fade` seconds from where it was.
  */
 export const SWIPE = defineTunables("swipe", {
@@ -228,11 +226,6 @@ export const SWIPE = defineTunables("swipe", {
   eyes: { value: 0.8, min: 0, max: 1.5, step: 0.05 },
   follow: { value: 0.4, min: 0, max: 1.5, step: 0.01 },
   through: { value: 0.3, min: 0, max: 0.95, step: 0.01 },
-  /** The hind legs: planted (pushing off) until this far into the strike, then they hop off the
-   * ground (`hop` m up) and travel forward with the lunge, landing as it settles. 0 = no IK. */
-  hopFrom: { value: 0.55, min: 0, max: 1, step: 0.01 },
-  hop: { value: 0.08, min: 0, max: 0.4, step: 0.005 },
-  hindLegs: { value: true },
   /** A glowing arc behind the striking paw. */
   trail: { value: true },
   fade: { value: 0.12, min: 0, max: 0.5, step: 0.01 },
@@ -354,17 +347,6 @@ export function createTiger(scene: Scene): TigerBody | null {
     return { shoulder, upperArm, forearm, trail: createSwipeTrail(scene, tip) };
   };
   const paws = { right: leg(BONES.rightPaw), left: leg(BONES.leftPaw) };
-  /** The hind legs for the swipe's footwork, and where each foot stood (in the root's frame) when
-   * the attack being played started. */
-  const hindLegs = (["L", "R"] as const).map((s) => ({
-    thigh: bone(`Bip01 ${s} Thigh`),
-    calf: bone(`Bip01 ${s} Calf`),
-    foot: bone(`Bip01 ${s} Toe0`),
-    rest: new Vector3(),
-  }));
-  let plantedFor: object | null = null;
-  const rootInverse = new Matrix();
-  const footTarget = new Vector3();
 
   // Clips in blend order: the idle, then the gaits.
   const clipNames = [IDLE_CLIP, ...GAIT_CLIPS.map((clip) => clip.name)];
@@ -845,36 +827,6 @@ export function createTiger(scene: Scene): TigerBody | null {
         rotateAroundWorld(neck, up, -windYaw * SWIPE.eyes * 0.5);
         rotateAroundWorld(head, up, -windYaw * SWIPE.eyes * 0.5 + followYaw * SWIPE.look);
       }
-      // The hind feet: planted while the body coils and pushes off (the legs load, then extend
-      // behind it), then a hop: off the ground and forward with the lunge, landing as it settles.
-      if (swiping && attack && SWIPE.hindLegs) {
-        root.computeWorldMatrix(true);
-        root.getWorldMatrix().invertToRef(rootInverse);
-        if (plantedFor !== attack) {
-          plantedFor = attack;
-          for (const legBones of hindLegs) {
-            refreshWorld(legBones.foot);
-            Vector3.TransformCoordinatesToRef(
-              legBones.foot.getAbsolutePosition(),
-              rootInverse,
-              legBones.rest,
-            );
-          }
-        }
-        const from = Math.min(0.99, SWIPE.hopFrom);
-        const late = Math.max(0, Math.min(1, (swiping.strike - from) / (1 - from)));
-        const hop = late * late * (3 - 2 * late) * (1 - swiping.release);
-        for (const legBones of hindLegs) {
-          footTarget.set(
-            legBones.rest.x,
-            legBones.rest.y + SWIPE.hop * scale * hop,
-            legBones.rest.z + lunge * scale * hop,
-          );
-          Vector3.TransformCoordinatesToRef(footTarget, root.getWorldMatrix(), footTarget);
-          reachFoot(legBones.thigh, legBones.calf, legBones.foot, footTarget, side, weight);
-        }
-      }
-
       // The trail streams off the striking paw from the strike through the swing past the target.
       const trailing =
         !!swiping && SWIPE.trail && swiping.strike > 0 && swiping.release < 0.3 && !!attack;
@@ -1057,74 +1009,6 @@ function rotateAroundWorld(node: TransformNode, axis: Vector3, angle: number): v
   local.multiplyToRef(rotation, result);
   result.decompose(scratchScale, scratchQuat, scratchPos);
   node.rotationQuaternion.copyFrom(scratchQuat);
-}
-
-const ikHip = new Vector3();
-const ikFoot = new Vector3();
-const ikA = new Vector3();
-const ikB = new Vector3();
-
-/**
- * Two-bone reach for a hind leg (a little IK for the swipe's footwork): folds the knee (the thigh
- * one way, the calf twice the other) until the foot is as far from the hip as `target`, then swings
- * the thigh around `side` (the body's side axis) to point the foot at it. `amount` blends from the
- * pose the clips gave (0) to reaching the target (1). Solved numerically (a few secant steps), so
- * the bones' own axes and the rig's mirroring don't matter.
- */
-function reachFoot(
-  thigh: TransformNode,
-  calf: TransformNode,
-  foot: TransformNode,
-  target: Vector3,
-  side: Vector3,
-  amount: number,
-): void {
-  if (amount <= 0) return;
-  const footNow = () => {
-    refreshWorld(foot);
-    return ikFoot.copyFrom(foot.getAbsolutePosition());
-  };
-  refreshWorld(thigh);
-  ikHip.copyFrom(thigh.getAbsolutePosition());
-  // Blend the goal from where the foot is now.
-  const start = footNow().clone();
-  const goal = start.add(target.subtract(start).scale(Math.min(1, amount)));
-  const want = Vector3.Distance(goal, ikHip);
-
-  // The knee: find the fold whose hip-to-foot distance is `want`.
-  let fold = 0;
-  let distance = Vector3.Distance(footNow(), ikHip);
-  const applyFold = (delta: number) => {
-    rotateAroundWorld(thigh, side, delta);
-    rotateAroundWorld(calf, side, -2 * delta);
-  };
-  let probe = 0.15;
-  for (let i = 0; i < 4 && Math.abs(distance - want) > 0.002; i++) {
-    applyFold(probe);
-    const next = Vector3.Distance(footNow(), ikHip);
-    const slope = (next - distance) / probe;
-    fold += probe;
-    distance = next;
-    if (Math.abs(slope) < 1e-4) break;
-    const step = Math.max(-0.5, Math.min(0.5, (want - distance) / slope));
-    // Stay within a sane bend either way.
-    probe = Math.max(-0.7, Math.min(1.1, fold + step)) - fold;
-  }
-
-  // The swing: turn the thigh around the side axis so the foot points at the goal.
-  const toFoot = ikA.copyFrom(footNow()).subtractInPlace(ikHip);
-  const toGoal = ikB.copyFrom(goal).subtractInPlace(ikHip);
-  toFoot.subtractInPlace(side.scale(Vector3.Dot(toFoot, side)));
-  toGoal.subtractInPlace(side.scale(Vector3.Dot(toGoal, side)));
-  if (toFoot.lengthSquared() < 1e-8 || toGoal.lengthSquared() < 1e-8) return;
-  const angle = Math.acos(
-    Math.max(-1, Math.min(1, Vector3.Dot(toFoot.normalize(), toGoal.normalize()))),
-  );
-  if (angle < 1e-4) return;
-  const before = Vector3.Distance(footNow(), goal);
-  rotateAroundWorld(thigh, side, angle);
-  // Wrong way round: turn back past the start.
-  if (Vector3.Distance(footNow(), goal) > before) rotateAroundWorld(thigh, side, -2 * angle);
 }
 
 /** Recomputes the world matrices from the top of `node`'s chain down, so they're current. */
