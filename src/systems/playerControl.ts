@@ -1,9 +1,10 @@
 import type { World } from "miniplex";
-import { enemyOf, inRange, type Targetable } from "@/combat/abilities";
+import { enemyOf, inRange, nearestEnemy, type Targetable } from "@/combat/abilities";
 import { debugDraw } from "@/core/debugDraw";
 import { dmath } from "@/core/dmath";
 import type { Vec2 } from "@/core/math";
 import type { Rng } from "@/core/rng";
+import { defineTunables } from "@/core/tuning";
 import { abilityById } from "@/data/abilities";
 import { type Entity, type MoveOrder, SLOTS } from "@/ecs/world";
 import type { InputFrame } from "@/input/actions";
@@ -13,6 +14,15 @@ import { movementStats } from "@/systems/movementStats";
 
 /** A chase repaths once its target is this far (m) from where the path ends. */
 const CHASE_REPATH = 0.25;
+
+/** moba's attack move (S, then left click), League-style. */
+export const ATTACK_MOVE = defineTunables("attackMove", {
+  /** The click goes for the enemy nearest it, if that enemy's body is within this of it, m. */
+  radius: { value: 3, min: 0, max: 20, step: 0.1 },
+  /** Otherwise the cat walks to the click and goes for the first enemy that comes within this of
+   * its body (edge to edge), m. */
+  acquire: { value: 2.5, min: 0, max: 20, step: 0.1 },
+});
 
 /**
  * Turns input into the player's desired velocity for `locomotion`, and its auto attack target and
@@ -30,6 +40,10 @@ const CHASE_REPATH = 0.25;
  *     or clicking off any enemy drops the target. An enemy out of range waits until you walk up.
  *   - moba: a right-click on an enemy is an attack order (the cat chases it into range), on the
  *     ground a move order. Holding the button is the same as clicking again every tick.
+ * - moba's attack move: `attackMove` (S) arms it (the view shows the auto attack's reach) and a
+ *   left click (`confirm`) issues it: chase the enemy nearest the click, or with none near it walk
+ *   there and go for the first enemy that comes near on the way. It's over once an attack starts;
+ *   stop, a right-click or moving drop it.
  * - Ability keys queue a cast at the cursor (`caster.queued`), for `casting` to start when it can.
  */
 export function playerControlSystem(
@@ -53,6 +67,7 @@ export function playerControlSystem(
       if (caster) caster.target = null;
     }
     const moving = input.move.x !== 0 || input.move.z !== 0;
+    if (input.pressed.has("stop") || moving || command) player.attackMove = null;
     if (caster) {
       if (moving || (input.pressed.has("primary") && !hovered)) {
         caster.target = null;
@@ -84,6 +99,7 @@ export function playerControlSystem(
       }
     }
     player.click = command ? { x: command.x, z: command.z } : null;
+    attackMove(world, entity, input, stats.radius);
     chase(world, entity, stats.radius);
 
     mover.desired.x = moving ? input.move.x * stats.speed : 0;
@@ -125,6 +141,57 @@ export function playerControlSystem(
       debugDraw.path([position, ...waypoints], { color: "magenta", category: "path" });
       debugDraw.circle(current.goal, 0.2, { color: "magenta", category: "path" });
     }
+  }
+}
+
+/** Arms, issues and follows moba's attack move (see `playerControlSystem`). */
+function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, radius: number) {
+  const { player, caster, transform } = entity;
+  if (!player || !caster || !transform) return;
+  if (input.pressed.has("attackMove")) {
+    player.attackMove = { armed: true, point: null, casts: caster.casts };
+  }
+  const move = player.attackMove;
+  if (!move) return;
+
+  if (move.armed) {
+    if (!input.pressed.has("confirm")) return;
+    move.armed = false;
+    move.casts = caster.casts;
+    const click = { x: input.aim.x, z: input.aim.z };
+    const enemy = nearestEnemy(world, entity, click, ATTACK_MOVE.radius);
+    if (enemy) {
+      caster.target = enemy.uid;
+      player.chase = true;
+      player.order = null;
+      return;
+    }
+    caster.target = null;
+    player.chase = false;
+    move.point = click;
+    player.order = order(world, radius, transform.position, click);
+    player.orders++;
+    return;
+  }
+
+  // Issued: over once an attack starts, or when there's nothing left to go for.
+  if (caster.casts !== move.casts) {
+    player.attackMove = null;
+    return;
+  }
+  if (!move.point) {
+    if (caster.target === null) player.attackMove = null;
+    return;
+  }
+  const enemy = nearestEnemy(world, entity, transform.position, radius + ATTACK_MOVE.acquire);
+  if (enemy) {
+    caster.target = enemy.uid;
+    player.chase = true;
+    player.order = null;
+    move.point = null;
+  } else if (!player.order) {
+    // Arrived with nobody around.
+    player.attackMove = null;
   }
 }
 

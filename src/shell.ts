@@ -343,7 +343,8 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     // The menu needs the real pointer (the moba scheme locks it to the canvas).
     if (pauseMenu.value.open && dom.locked) document.exitPointerLock();
     dom.syncLock();
-    cursor.update(dom.locked ? dom.pointer : null, input.hover !== null);
+    const armed = !!world.with("player").first?.player?.attackMove?.armed;
+    cursor.update(dom.locked ? dom.pointer : null, input.hover !== null || armed);
     for (const listener of frameListeners) listener(shellFrame);
 
     const { alpha } = loop.advance(frameSeconds);

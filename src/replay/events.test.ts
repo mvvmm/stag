@@ -7,7 +7,7 @@ const transform = () => ({ position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 
 describe("applyEdit", () => {
   it("sets the field by entity index and snaps transform edits", () => {
     const world = createWorld();
-    world.add({ player: { order: null, orders: 0, click: null, chase: false } });
+    world.add({ player: { order: null, orders: 0, click: null, chase: false, attackMove: null } });
     const moved = world.add({ transform: transform(), prevTransform: transform() });
     expect(applyEdit(world, { entity: 1, path: ["transform", "position", "x"], value: 4 })).toBe(
       true,
@@ -18,7 +18,7 @@ describe("applyEdit", () => {
 
   it("returns false when the entity or the field's parent is gone", () => {
     const world = createWorld();
-    world.add({ player: { order: null, orders: 0, click: null, chase: false } });
+    world.add({ player: { order: null, orders: 0, click: null, chase: false, attackMove: null } });
     expect(applyEdit(world, { entity: 3, path: ["player", "order"], value: 1 })).toBe(false);
     expect(applyEdit(world, { entity: 0, path: ["orbit", "angle"], value: 1 })).toBe(false);
   });

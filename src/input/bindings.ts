@@ -67,7 +67,10 @@ export const MOBA_PRESET: Preset = {
     // Space centers the camera, like League; dodge takes League's Flash key until 2.3 decides.
     dodge: ["KeyF"],
     interact: ["Mouse0"],
-    stop: ["KeyS"],
+    // A stops and S attack-moves (League's S and A, swapped: the way we like it).
+    stop: ["KeyA"],
+    attackMove: ["KeyS"],
+    confirm: ["Mouse0"],
     pause: ["Escape"],
     switchControls: ["KeyM"],
     centerCamera: ["Space"],

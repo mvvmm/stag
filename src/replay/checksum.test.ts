@@ -10,7 +10,7 @@ const build = () => {
   const a = world.add({ transform: transform(1), prevTransform: transform(1) });
   const b = world.add({
     transform: transform(2),
-    player: { order: null, orders: 0, click: null, chase: false },
+    player: { order: null, orders: 0, click: null, chase: false, attackMove: null },
   });
   return { world, a, b, rng: createRng(7) };
 };
