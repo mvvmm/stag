@@ -153,7 +153,7 @@ function setup(ctx: SceneContext): void {
   const fader = createOcclusionFader(scene, ctx.camera, obstacleMeshes, focus);
   const marker = createClickMarker(ctx.overlay);
   ctx.onDispose(() => marker.dispose());
-  // While an attack move is pending (armed, or under way until it attacks): the auto attack's
+  // While an attack move is armed (S, until the left click places it): the auto attack's
   // reach, from the body's movement circle like the range itself.
   const reach = createRangeRing(ctx.overlay);
   ctx.onDispose(() => reach.dispose());
@@ -174,7 +174,7 @@ function setup(ctx: SceneContext): void {
       marker.show(player.player.order?.goal ?? player.transform.position);
     }
     marker.update(seconds);
-    reach.show(player.player.attackMove ? playerMesh.position : null, reachRadius());
+    reach.show(player.player.attackMove?.armed ? playerMesh.position : null, reachRadius());
   });
 
   ctx.onFrame(() => {
