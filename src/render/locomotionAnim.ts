@@ -619,3 +619,20 @@ export function swipePhase(
   }
   return phase;
 }
+
+/**
+ * Which paw swipes the auto attack number `n` (the caster's cast count): 1 = right, -1 = left. It
+ * looks random (an integer hash, not alternating), but the same attack always gets the same paw,
+ * so replays and seeks show what they showed live. View-only: the simulation's RNG stays out of it.
+ */
+export function swipeSide(n: number): 1 | -1 {
+  return (hashInt(n) & 1) === 0 ? 1 : -1;
+}
+
+/** A well-mixed 32-bit integer hash (for view-only variations that must repeat exactly). */
+export function hashInt(n: number): number {
+  let h = n | 0;
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  return (h ^ (h >>> 16)) >>> 0;
+}

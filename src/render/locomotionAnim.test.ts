@@ -25,6 +25,7 @@ import {
   stepSpring,
   strideMotion,
   swipePhase,
+  swipeSide,
 } from "@/render/locomotionAnim";
 
 const GAITS: Gait[] = [
@@ -484,5 +485,19 @@ describe("swipePhase", () => {
     expect(fading.cock).toBeCloseTo(before.cock, 12);
     expect(fading.weight).toBeCloseTo(0.5, 9);
     expect(at(0.25, 0.1).weight).toBe(0);
+  });
+});
+
+describe("swipeSide", () => {
+  it("picks either paw, unevenly enough to look random, and the same one every time", () => {
+    const sides = Array.from({ length: 200 }, (_, i) => swipeSide(i + 1));
+    const right = sides.filter((s) => s === 1).length;
+    expect(right).toBeGreaterThan(70);
+    expect(right).toBeLessThan(130);
+    // Not just alternating: some repeats in a row.
+    let repeats = 0;
+    for (let i = 1; i < sides.length; i++) if (sides[i] === sides[i - 1]) repeats++;
+    expect(repeats).toBeGreaterThan(50);
+    expect(Array.from({ length: 200 }, (_, i) => swipeSide(i + 1))).toEqual(sides);
   });
 });

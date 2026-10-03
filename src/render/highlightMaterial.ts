@@ -7,7 +7,8 @@ import {
 } from "@babylonjs/core";
 
 // The hover highlight on enemies (2.2): a warm glow over the whole body, stronger along its
-// silhouette, added to the final color so it shows on lit and unlit materials alike. Per material:
+// silhouette, added to the final color so it shows on lit and unlit materials alike; and the hit
+// flash, a white-hot wash over the body for a few frames when a hit lands. Per material:
 // a body that can be highlighted on its own needs its own material copies. (Babylon's outline
 // renderer breaks the WebGPU pipeline with our SSAO prepass, hence a plugin.)
 
@@ -28,12 +29,17 @@ fn hoverGlow(normal: vec3f, view: vec3f, glow: vec4f) -> vec3f {
 `;
 
 const apply = /* wgsl */ `
-finalColor = vec4f(finalColor.rgb + hoverGlow(normalW, viewDirectionW, uniforms.hoverGlow), finalColor.a);
+finalColor = vec4f(
+  mix(finalColor.rgb + hoverGlow(normalW, viewDirectionW, uniforms.hoverGlow), vec3f(1.0, 0.97, 0.9), uniforms.hitFlash),
+  finalColor.a
+);
 `;
 
 class HighlightPlugin extends MaterialPluginBase {
   /** 0 = off, 1 = full glow. */
   amount = 0;
+  /** 0 = off, 1 = all white. */
+  flash = 0;
 
   constructor(material: Material) {
     super(material, "Highlight", 210, undefined, true, true);
@@ -48,11 +54,17 @@ class HighlightPlugin extends MaterialPluginBase {
   }
 
   override getUniforms() {
-    return { ubo: [{ name: "hoverGlow", size: 4, type: "vec4" }] };
+    return {
+      ubo: [
+        { name: "hoverGlow", size: 4, type: "vec4" },
+        { name: "hitFlash", size: 1, type: "float" },
+      ],
+    };
   }
 
   override bindForSubMesh(uniformBuffer: UniformBuffer): void {
     uniformBuffer.updateFloat4("hoverGlow", color.r, color.g, color.b, this.amount);
+    uniformBuffer.updateFloat("hitFlash", this.flash);
   }
 
   override getCustomCode(shaderType: string, shaderLanguage?: ShaderLanguage) {
@@ -64,12 +76,24 @@ class HighlightPlugin extends MaterialPluginBase {
   }
 }
 
-/** Gives `material` (PBR) the hover highlight, once, and returns a setter for its strength. */
-export function addHighlight(material: Material): (amount: number) => void {
+export type Highlight = {
+  /** The hover glow, 0 to 1. */
+  glow(amount: number): void;
+  /** The hit flash, 0 to 1. */
+  flash(amount: number): void;
+};
+
+/** Gives `material` (PBR) the hover glow and hit flash, once, and returns their setters. */
+export function addHighlight(material: Material): Highlight {
   const plugin =
     (material.pluginManager?.getPlugin("Highlight") as HighlightPlugin | null) ??
     new HighlightPlugin(material);
-  return (amount) => {
-    plugin.amount = amount;
+  return {
+    glow(amount) {
+      plugin.amount = amount;
+    },
+    flash(amount) {
+      plugin.flash = amount;
+    },
   };
 }
