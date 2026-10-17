@@ -28,6 +28,8 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 1.7.1 | [Unsupported devices](1.7.1-unsupported-devices/index.md) | 2026-10-02 |
 | 2.1 | [Health, damage & test dummies](2.1-health-and-dummies/index.md) | 2026-10-02 |
 
+| 2.2.1 | [cf preview output](2.2.1-cf-preview-output/index.md) | 2026-10-17 |
+
 ## Layout
 
 ```
