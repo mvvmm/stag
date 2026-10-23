@@ -156,18 +156,20 @@ function setup(ctx: SceneContext): void {
   // An attack move's marker is red, with a chevron pointing at the enemy it picked (if it did).
   const attackMarker = createClickMarker(ctx.overlay, ATTACK_MARKER);
   ctx.onDispose(() => attackMarker.dispose());
-  // The left click that places an armed attack move (seen from the tick it lands on).
+  // The left click that places an armed attack move (seen from the tick it lands on), or a
+  // Shift + right-click, which arms and places it in the same tick. The chevron
+  // tracks `caster.target` live, since the enemy it chases can be decided a tick or more later (the
+  // walk-and-pick-up case): no chevron until one is, so the arrow always matches who gets attacked.
   let armed = !!player.player.attackMove?.armed;
   ctx.onTick((input) => {
-    if (armed && input.pressed.has("confirm")) {
-      const uid = player.caster?.target ?? null;
-      const target =
-        uid === null ? null : world.with("uid", "transform").entities.find((e) => e.uid === uid);
-      const mesh = target ? ctx.meshOf(target) : undefined;
-      attackMarker.show(
-        input.aim,
-        target ? () => mesh?.position ?? target.transform.position : null,
-      );
+    if ((armed || input.pressed.has("attackMove")) && input.pressed.has("confirm")) {
+      attackMarker.show(input.aim, () => {
+        const uid = player.caster?.target ?? null;
+        const target =
+          uid === null ? null : world.with("uid", "transform").entities.find((e) => e.uid === uid);
+        if (!target) return null;
+        return ctx.meshOf(target)?.position ?? target.transform.position;
+      });
     }
     armed = !!player.player.attackMove?.armed;
   });

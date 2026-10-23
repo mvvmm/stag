@@ -3,7 +3,8 @@ import type { Action } from "@/input/actions";
 /**
  * A physical control: a `KeyboardEvent.code` (`KeyW`, `Digit1`, `Space`) or a mouse button as
  * `Mouse<button>` (`Mouse0` = left, `Mouse2` = right). Physical codes keep the layout the same
- * on AZERTY and other keyboard layouts.
+ * on AZERTY and other keyboard layouts. `Shift+<control>` is a chord: pressed with either Shift
+ * held, the control triggers the chord's actions instead of its own.
  */
 export type Control = string;
 
@@ -66,10 +67,11 @@ export const MOBA_PRESET: Preset = {
     // Space centers the camera, like League; dodge takes League's Flash key until 2.3 decides.
     dodge: ["KeyF"],
     interact: ["Mouse0"],
-    // A stops and S attack-moves (League's S and A, swapped: the way we like it).
+    // A stops and S attack-moves (League's S and A, swapped: the way we like it). Shift +
+    // right-click attack-moves at once (arms and places it in one press).
     stop: ["KeyA"],
-    attackMove: ["KeyS"],
-    confirm: ["Mouse0"],
+    attackMove: ["KeyS", "Shift+Mouse2"],
+    confirm: ["Mouse0", "Shift+Mouse2"],
     pause: ["Escape"],
     centerCamera: ["Space"],
   },

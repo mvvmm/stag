@@ -53,28 +53,39 @@ export function inRange(caster: Entity, target: Targetable, range: number): bool
   return gapTo(caster, target) <= range;
 }
 
+/** The gap between `point` and `target`'s hurtbox (center distance less its radius). */
+export function gapFromPoint(point: Vec2, target: Targetable): number {
+  const { position, rotation } = target.transform;
+  let nearest = Number.POSITIVE_INFINITY;
+  for (const offset of footprintCircles(target.hurtbox, rotation.y)) {
+    const d = dmath.hypot(position.x + offset.x - point.x, position.z + offset.z - point.z);
+    nearest = Math.min(nearest, d - target.hurtbox.radius);
+  }
+  return nearest;
+}
+
 /**
  * The enemy of `caster` whose hurtbox is nearest `point` (center distance less its hurtbox), within
- * `within` m of it, or undefined. Ties go to the earlier entity, for determinism.
+ * `within` m of it, or undefined (`exclude`d entities don't count). Ties go to the earlier entity,
+ * for determinism.
  */
 export function nearestEnemy(
   world: World<Entity>,
   caster: Entity,
   point: Vec2,
   within: number,
+  exclude?: (target: Targetable) => boolean,
 ): Targetable | undefined {
   let best: Targetable | undefined;
   let bestGap = within;
   for (const entity of world.with("uid", "transform", "health", "hurtbox")) {
     if (entity === caster || !hostile(caster, entity)) continue;
-    const { position, rotation } = entity.transform;
-    for (const offset of footprintCircles(entity.hurtbox, rotation.y)) {
-      const d = dmath.hypot(position.x + offset.x - point.x, position.z + offset.z - point.z);
-      const gap = Math.max(0, d - entity.hurtbox.radius);
-      if (gap < bestGap || (gap === bestGap && !best)) {
-        best = entity;
-        bestGap = gap;
-      }
+    const target = entity as Targetable;
+    if (exclude?.(target)) continue;
+    const gap = Math.max(0, gapFromPoint(point, target));
+    if (gap < bestGap || (gap === bestGap && !best)) {
+      best = target;
+      bestGap = gap;
     }
   }
   return best;

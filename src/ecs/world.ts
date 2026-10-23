@@ -44,12 +44,18 @@ export type Player = {
 };
 
 /**
- * An attack move: armed (S, waiting for the left click), then issued: chasing the enemy nearest the
- * click (`point` null), or walking to `point` and attacking the first enemy that comes near.
+ * An attack move: armed (S, waiting for the left click), then issued: chasing a hovered enemy
+ * (`point` null), or walking to `point` and attacking the first enemy that comes near on the way
+ * (one that wasn't already near `origin` when it was issued).
  */
 export type AttackMove = {
   armed: boolean;
   point: Vec2 | null;
+  /**
+   * Where the body stood when `point` was set; excludes enemies already near it (and not near
+   * `point`) from "on the way".
+   */
+  origin: Vec2 | null;
   /** `caster.casts` when it was armed: it's over once an attack starts. */
   casts: number;
 };

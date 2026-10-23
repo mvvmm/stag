@@ -1,12 +1,12 @@
 import type { World } from "miniplex";
-import { enemyOf, inRange, nearestEnemy, type Targetable } from "@/combat/abilities";
+import { enemyOf, gapFromPoint, inRange, nearestEnemy, type Targetable } from "@/combat/abilities";
 import { debugDraw } from "@/core/debugDraw";
 import { dmath } from "@/core/dmath";
 import type { Vec2 } from "@/core/math";
 import type { Rng } from "@/core/rng";
 import { defineTunables } from "@/core/tuning";
 import { abilityById } from "@/data/abilities";
-import { type Entity, type MoveOrder, SLOTS } from "@/ecs/world";
+import { type AttackMove, type Entity, type MoveOrder, SLOTS } from "@/ecs/world";
 import type { InputFrame } from "@/input/actions";
 import { navGraphOf } from "@/nav/graph";
 import { findPath } from "@/nav/path";
@@ -17,10 +17,8 @@ const CHASE_REPATH = 0.25;
 
 /** moba's attack move (S, then left click), League-style. */
 export const ATTACK_MOVE = defineTunables("attackMove", {
-  /** The click goes for the enemy nearest it, if that enemy's body is within this of it, m. */
-  radius: { value: 3, min: 0, max: 20, step: 0.1 },
-  /** Otherwise the cat walks to the click and goes for the first enemy that comes within this of
-   * its body (edge to edge), m. */
+  /** Short of a hovered enemy, the cat walks to the click and goes for the first enemy that comes
+   * within this of its body (edge to edge), m. */
   acquire: { value: 2.5, min: 0, max: 20, step: 0.1 },
 });
 
@@ -41,9 +39,14 @@ export const ATTACK_MOVE = defineTunables("attackMove", {
  *   - moba: a right-click on an enemy is an attack order (the cat chases it into range), on the
  *     ground a move order. Holding the button is the same as clicking again every tick.
  * - moba's attack move: `attackMove` (S) arms it (the view shows the auto attack's reach) and a
- *   left click (`confirm`) issues it: chase the enemy nearest the click, or with none near it walk
- *   there and go for the first enemy that comes near on the way. It's over once an attack starts;
- *   stop, a new right-click or moving drop it (a right-click still held from before doesn't).
+ *   left click (`confirm`) issues it (Shift + right-click presses both in one tick): chase whatever's hovered (`input.hover`, same as the auto
+ *   attack's own targeting), or with nothing hovered walk to the click and go for the first enemy
+ *   that comes near on the way — one that wasn't already that near when it was issued, so standing
+ *   next to one dummy and attack-moving past it toward another doesn't re-attack the one you're
+ *   leaving (unless the click is that near it too: then you're not leaving it). One it would pick up
+ *   right away is picked on the spot, so spamming attack moves by the enemy it's attacking keeps
+ *   the attack going. It's over once an attack starts; stop, a new right-click or moving drop it (a
+ *   right-click still held from before doesn't).
  * - Ability keys queue a cast at the cursor (`caster.queued`), for `casting` to start when it can.
  */
 export function playerControlSystem(
@@ -152,7 +155,7 @@ function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, rad
   const { player, caster, transform } = entity;
   if (!player || !caster || !transform) return;
   if (input.pressed.has("attackMove")) {
-    player.attackMove = { armed: true, point: null, casts: caster.casts };
+    player.attackMove = { armed: true, point: null, origin: null, casts: caster.casts };
   }
   const move = player.attackMove;
   if (!move) return;
@@ -161,17 +164,28 @@ function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, rad
     if (!input.pressed.has("confirm")) return;
     move.armed = false;
     move.casts = caster.casts;
-    const click = { x: input.aim.x, z: input.aim.z };
-    const enemy = nearestEnemy(world, entity, click, ATTACK_MOVE.radius);
-    if (enemy) {
-      caster.target = enemy.uid;
+    const hovered = enemyOf(world, entity, input.hover);
+    if (hovered) {
+      caster.target = hovered.uid;
       player.chase = true;
       player.order = null;
       return;
     }
+    const click = { x: input.aim.x, z: input.aim.z };
+    move.point = click;
+    move.origin = { x: transform.position.x, z: transform.position.z };
+    // An enemy it would pick up right away is picked now, so attack-moving again while attacking
+    // it keeps the attack going (dropping the target for a tick would cancel the windup).
+    const enemy = onTheWay(world, entity, move, radius);
+    if (enemy) {
+      caster.target = enemy.uid;
+      player.chase = true;
+      player.order = null;
+      move.point = null;
+      return;
+    }
     caster.target = null;
     player.chase = false;
-    move.point = click;
     player.order = order(world, radius, transform.position, click);
     return;
   }
@@ -185,7 +199,7 @@ function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, rad
     if (caster.target === null) player.attackMove = null;
     return;
   }
-  const enemy = nearestEnemy(world, entity, transform.position, radius + ATTACK_MOVE.acquire);
+  const enemy = onTheWay(world, entity, move, radius);
   if (enemy) {
     caster.target = enemy.uid;
     player.chase = true;
@@ -195,6 +209,32 @@ function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, rad
     // Arrived with nobody around.
     player.attackMove = null;
   }
+}
+
+/**
+ * The enemy an issued attack move walking to `move.point` picks up where the body stands: the
+ * nearest within the acquire distance. Enemies that were already this near when the move was
+ * issued are the ones you're leaving and don't count, unless the click is this near them too
+ * (you're not leaving them).
+ */
+function onTheWay(
+  world: World<Entity>,
+  entity: Entity,
+  move: AttackMove,
+  radius: number,
+): Targetable | undefined {
+  const { transform } = entity;
+  const { origin, point } = move;
+  if (!transform || !point) return undefined;
+  const near = radius + ATTACK_MOVE.acquire;
+  return nearestEnemy(
+    world,
+    entity,
+    transform.position,
+    near,
+    (target) =>
+      origin !== null && gapFromPoint(origin, target) <= near && gapFromPoint(point, target) > near,
+  );
 }
 
 /**

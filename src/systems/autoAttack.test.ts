@@ -194,13 +194,14 @@ describe("auto attack, moba", () => {
 
 describe("attack move, moba", () => {
   const arm = { pressed: actions("attackMove"), held: actions("attackMove") };
-  const place = (at: { x: number; z: number }) => ({
+  const place = (at: { x: number; z: number }, hover: number | null = null) => ({
     pressed: actions("confirm"),
     held: actions("confirm"),
     aim: at,
+    hover,
   });
 
-  it("S arms it, and a left click goes for the enemy nearest the click", () => {
+  it("S arms it, and a left click on a hovered enemy goes for it", () => {
     const { player, fixed, total, tick, ticks } = setup();
     tick(arm);
     expect(player.player.attackMove?.armed).toBe(true);
@@ -209,7 +210,7 @@ describe("attack move, moba", () => {
     expect(player.transform.position).toEqual({ x: 0, y: 0, z: -5 });
 
     // Next to the static dummy (and well away from the patrolling one, at its west end).
-    tick(place({ x: 1, z: 5 }));
+    tick(place({ x: 1, z: 5 }, fixed.uid));
     expect(player.caster.target).toBe(fixed.uid);
     expect(player.player.chase).toBe(true);
     ticks(130 + period());
@@ -219,7 +220,66 @@ describe("attack move, moba", () => {
     expect(player.caster.target).toBe(fixed.uid);
   });
 
-  it("with no enemy near the click, walks there and goes for the first one that comes near", () => {
+  it("standing by one enemy, attack-moving elsewhere doesn't re-attack the one you're leaving", () => {
+    const { player, fixed, tick, ticks, place: moveTo } = setup();
+    // Already attacking the static dummy, right next to it.
+    moveTo(0, 2.4);
+    tick(click(fixed.uid));
+    expect(player.caster.target).toBe(fixed.uid);
+
+    // Attack-move far away, toward empty ground: it should walk, not re-attack the dummy it's
+    // standing next to.
+    tick(arm);
+    tick(place({ x: -6, z: 2.4 }));
+    expect(player.caster.target).toBeNull();
+    expect(player.player.order).not.toBeNull();
+    ticks(10);
+    expect(player.caster.target).toBeNull();
+  });
+
+  it("standing by one enemy, attack-moving to just past it attacks it", () => {
+    const { player, fixed, tick, ticks, place: moveTo } = setup();
+    moveTo(0, 2.4);
+    // Nothing hovered, but the click lands right by the dummy the cat is standing next to.
+    tick(arm);
+    tick(place({ x: 1.2, z: 4.6 }));
+    ticks(2);
+    expect(player.caster.target).toBe(fixed.uid);
+    expect(player.player.chase).toBe(true);
+  });
+
+  it("spamming attack moves near the enemy it's attacking doesn't restart the windup", () => {
+    const { player, fixed, total, tick, ticks, place: moveTo } = setup();
+    moveTo(0, 2.4);
+    tick(arm);
+    tick(place({ x: 1.2, z: 4.6 }));
+    tick();
+    expect(player.caster.cast?.phase).toBe("windup");
+    // S + a left click every few ticks, alternating on the dummy and the ground right by it.
+    for (let i = 0; i < 40; i++) {
+      tick(arm);
+      tick(place({ x: 1.2 - (i % 2) * 0.4, z: 4.6 }, i % 3 === 0 ? fixed.uid : null));
+      ticks(2);
+    }
+    expect(total[fixed.uid]).toBeGreaterThanOrEqual(CAT_AA.damage * 2);
+    expect(player.caster.target).toBe(fixed.uid);
+  });
+
+  it("Shift + right-click (attack move and confirm in one tick) issues it", () => {
+    const { player, fixed, tick } = setup();
+    const both = actions("attackMove", "confirm");
+    tick({ pressed: both, held: both, aim: { x: 1, z: 5 }, hover: fixed.uid });
+    expect(player.player.attackMove?.armed).toBe(false);
+    expect(player.caster.target).toBe(fixed.uid);
+    expect(player.player.chase).toBe(true);
+
+    tick({ pressed: both, held: both, aim: { x: -6, z: -5 } });
+    expect(player.caster.target).toBeNull();
+    expect(player.player.attackMove?.point).toEqual({ x: -6, z: -5 });
+    expect(player.player.order).not.toBeNull();
+  });
+
+  it("with nothing hovered, walks to the click and goes for the first enemy that comes near", () => {
     // The patrolling dummy stands still at its west end, (-5, 0).
     tuning.set("dummy.patrolSpeed", 0);
     const { player, patrol, tick, ticks } = setup();
@@ -233,8 +293,7 @@ describe("attack move, moba", () => {
     expect(player.transform.position.x).toBeCloseTo(-6, 5);
     expect(player.player.attackMove).toBeNull();
 
-    // Then north past the patrolling dummy (nothing within 3 m of the click): it's picked up on the
-    // way.
+    // Then north past the patrolling dummy: it's picked up on the way.
     tick(arm);
     tick(place({ x: -6, z: 6 }));
     expect(player.caster.target).toBeNull();
@@ -245,7 +304,6 @@ describe("attack move, moba", () => {
 
   it("goes for the first enemy only once one is within the acquire distance", () => {
     const { player, fixed, tick } = setup();
-    tuning.set("attackMove.radius", 0);
     tick(arm);
     tick(place({ x: 3, z: 4 }));
     expect(player.caster.target).toBeNull();
@@ -268,7 +326,7 @@ describe("attack move, moba", () => {
     for (let i = 0; i < 3; i++) tick({ ...hold(null), moveCommand: { x: 2, z: -5 } });
     tick();
     expect(player.player.attackMove?.armed).toBe(true);
-    tick(place({ x: 1, z: 5 }));
+    tick(place({ x: 1, z: 5 }, fixed.uid));
     expect(player.caster.target).toBe(fixed.uid);
   });
 

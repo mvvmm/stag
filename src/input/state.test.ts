@@ -217,6 +217,39 @@ describe("createInputState: click to move", () => {
   });
 });
 
+describe("createInputState: Shift chords", () => {
+  it("Shift + right-click is an attack move (armed and confirmed), not a move or attack order", () => {
+    const input = createInputState("moba");
+    expect(input.isBound("ShiftLeft")).toBe(true);
+    input.setAim({ x: 2, z: 3 });
+    input.controlDown("ShiftLeft");
+    input.controlDown("Mouse2");
+    let frame = input.sampleTick(0);
+    expect([...frame.pressed].sort()).toEqual(["attackMove", "confirm"]);
+    expect(frame.moveCommand).toBeNull();
+
+    // Letting go of Shift first still releases the chord with the button.
+    input.controlUp("ShiftLeft");
+    frame = input.sampleTick(0);
+    expect(frame.moveCommand).toBeNull();
+    expect([...frame.held].sort()).toEqual(["attackMove", "confirm"]);
+    input.controlUp("Mouse2");
+    frame = input.sampleTick(0);
+    expect([...frame.released].sort()).toEqual(["attackMove", "confirm"]);
+    expect(frame.held.size).toBe(0);
+
+    // Without Shift it's a right-click again.
+    input.controlDown("Mouse2");
+    frame = input.sampleTick(0);
+    expect([...frame.pressed]).toEqual(["primary"]);
+    expect(frame.moveCommand).toEqual({ x: 2, z: 3 });
+  });
+
+  it("leaves Shift unbound where no chord uses it", () => {
+    expect(createInputState("mmo").isBound("ShiftLeft")).toBe(false);
+  });
+});
+
 describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
   it("releases held buttons with edges and ignores new presses, but keeps keys", () => {
     const input = createInputState("mmo");
