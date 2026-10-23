@@ -5,6 +5,6 @@ import type { SceneDef } from "@/scenes/scene";
 
 /** Every scene, in the order the debug pane lists them. Production always starts the default. */
 export const scenes = createSceneRegistry<SceneDef>(
-  [arenaScene, gymScene, yardScene, stressScene],
-  "arena",
+  [yardScene, arenaScene, gymScene, stressScene],
+  "yard",
 );

@@ -10,6 +10,10 @@ export const ACTIONS = [
   "dodge",
   "interact",
   "stop",
+  /** moba: arm an attack move (League's A); the next `confirm` click issues it. */
+  "attackMove",
+  /** moba: left click, to place an armed attack move. */
+  "confirm",
   "pause",
   // Shell actions (read through `sampleFrame`, never by the simulation):
   /** Swap the control scheme (WASD ↔ right-click), until 1.7 picks one. */
@@ -27,6 +31,9 @@ export type InputFrame = {
   moveCommand: Vec2 | null;
   /** Cursor on the ground plane. */
   aim: Vec2;
+  /** The `uid` of the body under the cursor on screen (picked by the view, so a tall enemy counts
+   * anywhere on its body), or null. The simulation decides whether it can be attacked. */
+  hover: number | null;
   held: ReadonlySet<Action>;
   /** Went down since the previous tick (reported to exactly one tick). */
   pressed: ReadonlySet<Action>;
@@ -45,6 +52,7 @@ export function emptyInputFrame(): InputFrame {
     move: { x: 0, z: 0 },
     moveCommand: null,
     aim: { x: 0, z: 0 },
+    hover: null,
     held: new Set(),
     pressed: new Set(),
     released: new Set(),

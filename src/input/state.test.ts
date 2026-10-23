@@ -12,7 +12,7 @@ describe("createInputState: actions", () => {
     const input = createInputState("mmo");
 
     input.controlDown("Digit1");
-    input.controlDown("Mouse2");
+    input.controlDown("Mouse0");
     let frame = input.sampleTick(0);
     expect([...frame.pressed]).toEqual(["ability1", "primary"]);
     expect([...frame.held]).toEqual(["ability1", "primary"]);
@@ -217,15 +217,48 @@ describe("createInputState: click to move", () => {
   });
 });
 
+describe("createInputState: Shift chords", () => {
+  it("Shift + right-click is an attack move (armed and confirmed), not a move or attack order", () => {
+    const input = createInputState("moba");
+    expect(input.isBound("ShiftLeft")).toBe(true);
+    input.setAim({ x: 2, z: 3 });
+    input.controlDown("ShiftLeft");
+    input.controlDown("Mouse2");
+    let frame = input.sampleTick(0);
+    expect([...frame.pressed].sort()).toEqual(["attackMove", "confirm"]);
+    expect(frame.moveCommand).toBeNull();
+
+    // Letting go of Shift first still releases the chord with the button.
+    input.controlUp("ShiftLeft");
+    frame = input.sampleTick(0);
+    expect(frame.moveCommand).toBeNull();
+    expect([...frame.held].sort()).toEqual(["attackMove", "confirm"]);
+    input.controlUp("Mouse2");
+    frame = input.sampleTick(0);
+    expect([...frame.released].sort()).toEqual(["attackMove", "confirm"]);
+    expect(frame.held.size).toBe(0);
+
+    // Without Shift it's a right-click again.
+    input.controlDown("Mouse2");
+    frame = input.sampleTick(0);
+    expect([...frame.pressed]).toEqual(["primary"]);
+    expect(frame.moveCommand).toEqual({ x: 2, z: 3 });
+  });
+
+  it("leaves Shift unbound where no chord uses it", () => {
+    expect(createInputState("mmo").isBound("ShiftLeft")).toBe(false);
+  });
+});
+
 describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
   it("releases held buttons with edges and ignores new presses, but keeps keys", () => {
     const input = createInputState("mmo");
-    input.controlDown("Mouse2");
+    input.controlDown("Mouse0");
     input.controlDown("Digit1");
     input.sampleTick(0);
 
     input.borrowMouse("freeCamera", true);
-    input.controlDown("Mouse0");
+    input.controlDown("Mouse2");
     input.controlDown("Space");
     const frame = input.sampleTick(0);
     expect([...frame.released]).toEqual(["primary"]);
@@ -252,13 +285,13 @@ describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
     input.borrowMouse("picker", true);
     input.borrowMouse("freeCamera", false);
     expect(input.mouseButtons).toBe(false);
-    input.controlDown("Mouse2");
+    input.controlDown("Mouse0");
     expect(input.sampleTick(0).pressed.size).toBe(0);
 
     input.borrowMouse("picker", false);
     expect(input.mouseButtons).toBe(true);
-    input.controlUp("Mouse2");
-    input.controlDown("Mouse2");
+    input.controlUp("Mouse0");
+    input.controlDown("Mouse0");
     expect([...input.sampleTick(0).pressed]).toEqual(["primary"]);
   });
 });

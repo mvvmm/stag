@@ -566,3 +566,83 @@ export function sampleLoop(table: readonly number[], phase: number): number {
   const t = x - i;
   return (table[i % n] as number) * (1 - t) + (table[(i + 1) % n] as number) * t;
 }
+
+/** Where a paw swipe is at a moment: each part from 0 to 1, and how much of it shows. */
+export type SwipePhase = {
+  /** The paw drawn up and back (the anticipation), over the first part of the windup. */
+  cock: number;
+  /** The strike, accelerating into the hit at the end of the windup. */
+  strike: number;
+  /** Carrying on across after the hit (a swing doesn't stop at the target), over the first
+   * `throughShare` of the follow-through. */
+  through: number;
+  /** Back to rest, over the rest of the follow-through. */
+  release: number;
+  /** How much of the swipe shows: 1, fading to 0 after a cancel (and 0 outside the swipe). */
+  weight: number;
+};
+
+const NO_SWIPE: SwipePhase = { cock: 0, strike: 0, through: 0, release: 0, weight: 0 };
+
+/**
+ * A paw swipe timed on its windup, so the paw lands on the target exactly when the hit does:
+ * cocked over the first `cockShare` of the windup, the strike over the rest (ease-in: fastest at
+ * the hit), then `follow` seconds: carrying on across over the first `throughShare` of it, back to
+ * rest over the rest. `since` is the time since the cast started;
+ * `cancelled` how long ago the windup was called off (null if it wasn't), after which it fades out
+ * over `fade` seconds from where it was.
+ */
+export function swipePhase(
+  since: number,
+  windup: number,
+  follow: number,
+  cockShare: number,
+  cancelled: number | null,
+  fade: number,
+  throughShare = 0,
+): SwipePhase {
+  if (since < 0) return NO_SWIPE;
+  const w = Math.max(windup, 1e-3);
+  // Called off, it holds the pose it had then while it fades.
+  const at = cancelled === null ? since : since - cancelled;
+  let phase: SwipePhase;
+  if (at < w) {
+    const p = at / w;
+    const share = Math.min(0.95, Math.max(0.05, cockShare));
+    const cock = smoothstep(Math.min(1, p / share));
+    const s = p <= share ? 0 : (p - share) / (1 - share);
+    phase = { cock, strike: s * s, through: 0, release: 0, weight: 1 };
+  } else {
+    const q = follow > 0 ? (at - w) / follow : 1;
+    if (q >= 1) return NO_SWIPE;
+    const share = Math.min(0.95, Math.max(0, throughShare));
+    // Out of the hit at full speed (ease-out), then easing back.
+    const t = share > 0 ? Math.min(1, q / share) : 1;
+    const through = 1 - (1 - t) * (1 - t);
+    const release = smoothstep(share < 1 ? (q - share) / (1 - share) : 1);
+    phase = { cock: 1, strike: 1, through, release, weight: 1 };
+  }
+  if (cancelled !== null) {
+    const out = fade > 0 ? 1 - cancelled / fade : 0;
+    if (out <= 0) return NO_SWIPE;
+    phase.weight = smoothstep(out);
+  }
+  return phase;
+}
+
+/**
+ * Which paw swipes the auto attack number `n` (the caster's cast count): 1 = right, -1 = left. It
+ * looks random (an integer hash, not alternating), but the same attack always gets the same paw,
+ * so replays and seeks show what they showed live. View-only: the simulation's RNG stays out of it.
+ */
+export function swipeSide(n: number): 1 | -1 {
+  return (hashInt(n) & 1) === 0 ? 1 : -1;
+}
+
+/** A well-mixed 32-bit integer hash (for view-only variations that must repeat exactly). */
+export function hashInt(n: number): number {
+  let h = n | 0;
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  return (h ^ (h >>> 16)) >>> 0;
+}

@@ -3,7 +3,8 @@ import type { Action } from "@/input/actions";
 /**
  * A physical control: a `KeyboardEvent.code` (`KeyW`, `Digit1`, `Space`) or a mouse button as
  * `Mouse<button>` (`Mouse0` = left, `Mouse2` = right). Physical codes keep the layout the same
- * on AZERTY and other keyboard layouts.
+ * on AZERTY and other keyboard layouts. `Shift+<control>` is a chord: pressed with either Shift
+ * held, the control triggers the chord's actions instead of its own.
  */
 export type Control = string;
 
@@ -39,15 +40,16 @@ export const MMO_PRESET: Preset = {
     right: ["KeyD", "ArrowRight"],
   },
   actions: {
-    primary: ["Mouse2"],
+    // The auto attack: click an enemy (hold to attack whatever's under the cursor while moving).
+    primary: ["Mouse0"],
     ability1: ["Digit1"],
     ability2: ["Digit2"],
     ability3: ["Digit3"],
     ultimate: ["Digit4"],
     dodge: ["Space"],
-    interact: ["Mouse0"],
+    // Left click is the auto attack; interact waits on F until 2.3 settles the keys.
+    interact: ["KeyF"],
     pause: ["Escape"],
-    switchControls: ["KeyM"],
   },
 };
 
@@ -56,7 +58,7 @@ export const MOBA_PRESET: Preset = {
   label: "MOBA (right-click)",
   move: { kind: "pointer", control: "Mouse2" },
   actions: {
-    // Same button as moving: the simulation decides between attack and move (later steps).
+    // Same button as moving: on an enemy it's an attack order, on the ground a move order.
     primary: ["Mouse2"],
     ability1: ["KeyQ"],
     ability2: ["KeyW"],
@@ -65,15 +67,19 @@ export const MOBA_PRESET: Preset = {
     // Space centers the camera, like League; dodge takes League's Flash key until 2.3 decides.
     dodge: ["KeyF"],
     interact: ["Mouse0"],
-    stop: ["KeyS"],
+    // A stops and S attack-moves (League's S and A, swapped: the way we like it). Shift +
+    // right-click attack-moves at once (arms and places it in one press).
+    stop: ["KeyA"],
+    attackMove: ["KeyS", "Shift+Mouse2"],
+    confirm: ["Mouse0", "Shift+Mouse2"],
     pause: ["Escape"],
-    switchControls: ["KeyM"],
     centerCamera: ["Space"],
   },
 };
 
 export const PRESETS: Record<PresetId, Preset> = { mmo: MMO_PRESET, moba: MOBA_PRESET };
-export const DEFAULT_PRESET: PresetId = "mmo";
+/** Right-click is the only player-facing scheme since 2.2 (WASD stays for the debug pane). */
+export const DEFAULT_PRESET: PresetId = "moba";
 
 export function isPresetId(value: unknown): value is PresetId {
   return typeof value === "string" && value in PRESETS;

@@ -18,6 +18,7 @@ type Latch = { pressed: Set<Action>; released: Set<Action> };
 const newLatch = (): Latch => ({ pressed: new Set(), released: new Set() });
 
 const isMouseButton = (control: Control) => control.startsWith("Mouse");
+const SHIFT_KEYS: readonly Control[] = ["ShiftLeft", "ShiftRight"];
 
 export type InputState = ReturnType<typeof createInputState>;
 
@@ -30,6 +31,9 @@ export type InputState = ReturnType<typeof createInputState>;
 export function createInputState(initialPreset: PresetId) {
   let preset: Preset = PRESETS[initialPreset];
   let bindings = actionsByControl(preset);
+  /** Physical control → the control it went down as: itself, or a chord (`Shift+Mouse2`). */
+  const downAs = new Map<Control, Control>();
+  /** The controls (chords resolved) that are down. */
   const down = new Set<Control>();
   const held = new Set<Action>();
   const tickLatch = newLatch();
@@ -37,6 +41,7 @@ export function createInputState(initialPreset: PresetId) {
   /** The pointer-move control went down since the last tick (so a click shorter than a tick still moves). */
   let moveClicked = false;
   let aim: Vec2 = { x: 0, z: 0 };
+  let hover: number | null = null;
   /** Who borrowed the mouse (debug free camera, entity picker). While any has, buttons are ignored. */
   const mouseBorrowers = new Set<string>();
 
@@ -66,6 +71,14 @@ export function createInputState(initialPreset: PresetId) {
     return pos ? 1 : neg ? -1 : 0;
   };
 
+  const hasChords = (): boolean => [...bindings.keys()].some((control) => control.includes("+"));
+
+  /** A control pressed with Shift held goes down as its `Shift+` chord, when that's bound. */
+  const resolve = (control: Control): Control => {
+    const chord = `Shift+${control}`;
+    return SHIFT_KEYS.some((key) => down.has(key)) && bindings.has(chord) ? chord : control;
+  };
+
   const actionHeld = (action: Action): boolean => {
     for (const control of down) {
       if (bindings.get(control)?.includes(action)) return true;
@@ -78,9 +91,11 @@ export function createInputState(initialPreset: PresetId) {
     frameLatch[kind].add(action);
   };
 
-  const controlDown = (control: Control): void => {
-    if (mouseBorrowers.size && isMouseButton(control)) return;
-    if (down.has(control)) return; // key repeat or duplicate event
+  const controlDown = (physical: Control): void => {
+    if (mouseBorrowers.size && isMouseButton(physical)) return;
+    if (downAs.has(physical)) return; // key repeat or duplicate event
+    const control = resolve(physical);
+    downAs.set(physical, control);
     down.add(control);
     const direction = directionOf(control);
     if (direction) lastPressed[direction] = ++pressOrder;
@@ -94,8 +109,11 @@ export function createInputState(initialPreset: PresetId) {
     }
   };
 
-  const controlUp = (control: Control): void => {
-    if (!down.delete(control)) return;
+  const controlUp = (physical: Control): void => {
+    const control = downAs.get(physical);
+    if (control === undefined) return;
+    downAs.delete(physical);
+    down.delete(control);
     for (const action of bindings.get(control) ?? []) {
       if (!held.has(action) || actionHeld(action)) continue;
       held.delete(action);
@@ -105,7 +123,7 @@ export function createInputState(initialPreset: PresetId) {
 
   /** Releases every held control (window blur, tab hidden, preset switch). */
   const releaseAll = (): void => {
-    for (const control of [...down]) controlUp(control);
+    for (const physical of [...downAs.keys()]) controlUp(physical);
   };
 
   const moveCommand = (): Vec2 | null => {
@@ -121,7 +139,12 @@ export function createInputState(initialPreset: PresetId) {
 
     /** True if the control means something in the current preset (so the DOM default can go). */
     isBound(control: Control): boolean {
-      return bindings.has(control) || isMoveControl(control);
+      return (
+        bindings.has(control) ||
+        isMoveControl(control) ||
+        bindings.has(`Shift+${control}`) ||
+        (SHIFT_KEYS.includes(control) && hasChords())
+      );
     },
 
     /** False while something else has borrowed the mouse buttons. */
@@ -139,7 +162,7 @@ export function createInputState(initialPreset: PresetId) {
       if (borrowed) mouseBorrowers.add(owner);
       else mouseBorrowers.delete(owner);
       if (wasFree && mouseBorrowers.size) {
-        for (const control of [...down]) if (isMouseButton(control)) controlUp(control);
+        for (const physical of [...downAs.keys()]) if (isMouseButton(physical)) controlUp(physical);
         moveClicked = false;
       }
     },
@@ -171,6 +194,16 @@ export function createInputState(initialPreset: PresetId) {
       return aim;
     },
 
+    /** The body under the cursor (its `uid`), or null. */
+    get hover(): number | null {
+      return hover;
+    },
+
+    /** The body under the cursor (its `uid`), or null; set by the shell's screen pick each frame. */
+    setHover(uid: number | null): void {
+      hover = uid;
+    },
+
     /** Latest cursor position on the ground, set by the renderer each frame. */
     setAim(point: Vec2): void {
       aim = { x: point.x, z: point.z };
@@ -188,6 +221,7 @@ export function createInputState(initialPreset: PresetId) {
         move: { x: quantizeDown(move.x), z: quantizeDown(move.z) },
         moveCommand: moveCommand(),
         aim: { x: quantize(aim.x), z: quantize(aim.z) },
+        hover,
         held: new Set(held),
         pressed: new Set(tickLatch.pressed),
         released: new Set(tickLatch.released),

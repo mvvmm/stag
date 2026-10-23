@@ -24,6 +24,8 @@ import {
   stepShuffle,
   stepSpring,
   strideMotion,
+  swipePhase,
+  swipeSide,
 } from "@/render/locomotionAnim";
 
 const GAITS: Gait[] = [
@@ -456,5 +458,56 @@ describe("strideMotion", () => {
   it("gathers with the hind feet forward", () => {
     expect(at(motion.gather, 0)).toBeGreaterThan(0.5);
     expect(at(motion.gather, 0.5)).toBeLessThan(-0.5);
+  });
+});
+
+describe("swipePhase", () => {
+  const at = (since: number, cancelled: number | null = null) =>
+    swipePhase(since, 0.3, 0.25, 0.6, cancelled, 0.1);
+
+  it("cocks, then strikes into the hit at the end of the windup, then releases", () => {
+    expect(at(-0.01).weight).toBe(0);
+    expect(at(0)).toEqual({ cock: 0, strike: 0, through: 0, release: 0, weight: 1 });
+    expect(at(0.18).cock).toBeCloseTo(1, 9);
+    expect(at(0.18).strike).toBe(0);
+    // Fastest at the hit: the second half of the strike covers more than the first.
+    const mid = at(0.24).strike;
+    expect(mid).toBeLessThan(0.5);
+    expect(at(0.2999).strike).toBeGreaterThan(0.99);
+    expect(at(0.3)).toEqual({ cock: 1, strike: 1, through: 1, release: 0, weight: 1 });
+    expect(at(0.425).release).toBeCloseTo(0.5, 9);
+    expect(at(0.55).weight).toBe(0);
+  });
+
+  it("carries on across after the hit before easing back", () => {
+    const follow = (since: number) => swipePhase(since, 0.3, 0.4, 0.6, null, 0.1, 0.4);
+    expect(follow(0.3)).toEqual({ cock: 1, strike: 1, through: 0, release: 0, weight: 1 });
+    // Fast out of the hit: more than half way across in the first half of it.
+    expect(follow(0.38).through).toBeGreaterThan(0.7);
+    expect(follow(0.46).through).toBeCloseTo(1, 9);
+    expect(follow(0.46).release).toBeCloseTo(0, 9);
+    expect(follow(0.58).release).toBeCloseTo(0.5, 9);
+  });
+
+  it("holds its pose and fades out after a cancel", () => {
+    const before = at(0.1);
+    const fading = at(0.15, 0.05);
+    expect(fading.cock).toBeCloseTo(before.cock, 12);
+    expect(fading.weight).toBeCloseTo(0.5, 9);
+    expect(at(0.25, 0.1).weight).toBe(0);
+  });
+});
+
+describe("swipeSide", () => {
+  it("picks either paw, unevenly enough to look random, and the same one every time", () => {
+    const sides = Array.from({ length: 200 }, (_, i) => swipeSide(i + 1));
+    const right = sides.filter((s) => s === 1).length;
+    expect(right).toBeGreaterThan(70);
+    expect(right).toBeLessThan(130);
+    // Not just alternating: some repeats in a row.
+    let repeats = 0;
+    for (let i = 1; i < sides.length; i++) if (sides[i] === sides[i - 1]) repeats++;
+    expect(repeats).toBeGreaterThan(50);
+    expect(Array.from({ length: 200 }, (_, i) => swipeSide(i + 1))).toEqual(sides);
   });
 });
