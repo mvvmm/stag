@@ -359,12 +359,13 @@ function disarmAiming(entity: Entity): void {
   delete player.aimQueued;
 }
 
-/** Whether a cast of `slot` could start right now: it has an ability, it's off cooldown (or
- * cooldowns are off) and no other cast is running. */
+/** Whether `slot` can be aimed now: it has an ability and it's off cooldown (or cooldowns are off).
+ * A running cast doesn't stop the aiming (it's only UI, like League's targeting during an auto
+ * attack): the confirm queues the cast, which starts once that one is over. */
 function canStart(entity: Entity, slot: SlotId): boolean {
   const caster = entity.caster;
   const state = caster?.slots[slot];
-  if (!caster || !state || caster.cast || !slotAbility(entity, slot)) return false;
+  if (!caster || !state || !slotAbility(entity, slot)) return false;
   return entity.noCooldowns === true || state.cooldown <= EPSILON;
 }
 

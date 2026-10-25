@@ -142,21 +142,23 @@ describe("normal cast", () => {
     expect(player.caster.slots.ability2?.cooldown).toBeGreaterThan(0);
   });
 
-  it("the confirm queues like a quick cast: it waits for another cast to finish", () => {
+  it("aims during another cast, and the confirm waits for that cast to finish", () => {
     const { player, tick, ticks } = setup();
     tick(press(["ability2", "normalCast"]));
     tick(press(["ability1"], { x: 0, z: 5 }));
     // The other key cancelled the aiming and quick cast Q.
     expect(player.player.aiming).toBeUndefined();
     expect(player.caster.cast?.ability).toBe(LINE);
+    // Q is still winding up: aiming is only UI, so it arms at once.
     tick(press(["ability2", "normalCast"]));
-    // Q is still winding up: the arm waits in the buffer, then arms once Q is done.
-    expect(player.player.aiming).toBeUndefined();
-    expect(player.player.aimQueued).toEqual({ slot: "ability2", age: DT });
-    ticks(6);
-    expect(player.caster.cast).toBeNull();
     expect(player.player.aiming).toEqual({ slot: "ability2" });
     expect(player.player.aimQueued).toBeUndefined();
+    // The confirm queues W, which starts once Q is over.
+    tick(press(["confirm"], { x: -2, z: -3 }));
+    expect(player.player.aiming).toBeUndefined();
+    expect(player.caster.cast?.ability).toBe(LINE);
+    ticks(6);
+    expect(player.caster.cast?.ability).toBe(BURST);
   });
 
   it("a press on cooldown arms once the slot is ready, within the buffer", () => {
