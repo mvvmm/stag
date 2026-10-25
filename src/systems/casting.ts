@@ -14,7 +14,8 @@ type CasterEntity = Entity & { caster: Caster };
 /**
  * Runs every caster's abilities (the player now, enemies in 3.1), after its controller has set
  * `caster.target` and `caster.queued` and before locomotion moves it:
- * - cooldowns count down, and a buffered press expires after `abilities.buffer` seconds
+ * - cooldowns count down, and a buffered press expires after `abilities.buffer` seconds (one the
+ *   controller is walking into range for, `queued.chase`, waits until the controller drops it)
  * - an auto attack still winding up is called off (cooldown refunded) if the target was dropped or
  *   switched (a move order, stop, another target)
  * - a running cast advances: the windup, then the effects (once, or every pulse of a channel)
@@ -29,7 +30,8 @@ export function castingSystem(world: World<Entity>, dt: number): void {
     for (const slot of Object.values(caster.slots)) {
       if (slot) slot.cooldown = entity.noCooldowns ? 0 : Math.max(0, slot.cooldown - dt);
     }
-    if (caster.queued) {
+    // A walk into range (`chase`) is an order: it waits until its controller drops it.
+    if (caster.queued && !caster.queued.chase) {
       caster.queued.age += dt;
       if (caster.queued.age > ABILITIES.buffer + EPSILON) caster.queued = null;
     }
@@ -65,8 +67,12 @@ function tryStart(world: World<Entity>, entity: CasterEntity): void {
   if (queued) {
     const found = ready(entity, queued.slot);
     if (!found) return;
-    const aim = resolveAim(world, found.def, found.stats, entity, queued);
-    // Not valid yet (e.g. out of range): it keeps waiting until the buffer runs out.
+    // A press aimed at the caster itself is a self cast (Alt + key, or the cursor on itself).
+    const self = queued.target !== null && queued.target === entity.uid;
+    const request = { point: queued.point, target: queued.target, self };
+    const aim = resolveAim(world, found.def, found.stats, entity, request);
+    // Not valid yet (e.g. out of range): it keeps waiting until the buffer runs out (or, walking
+    // into range, until it's in).
     if (!aim) return;
     caster.queued = null;
     start(world, entity, queued.slot, found.def, found.stats, aim);

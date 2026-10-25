@@ -9,7 +9,14 @@ import {
   registerAbility,
 } from "@/data/abilities";
 import { addWithUid } from "@/ecs/uid";
-import { type Caster, createWorld, type Entity, type Faction, type SlotId } from "@/ecs/world";
+import {
+  type Cast,
+  type Caster,
+  createWorld,
+  type Entity,
+  type Faction,
+  type SlotId,
+} from "@/ecs/world";
 import { castingSystem } from "@/systems/casting";
 import { PLAYER } from "@/systems/movementStats";
 
@@ -306,5 +313,69 @@ describe("casting: the framework", () => {
     press();
     ticks(60);
     expect(caster.caster.casts).toBe(2);
+  });
+
+  it("never expires a press walking into range (chase), and starts it once in range", () => {
+    const def = ability("test.chase", { aim: "target" }, { range: 1 });
+    const { caster, body, tick, ticks } = setup({ slots: { ability1: def.id } });
+    const dummy = body(0, 6);
+    caster.caster.queued = {
+      slot: "ability1",
+      age: 0,
+      point: { x: 0, z: 6 },
+      target: dummy.uid,
+      chase: true,
+    };
+    ticks(120);
+    expect(caster.caster.queued?.chase).toBe(true);
+    expect(caster.caster.casts).toBe(0);
+    dummy.transform.position.z = 2;
+    tick();
+    expect(caster.caster.casts).toBe(1);
+    expect(caster.caster.queued).toBeNull();
+  });
+
+  it("still expires an out-of-range targeted press without chase, for any caster", () => {
+    const def = ability("test.noChase", { aim: "target" }, { range: 1 });
+    const { caster, body, ticks } = setup({ faction: "enemy", slots: { ability1: def.id } });
+    const target = body(0, 6);
+    caster.caster.queued = { slot: "ability1", age: 0, point: { x: 0, z: 6 }, target: target.uid };
+    ticks(13);
+    expect(caster.caster.queued).toBeNull();
+    expect(caster.caster.casts).toBe(0);
+  });
+
+  it("a press aimed at the caster itself self casts an ability that allows it", () => {
+    const point = ability(
+      "test.selfPoint",
+      { aim: "point", selfCast: true },
+      { range: 5, windup: 0.1 },
+    );
+    const target = ability("test.selfTarget", { aim: "target", selfCast: true }, { windup: 0.1 });
+    const { caster, tick } = setup({
+      faction: "enemy",
+      slots: { ability1: point.id, ability2: target.id },
+    });
+    caster.transform.position.x = 2;
+    caster.caster.queued = { slot: "ability1", age: 0, point: { x: 2, z: 0 }, target: caster.uid };
+    caster.transform.position.x = 3; // moved since the press: it lands where it stands now
+    tick();
+    expect(caster.caster.cast?.aim).toEqual({ target: null, point: { x: 3, z: 0 }, dir: null });
+
+    caster.caster.cast = null;
+    caster.caster.queued = { slot: "ability2", age: 0, point: { x: 3, z: 0 }, target: caster.uid };
+    tick();
+    const cast = (): Cast | null => caster.caster.cast;
+    expect(cast()?.aim).toEqual({ target: caster.uid, point: null, dir: null });
+    expect(cast()?.face).toBeNull();
+  });
+
+  it("an ability without selfCast can't be aimed at its caster", () => {
+    const def = ability("test.noSelf", { aim: "target" }, {});
+    const { caster, ticks } = setup({ slots: { ability1: def.id } });
+    caster.caster.queued = { slot: "ability1", age: 0, point: { x: 0, z: 0 }, target: caster.uid };
+    ticks(30);
+    expect(caster.caster.casts).toBe(0);
+    expect(caster.caster.queued).toBeNull();
   });
 });
