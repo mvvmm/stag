@@ -40,6 +40,26 @@ export type InputStats = {
   flashing: Action[];
 };
 
+/** One slot of the ability bar, as the shell last published it. */
+export type AbilitySlotView = {
+  slot: string;
+  /** Its key in the current bindings (`Q`, `RMB`), or null if unbound. */
+  key: string | null;
+  /** Null for an empty slot. */
+  label: string | null;
+  icon: string | null;
+  /** Seconds left, rounded to 0.1 (0 = ready). */
+  cooldown: number;
+  /** The whole cooldown, s. */
+  cooldownMax: number;
+  /** A normal cast of this slot is being aimed. */
+  aiming: boolean;
+};
+
+/** The player's slots for the ability bar (written by the shell when they change); empty when the
+ * scene has no caster player. */
+export const abilityBar = signal<AbilitySlotView[]>([]);
+
 /** Written by the dev tools' input overlay; null while it's off. */
 export const inputStats = signal<InputStats | null>(null);
 

@@ -3,8 +3,8 @@ import { type AbilityDef, registerAbility } from "@/data/abilities";
 import type { SlotId } from "@/ecs/world";
 
 // The test kit (2.3): four grey-box abilities to try the cast modes, the indicator and walking
-// into range on the dummies. Dev-only: the `cheats.testKit` sim command puts them in the player's
-// empty slots, and no player build's loadout has them. All four root during the windup and face
+// into range on the dummies. The Cat spawns with them in Q/W/E/R for now (players too), until real
+// abilities replace them slot by slot (pounce in 2.4). All four root during the windup and face
 // their aim.
 
 export const TEST_KIT = defineTunables("testKit", {
@@ -42,6 +42,7 @@ const base = {
 export const testLine: AbilityDef = {
   ...base,
   id: "test.line",
+  icon: "line",
   label: "Test line",
   aim: "direction",
   stats: () => ({
@@ -63,6 +64,7 @@ export const testLine: AbilityDef = {
 export const testBurst: AbilityDef = {
   ...base,
   id: "test.burst",
+  icon: "burst",
   label: "Test burst",
   aim: "point",
   selfCast: true,
@@ -85,6 +87,7 @@ export const testBurst: AbilityDef = {
 export const testCone: AbilityDef = {
   ...base,
   id: "test.cone",
+  icon: "cone",
   label: "Test cone",
   aim: "direction",
   stats: () => ({
@@ -110,6 +113,7 @@ export const testCone: AbilityDef = {
 export const testStrike: AbilityDef = {
   ...base,
   id: "test.strike",
+  icon: "strike",
   label: "Test strike",
   aim: "target",
   stats: () => ({
@@ -123,7 +127,7 @@ export const testStrike: AbilityDef = {
 
 for (const def of [testLine, testBurst, testCone, testStrike]) registerAbility(def);
 
-/** Where the `cheats.testKit` command puts them (D/F stay empty). */
+/** Their slots: the Cat spawns with them in Q/W/E/R (D/F stay empty). */
 export const TEST_KIT_SLOTS: Partial<Record<SlotId, string>> = {
   ability1: testLine.id,
   ability2: testBurst.id,

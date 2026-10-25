@@ -107,6 +107,19 @@ export function isPresetId(value: unknown): value is PresetId {
   return typeof value === "string" && value in PRESETS;
 }
 
+const MOUSE_LABELS: Record<string, string> = { Mouse0: "LMB", Mouse1: "MMB", Mouse2: "RMB" };
+
+/** A control as a player reads it: `KeyQ` → `Q`, `Digit1` → `1`, `Mouse2` → `RMB`,
+ * `Shift+Mouse2` → `Shift+RMB`. */
+export function controlLabel(control: Control): string {
+  const plus = control.lastIndexOf("+");
+  if (plus > 0) return `${control.slice(0, plus + 1)}${controlLabel(control.slice(plus + 1))}`;
+  if (control in MOUSE_LABELS) return MOUSE_LABELS[control] as string;
+  if (control.startsWith("Key")) return control.slice(3);
+  if (control.startsWith("Digit")) return control.slice(5);
+  return control;
+}
+
 /** Control → actions it triggers in a preset. */
 export function actionsByControl(preset: Preset): Map<Control, Action[]> {
   const map = new Map<Control, Action[]>();

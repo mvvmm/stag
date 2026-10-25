@@ -5,6 +5,7 @@ import { greyboxRoom } from "@/data/rooms/greybox";
 import { gymRoom } from "@/data/rooms/gym";
 import type { Room } from "@/data/rooms/room";
 import { yardRoom } from "@/data/rooms/yard";
+import { TEST_KIT_SLOTS } from "@/data/testKit";
 import { addWithUid } from "@/ecs/uid";
 import { type Caster, cloneTransform, type Entity } from "@/ecs/world";
 import type { SceneSim } from "@/scenes/sim";
@@ -73,10 +74,12 @@ export function spawnRoom(world: World<Entity>, room: Room): void {
   });
 }
 
-/** The Cat's abilities, all ready. */
+/** The Cat's abilities, all ready. The test kit fills Q/W/E/R until real abilities replace it
+ * (pounce in 2.4, the first damage ability in 2.5). */
 function catCaster(): Caster {
   const slots: Caster["slots"] = {};
-  for (const [slot, ability] of Object.entries(CAT_SLOTS) as [keyof Caster["slots"], string][]) {
+  const loadout = { ...TEST_KIT_SLOTS, ...CAT_SLOTS };
+  for (const [slot, ability] of Object.entries(loadout) as [keyof Caster["slots"], string][]) {
     slots[slot] = { ability, cooldown: 0 };
   }
   return { slots, cast: null, target: null, queued: null, casts: 0 };

@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { Targetable } from "@/combat/abilities";
+import { createRng } from "@/core/rng";
 import { tuning } from "@/core/tuning";
 import { abilityById, catAutoAttack } from "@/data/abilities";
 import { TEST_KIT, TEST_KIT_SLOTS } from "@/data/testKit";
 import { addWithUid } from "@/ecs/uid";
 import { createWorld, type Entity, type SlotId } from "@/ecs/world";
+import { yardSim } from "@/scenes/arena";
 import { castingSystem } from "@/systems/casting";
-import { simCommands } from "@/systems/cheats";
 
 const DT = 1 / 60;
 
@@ -34,7 +35,11 @@ function setup() {
       hurtbox: { radius: 0.6, length: 0 },
       faction: "enemy",
     }) as Targetable;
-  const testKit = () => simCommands["cheats.testKit"]?.run(world);
+  const testKit = () => {
+    for (const [slot, ability] of Object.entries(TEST_KIT_SLOTS)) {
+      player.caster.slots[slot as SlotId] = { ability, cooldown: 0 };
+    }
+  };
   const tick = () => {
     for (const { health } of world.with("health")) health.taken.length = 0;
     castingSystem(world, DT);
@@ -55,40 +60,18 @@ function setup() {
 
 const damage = (target: Targetable) => target.health.max - target.health.current;
 
-describe("the test kit cheat", () => {
-  it("fills the empty slots, and empties exactly those again", () => {
-    const { player, testKit } = setup();
-    testKit();
-    expect(player.testKit).toEqual(["ability1", "ability2", "ability3", "ultimate"]);
+describe("the test kit", () => {
+  it("is in the Cat's Q/W/E/R from the start, with D/F empty", () => {
+    const world = createWorld();
+    yardSim.spawn(world, createRng(1));
+    const cat = world.with("player", "caster").first;
+    expect(cat?.caster.slots.primary?.ability).toBe(catAutoAttack.id);
     for (const [slot, id] of Object.entries(TEST_KIT_SLOTS)) {
-      expect(player.caster.slots[slot as SlotId]).toEqual({ ability: id, cooldown: 0 });
+      expect(cat?.caster.slots[slot as SlotId]).toEqual({ ability: id, cooldown: 0 });
       expect(abilityById(id)).toBeDefined();
     }
-    expect(player.caster.slots.extra1).toBeUndefined();
-    expect(player.caster.slots.extra2).toBeUndefined();
-
-    testKit();
-    expect(player.testKit).toBeUndefined();
-    expect(Object.keys(player.caster.slots)).toEqual(["primary"]);
-  });
-
-  it("never overwrites a filled slot, and leaves it when turned off", () => {
-    const { player, testKit } = setup();
-    player.caster.slots.ability2 = { ability: catAutoAttack.id, cooldown: 0 };
-    testKit();
-    expect(player.testKit).toEqual(["ability1", "ability3", "ultimate"]);
-    expect(player.caster.slots.ability2?.ability).toBe(catAutoAttack.id);
-    testKit();
-    expect(player.caster.slots.ability2?.ability).toBe(catAutoAttack.id);
-    expect(player.caster.slots.ability1).toBeUndefined();
-  });
-
-  it("drops the aiming of a slot it empties", () => {
-    const { player, testKit } = setup();
-    testKit();
-    player.player.aiming = { slot: "ability2" };
-    testKit();
-    expect(player.player.aiming).toBeUndefined();
+    expect(cat?.caster.slots.extra1).toBeUndefined();
+    expect(cat?.caster.slots.extra2).toBeUndefined();
   });
 });
 

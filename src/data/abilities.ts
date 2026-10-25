@@ -47,6 +47,9 @@ export type AbilityStats = {
 export type AbilityDef = {
   id: string;
   label: string;
+  /** Which icon the ability bar shows (`ui/abilityIcons.tsx`); without one it shows the label's
+   * first letter. */
+  icon?: string;
   aim: AimKind;
   /** The caster can't move during the windup (it faces its aim). */
   rootsWindup: boolean;
@@ -84,6 +87,7 @@ export const CAT_AA = defineTunables("catAA", {
 export const catAutoAttack: AbilityDef = {
   id: "cat.autoAttack",
   label: "Auto attack",
+  icon: "claw",
   aim: "target",
   rootsWindup: true,
   rootsChannel: false,

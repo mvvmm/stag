@@ -57,7 +57,7 @@
 - [x] **2.3 Keybinds & dodge decision:** final ability keys; decide whether dodge is universal or form-specific. → [plan](plans/2.3-keybinds-and-dodge.md)
 - [ ] **2.4 First mobility ability:** Cat pounce/dash (movement override, collision, cooldown).
 - [ ] **2.5 First Cat damage ability.**
-- [ ] **2.6 HUD v1:** health bar, ability bar with cooldowns (HTML overlay).
+- [ ] **2.6 HUD v1:** health bar, ability bar with cooldowns (HTML overlay). A minimal ability bar (icons, keys, cooldowns) came early, in 2.3.
 - [ ] **2.7 Combat juice:** hitstop, screen shake, knockback, a pass over the rest (hit flash, a small recoil, impact sparks and damage numbers at the impact came early, in 2.2).
 
 ## Phase 3: First Enemy (Vertical Slice)

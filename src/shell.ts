@@ -10,6 +10,7 @@ import { tuning } from "@/core/tuning";
 import { DEBUG } from "@/debug/enabled";
 import type { FrameSample } from "@/debug/frameStats";
 import { createWorld, type Entity, type Vec3 } from "@/ecs/world";
+import { publishAbilityBar } from "@/hud";
 import type { InputFrame, ShellFrame } from "@/input/actions";
 import { PRESETS, type PresetId } from "@/input/bindings";
 import { attachInputDom, loadPreset, savePreset } from "@/input/dom";
@@ -333,7 +334,9 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     yaw = cameraYaw(camera);
 
     const shellFrame = input.sampleFrame();
-    const player = world.with("player").first?.player;
+    const playerEntity = world.with("player").first;
+    const player = playerEntity?.player;
+    publishAbilityBar(playerEntity, input.preset);
     // Esc while a normal cast is aimed only cancels it (the sim sees the same `pause` press).
     const aiming = !!player?.aiming && !pauseMenu.value.open;
     if (shellFrame.pressed.has("pause") && !aiming) setMenu(!pauseMenu.value.open);

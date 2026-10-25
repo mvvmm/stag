@@ -33,3 +33,7 @@ The ability keys are settled for good, and dodge is decided: there isn't one. `Q
 ![The W from the hero shot, confirmed: its circle flashes where it landed, and the dummy takes 80](04-burst-lands.png)
 
 ![Alt+W: the burst at the cat's feet, wherever the cursor is](05-self-burst.png)
+
+After the first playtest the kit became the Cat's loadout from the start, and a minimal ability bar joined it: icons, keys, cooldowns, and an outline on the slot being aimed.
+
+![The ability bar: the auto attack on RMB, Q outlined while it's aimed, W and E cooling down, R ready, D and F empty](06-ability-bar.png)

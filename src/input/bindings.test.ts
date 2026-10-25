@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { actionsByControl, MMO_PRESET, MOBA_PRESET, MOBA_SLOT_KEYS } from "@/input/bindings";
+import {
+  actionsByControl,
+  controlLabel,
+  MMO_PRESET,
+  MOBA_PRESET,
+  MOBA_SLOT_KEYS,
+} from "@/input/bindings";
 
 describe("bindings", () => {
   it("gives every moba slot key a quick cast, a Shift normal cast and an Alt self cast", () => {
@@ -26,5 +32,15 @@ describe("bindings", () => {
     expect(actionsByControl(MOBA_PRESET).get("KeyF")).toEqual(["extra2"]);
     expect(actionsByControl(MMO_PRESET).get("Space")).toBeUndefined();
     expect(actionsByControl(MMO_PRESET).get("KeyF")).toEqual(["interact"]);
+  });
+});
+
+describe("controlLabel", () => {
+  it("reads like the key on the keyboard", () => {
+    expect(controlLabel("KeyQ")).toBe("Q");
+    expect(controlLabel("Digit4")).toBe("4");
+    expect(controlLabel("Mouse2")).toBe("RMB");
+    expect(controlLabel("Shift+Mouse2")).toBe("Shift+RMB");
+    expect(controlLabel("Space")).toBe("Space");
   });
 });
