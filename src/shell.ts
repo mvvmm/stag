@@ -333,14 +333,18 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
     yaw = cameraYaw(camera);
 
     const shellFrame = input.sampleFrame();
-    if (shellFrame.pressed.has("pause")) setMenu(!pauseMenu.value.open);
+    const player = world.with("player").first?.player;
+    // Esc while a normal cast is aimed only cancels it (the sim sees the same `pause` press).
+    const aiming = !!player?.aiming && !pauseMenu.value.open;
+    if (shellFrame.pressed.has("pause") && !aiming) setMenu(!pauseMenu.value.open);
     if (pauseMenu.value.controls !== input.preset.id) {
       pauseMenu.value = { ...pauseMenu.value, controls: input.preset.id };
     }
     // The menu needs the real pointer (the moba scheme locks it to the canvas).
     if (pauseMenu.value.open && dom.locked) document.exitPointerLock();
     dom.syncLock();
-    const armed = !!world.with("player").first?.player?.attackMove?.armed;
+    // An armed attack move or a normal cast being aimed waits for a left click: the attack cursor.
+    const armed = !!player?.attackMove?.armed || !!player?.aiming;
     cursor.update(dom.locked ? dom.pointer : null, input.hover !== null || armed);
     for (const listener of frameListeners) listener(shellFrame);
 
