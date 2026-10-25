@@ -19,7 +19,9 @@ import {
 } from "@/data/rooms/room";
 import type { Entity } from "@/ecs/world";
 import { type NavGraph, navGraphOf } from "@/nav/graph";
+import { createAimIndicator } from "@/render/aimIndicator";
 import { bodyView } from "@/render/bodyView";
+import { createCastFx } from "@/render/castFx";
 import { ATTACK_MARKER, createClickMarker } from "@/render/clickMarker";
 import { createDummyViews } from "@/render/dummies";
 import { createFloorMaterial } from "@/render/floorMaterial";
@@ -182,6 +184,10 @@ function setup(ctx: SceneContext): void {
     const def = slot && abilityById(slot.ability);
     return PLAYER.radius + (def ? def.stats(player).range : 0);
   };
+  // A normal cast being aimed (Shift + an ability key): its range and where it would land.
+  const aimIndicator = createAimIndicator(ctx, player);
+  // Where non-primary abilities' areas land.
+  createCastFx(ctx);
   let orders = player.player.orders;
   ctx.onBeforeRender(() => {
     showBody();
@@ -196,6 +202,7 @@ function setup(ctx: SceneContext): void {
     marker.update(seconds);
     attackMarker.update(seconds);
     reach.show(player.player.attackMove?.armed ? playerMesh.position : null, reachRadius());
+    aimIndicator.update(playerMesh.position);
   });
 
   ctx.onFrame(() => {

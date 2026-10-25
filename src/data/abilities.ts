@@ -47,6 +47,9 @@ export type AbilityStats = {
 export type AbilityDef = {
   id: string;
   label: string;
+  /** Which icon the ability bar shows (`ui/abilityIcons.tsx`); without one it shows the label's
+   * first letter. */
+  icon?: string;
   aim: AimKind;
   /** The caster can't move during the windup (it faces its aim). */
   rootsWindup: boolean;
@@ -57,6 +60,9 @@ export type AbilityDef = {
   /** The auto attack's windup is called off, its cooldown refunded, when the controller drops or
    * switches `caster.target` before it's over (a move order, stop, another target), like League. */
   interruptible: boolean;
+  /** Alt + its key casts it on the caster: a `point` aim lands at its feet, a `target` aim targets
+   * the caster. Without it, a self cast acts like a quick cast. */
+  selfCast?: boolean;
   stats(caster: Entity): AbilityStats;
 };
 
@@ -81,6 +87,7 @@ export const CAT_AA = defineTunables("catAA", {
 export const catAutoAttack: AbilityDef = {
   id: "cat.autoAttack",
   label: "Auto attack",
+  icon: "claw",
   aim: "target",
   rootsWindup: true,
   rootsChannel: false,

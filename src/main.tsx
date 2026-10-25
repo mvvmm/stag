@@ -5,6 +5,8 @@ import { DEBUG } from "@/debug/enabled";
 import { isWebGPUSupported } from "@/render/engine";
 import { scenes } from "@/scenes";
 import { randomSeed, startShell } from "@/shell";
+import { AbilityBar } from "@/ui/AbilityBar";
+import { CastBar } from "@/ui/CastBar";
 import { deviceSupported } from "@/ui/device";
 import { InputStats } from "@/ui/InputStats";
 import { Notice } from "@/ui/Notice";
@@ -61,6 +63,8 @@ async function start() {
     <>
       <Stats />
       <InputStats />
+      <CastBar />
+      <AbilityBar />
       <ReplayBadge />
       <Notice />
       <PauseMenu />

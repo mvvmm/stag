@@ -28,8 +28,8 @@ Each step's detailed plan lives in [`slopdocs/plans/`](../slopdocs/plans/). The 
 | 1.7.1 | [Unsupported devices](1.7.1-unsupported-devices/index.md) | 2026-10-02 |
 | 2.1 | [Health, damage & test dummies](2.1-health-and-dummies/index.md) | 2026-10-02 |
 | 2.2 | [Ability framework + Cat auto attack](2.2-ability-framework/index.md) | 2026-10-02 |
-
 | 2.2.1 | [cf preview output](2.2.1-cf-preview-output/index.md) | 2026-10-17 |
+| 2.3 | [Keybinds & dodge decision](2.3-keybinds-and-dodge/index.md) | 2026-10-24 |
 
 ## Layout
 
@@ -72,7 +72,7 @@ Keep entries to about 300–600 words. Write in "we", in the past tense. Dates a
 The agent takes screenshots with [agent-browser](https://agent-browser.dev) (a devDependency) at the end of each step. The number of shots scales with the step: 1–4 for engine and system steps, and many for art, atmosphere and VFX steps (before/after pairs, several angles and lighting setups, close-ups).
 
 1. `pnpm build && pnpm preview --port 5747 --strictPort` (in the background; 5746 stays free for `pnpm dev`).
-2. Open the game at 1920×1080. Headless Chromium has working WebGPU on macOS, so no extra flags are needed:
+2. Open the game at 1920×1080. Headless Chromium has working WebGPU on macOS, so no extra flags are needed. **On WSL** it has no usable WebGPU (SwiftShader loses the device, WSL's Vulkan renders white at 2 fps): with WSL's mirrored networking (`networkingMode=mirrored` in `%UserProfile%\.wslconfig`), start a headless Windows Chrome with its own profile, `"/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --remote-debugging-port=9333 --user-data-dir='C:\Windows\Temp\stag-ab' --window-size=1920,1080 about:blank`, and drive it with `agent-browser --cdp 9333`. Keep the debug port on localhost (never `--remote-debugging-address=0.0.0.0`). Headless has no window focus, so the game auto-pauses: `ab eval 'document.hasFocus = () => true; window.dispatchEvent(new Event("focus"))'`. Don't poll a port nothing listens on: with mirrored ports, Windows' TIME_WAIT on it blocks the next server start for a minute or two.
    ```sh
    ab() { ./node_modules/.bin/agent-browser --session devlog "$@"; }
    ab set viewport 1920 1080

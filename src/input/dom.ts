@@ -7,6 +7,8 @@ const PRESET_STORAGE_KEY = "druid.inputPreset";
 /** `MouseEvent.buttons` bit → `MouseEvent.button` number (the middle and right bits are swapped). */
 const BUTTON_BY_BIT = [0, 2, 1, 3, 4];
 
+const isAltKey = (code: string) => code === "AltLeft" || code === "AltRight";
+
 /** Input types that don't take typed text (a focused checkbox or slider still lets keys through). */
 const NON_TEXT_INPUTS = new Set([
   "checkbox",
@@ -64,17 +66,24 @@ export function attachInputDom(input: InputState, canvas: HTMLCanvasElement) {
   const onKeyDown = (event: KeyboardEvent) => {
     // Leave browser shortcuts alone. On macOS, keys pressed with Cmd held never get a keyup, so
     // registering them would leave them stuck; release everything when Cmd goes down instead.
-    if (event.metaKey || event.ctrlKey || event.altKey) {
+    if (event.metaKey || event.ctrlKey) {
       if (event.key === "Meta") releaseAll();
       return;
     }
-    if (isEditable(event.target) || !input.isBound(event.code)) return;
+    if (isEditable(event.target)) return;
+    // With Alt held, only Alt itself and bound `Alt+` chords are the game's (Alt + Q self casts);
+    // other Alt shortcuts (Alt + arrows: history) stay the browser's.
+    if (event.altKey && !isAltKey(event.code) && !input.isBound(`Alt+${event.code}`)) return;
+    if (!input.isBound(event.code)) return;
     event.preventDefault();
     if (!event.repeat) input.controlDown(event.code);
   };
 
   const onKeyUp = (event: KeyboardEvent) => {
-    if (input.isBound(event.code)) event.preventDefault();
+    // Cancelling a bound Alt's keyup (and keydown, above) keeps Firefox's menu bar from opening
+    // while the game has focus; in a text field Alt keeps its default.
+    const ownAlt = !isAltKey(event.code) || !isEditable(event.target);
+    if (input.isBound(event.code) && ownAlt) event.preventDefault();
     input.controlUp(event.code);
   };
 

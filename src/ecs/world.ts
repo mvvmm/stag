@@ -41,7 +41,16 @@ export type Player = {
   chase: boolean;
   /** moba's attack move (League's A, on S here), until its first attack starts or another order. */
   attackMove: AttackMove | null;
+  /** A normal cast being aimed (Shift + an ability key): the indicator shows until a left click
+   * confirms it or something cancels it. Absent when not aiming. */
+  aiming?: Aiming;
+  /** A normal cast pressed while its slot couldn't start (cooldown, another cast): it arms
+   * `aiming` once it can, for `abilities.buffer` seconds. Absent when there's none. */
+  aimQueued?: { slot: SlotId; age: number };
 };
+
+/** The slot a normal cast is aiming; the confirm queues it like a quick cast at that tick's aim. */
+export type Aiming = { slot: SlotId };
 
 /**
  * An attack move: armed (S, waiting for the left click), then issued: chasing a hovered enemy
@@ -103,8 +112,17 @@ export type RoomInfo = { id: string; width: number; depth: number };
 /** Which side a body is on: abilities hit and target the other side. */
 export type Faction = "player" | "enemy";
 
-/** The ability slots: the auto attack, three basics and the ultimate. */
-export const SLOTS = ["primary", "ability1", "ability2", "ability3", "ultimate"] as const;
+/** The ability slots: the auto attack, three basics, the ultimate, and two reserved for
+ * something outside the loadout (D/F; empty for now). */
+export const SLOTS = [
+  "primary",
+  "ability1",
+  "ability2",
+  "ability3",
+  "ultimate",
+  "extra1",
+  "extra2",
+] as const;
 export type SlotId = (typeof SLOTS)[number];
 
 /** An ability in a slot: its id in `data/abilities.ts`, and seconds left on its cooldown. */
@@ -135,7 +153,15 @@ export type Cast = {
 };
 
 /** A press of an ability that couldn't start yet, kept for `abilities.buffer` seconds. */
-export type QueuedCast = { slot: SlotId; age: number; point: Vec2; target: number | null };
+export type QueuedCast = {
+  slot: SlotId;
+  age: number;
+  point: Vec2;
+  target: number | null;
+  /** A `target` cast out of range: the controller walks into range and it never expires (it's an
+   * order until something cancels it). */
+  chase?: true;
+};
 
 /**
  * Anything that casts abilities (the player now, enemies in 3.1). `systems/casting.ts` runs it:

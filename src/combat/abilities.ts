@@ -92,11 +92,17 @@ export function nearestEnemy(
 }
 
 /** What a cast request carries: the cursor's ground point and the body under it. */
-export type AimRequest = { point: Vec2; target: number | null };
+export type AimRequest = {
+  point: Vec2;
+  target: number | null;
+  /** A self cast (Alt + key): for abilities with `selfCast`, a `point` aim lands at the caster's
+   * feet and a `target` aim targets the caster itself. Ignored by the others. */
+  self?: boolean;
+};
 
 /**
  * Where a cast of `def` by `caster` goes, or null if it can't start now (a `target` ability
- * without a valid enemy in range).
+ * without a valid enemy in range, unless it's a self cast).
  */
 export function resolveAim(
   world: World<Entity>,
@@ -106,8 +112,10 @@ export function resolveAim(
   request: AimRequest,
 ): CastAim | null {
   const at = caster.transform?.position ?? { x: 0, z: 0 };
+  const self = request.self === true && def.selfCast === true;
   switch (def.aim) {
     case "target": {
+      if (self && caster.uid !== undefined) return { target: caster.uid, point: null, dir: null };
       const target = enemyOf(world, caster, request.target);
       if (!target || !inRange(caster, target, stats.range)) return null;
       return { target: target.uid, point: null, dir: null };
@@ -119,6 +127,7 @@ export function resolveAim(
         dir: directionTo(at, request.point, caster.transform?.rotation.y ?? 0),
       };
     case "point": {
+      if (self) return { target: null, point: { x: at.x, z: at.z }, dir: null };
       const dx = request.point.x - at.x;
       const dz = request.point.z - at.z;
       const d = dmath.hypot(dx, dz);

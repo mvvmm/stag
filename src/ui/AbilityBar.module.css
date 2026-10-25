@@ -1,0 +1,92 @@
+.bar {
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-1);
+  background: rgb(0 0 0 / 0.55);
+}
+
+.group {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.slot {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgb(216 210 196 / 0.35);
+  border-radius: var(--radius-1);
+  background: rgb(255 255 255 / 0.04);
+  color: var(--color-text);
+  overflow: hidden;
+}
+
+.icon {
+  position: absolute;
+  inset: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.empty {
+  border-style: dashed;
+  border-color: rgb(216 210 196 / 0.15);
+  background: none;
+}
+
+.cooling .icon {
+  opacity: 0.45;
+}
+
+/* The share of the cooldown left, as a dark wedge that sweeps clockwise off the icon. */
+.sweep {
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(rgb(0 0 0 / 0.6) calc(var(--left) * 360deg), transparent 0);
+}
+
+.seconds {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
+}
+
+.aiming {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.key {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.6);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.empty .key {
+  color: var(--color-text-muted);
+}
