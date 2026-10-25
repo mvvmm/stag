@@ -5,8 +5,15 @@ import { dmath } from "@/core/dmath";
 import type { Vec2 } from "@/core/math";
 import type { Rng } from "@/core/rng";
 import { defineTunables } from "@/core/tuning";
-import { abilityById } from "@/data/abilities";
-import { type AttackMove, type Entity, type MoveOrder, SLOTS } from "@/ecs/world";
+import { ABILITIES, type AbilityDef, abilityById } from "@/data/abilities";
+import {
+  type AttackMove,
+  type Entity,
+  type MoveOrder,
+  type QueuedCast,
+  SLOTS,
+  type SlotId,
+} from "@/ecs/world";
 import type { InputFrame } from "@/input/actions";
 import { navGraphOf } from "@/nav/graph";
 import { findPath } from "@/nav/path";
@@ -14,6 +21,8 @@ import { movementStats } from "@/systems/movementStats";
 
 /** A chase repaths once its target is this far (m) from where the path ends. */
 const CHASE_REPATH = 0.25;
+/** Float slack when comparing a cooldown or the buffer's age with zero or its length, s. */
+const EPSILON = 1e-9;
 
 /** moba's attack move (S, then left click), League-style. */
 export const ATTACK_MOVE = defineTunables("attackMove", {
@@ -47,7 +56,10 @@ export const ATTACK_MOVE = defineTunables("attackMove", {
  *   right away is picked on the spot, so spamming attack moves by the enemy it's attacking keeps
  *   the attack going. It's over once an attack starts; stop, a new right-click or moving drop it (a
  *   right-click still held from before doesn't).
- * - Ability keys queue a cast at the cursor (`caster.queued`), for `casting` to start when it can.
+ * - Ability keys cast in one of three modes (see `castModes`): quick cast (the key alone queues a
+ *   cast at the cursor, `caster.queued`, for `casting` to start when it can), normal cast (with
+ *   `normalCast`: aim first, `player.aiming`, and a left click casts) and self cast (with
+ *   `selfCast`). A targeted cast on an enemy out of range walks into range first (`queued.chase`).
  */
 export function playerControlSystem(
   world: World<Entity>,
@@ -83,10 +95,7 @@ export function playerControlSystem(
         caster.target = hovered.uid;
         player.chase = command !== null;
       }
-      for (const slot of SLOTS) {
-        if (slot === "primary" || !input.pressed.has(slot) || !caster.slots[slot]) continue;
-        caster.queued = { slot, age: 0, point: { ...input.aim }, target: input.hover };
-      }
+      castModes(world, entity, dt, input, moving || freshCommand);
     }
     if (moving) {
       player.order = null;
@@ -156,6 +165,7 @@ function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, rad
   if (!player || !caster || !transform) return;
   if (input.pressed.has("attackMove")) {
     player.attackMove = { armed: true, point: null, origin: null, casts: caster.casts };
+    disarmAiming(entity);
   }
   const move = player.attackMove;
   if (!move) return;
@@ -164,6 +174,8 @@ function attackMove(world: World<Entity>, entity: Entity, input: InputFrame, rad
     if (!input.pressed.has("confirm")) return;
     move.armed = false;
     move.casts = caster.casts;
+    // An attack move is a new order: it drops a walk into range.
+    dropChase(entity);
     const hovered = enemyOf(world, entity, input.hover);
     if (hovered) {
       caster.target = hovered.uid;
@@ -238,18 +250,168 @@ function onTheWay(
 }
 
 /**
- * moba's attack order: while the target is out of the auto attack's range, walk a path to it
- * (repathing as it moves); once in range, stop and let `casting` attack.
+ * The ability keys' cast modes (League's), for every slot but the auto attack's:
+ * - quick cast (the key alone): queue the cast at the cursor and the hovered body
+ * - normal cast (the key with `normalCast`, Shift): arm `player.aiming` if the slot could start
+ *   now, else wait up to `abilities.buffer` seconds to arm (`player.aimQueued`); a left click
+ *   (`confirm`) then queues it like a quick cast at that tick's cursor. A right-click (a move or
+ *   attack order, still carried out), stop, Esc (`pause`), the attack move, or another ability key
+ *   cancel it (that key's own mode then applies). Abilities aimed at `self` just cast.
+ * - self cast (the key with `selfCast`, Alt): a cast on the caster for abilities with `selfCast`,
+ *   else a quick cast.
+ * A queued cast walking into range (`queued.chase`) is dropped by a move or attack order, stop or
+ * another ability key. Arming and cancelling never spend a cooldown.
+ */
+function castModes(
+  world: World<Entity>,
+  entity: Entity,
+  dt: number,
+  input: InputFrame,
+  ordered: boolean,
+): void {
+  const { player, caster, transform } = entity;
+  if (!player || !caster || !transform) return;
+  const pressed = input.pressed;
+  const newOrder = ordered || pressed.has("primary");
+  if (newOrder || pressed.has("stop") || pressed.has("attackMove") || pressed.has("pause")) {
+    disarmAiming(entity);
+  }
+  if (newOrder || pressed.has("stop")) dropChase(entity);
+
+  for (const slot of SLOTS) {
+    if (slot === "primary" || !pressed.has(slot)) continue;
+    const def = slotAbility(entity, slot);
+    // An empty slot's key does nothing (it doesn't cancel anything either).
+    if (!def) continue;
+    disarmAiming(entity);
+    dropChase(entity);
+    if (pressed.has("normalCast") && def.aim !== "self") {
+      if (canStart(entity, slot)) arm(entity, slot);
+      else player.aimQueued = { slot, age: 0 };
+    } else if (pressed.has("selfCast") && def.selfCast && entity.uid !== undefined) {
+      // Aimed at the caster itself, which `casting` resolves as a self cast.
+      const at = transform.position;
+      caster.queued = { slot, age: 0, point: { x: at.x, z: at.z }, target: entity.uid };
+    } else {
+      queueCast(world, entity, slot, def, input);
+    }
+  }
+
+  const waiting = player.aimQueued;
+  if (waiting) {
+    if (canStart(entity, waiting.slot)) {
+      delete player.aimQueued;
+      arm(entity, waiting.slot);
+    } else {
+      waiting.age += dt;
+      if (waiting.age > ABILITIES.buffer + EPSILON) delete player.aimQueued;
+    }
+  }
+
+  const aiming = player.aiming;
+  if (aiming && pressed.has("confirm")) {
+    delete player.aiming;
+    const def = slotAbility(entity, aiming.slot);
+    if (def) queueCast(world, entity, aiming.slot, def, input);
+  }
+}
+
+/** Queues a cast of `slot` at the cursor and the hovered body; a targeted one on an enemy out of
+ * range walks into range first (`chase`). */
+function queueCast(
+  world: World<Entity>,
+  entity: Entity,
+  slot: SlotId,
+  def: AbilityDef,
+  input: InputFrame,
+): void {
+  const { caster } = entity;
+  if (!caster) return;
+  const queued: QueuedCast = { slot, age: 0, point: { ...input.aim }, target: input.hover };
+  if (def.aim === "target") {
+    const target = enemyOf(world, entity, input.hover);
+    if (target && !inRange(entity, target, def.stats(entity).range)) queued.chase = true;
+  }
+  caster.queued = queued;
+}
+
+/** Starts aiming a normal cast of `slot`; an armed attack move is disarmed. */
+function arm(entity: Entity, slot: SlotId): void {
+  const { player } = entity;
+  if (!player) return;
+  player.aiming = { slot };
+  if (player.attackMove?.armed) player.attackMove = null;
+}
+
+/** Drops a queued cast that's walking into range, and the walk (a plain buffered press stays). */
+function dropChase(entity: Entity): void {
+  const { player, caster } = entity;
+  if (!player || !caster?.queued?.chase) return;
+  caster.queued = null;
+  player.order = null;
+}
+
+/** Stops aiming a normal cast, and drops one waiting to arm. */
+function disarmAiming(entity: Entity): void {
+  const { player } = entity;
+  if (!player) return;
+  delete player.aiming;
+  delete player.aimQueued;
+}
+
+/** Whether a cast of `slot` could start right now: it has an ability, it's off cooldown (or
+ * cooldowns are off) and no other cast is running. */
+function canStart(entity: Entity, slot: SlotId): boolean {
+  const caster = entity.caster;
+  const state = caster?.slots[slot];
+  if (!caster || !state || caster.cast || !slotAbility(entity, slot)) return false;
+  return entity.noCooldowns === true || state.cooldown <= EPSILON;
+}
+
+/** The ability in `slot`, if any. */
+function slotAbility(entity: Entity, slot: SlotId): AbilityDef | undefined {
+  const state = entity.caster?.slots[slot];
+  return state ? abilityById(state.ability) : undefined;
+}
+
+/**
+ * Walks into range: a queued targeted cast out of range (`queued.chase`) and else moba's attack
+ * order. While the target is out of range, walk a path to it (repathing as it moves); once in
+ * range, stop and let `casting` cast or attack. A cast whose target is gone is dropped.
  */
 function chase(world: World<Entity>, entity: Entity, radius: number): void {
   const { player, caster, transform } = entity;
-  if (!player?.chase || !caster || !transform) return;
+  if (!player || !caster || !transform) return;
+  const queued = caster.queued;
+  if (queued?.chase) {
+    const target = enemyOf(world, entity, queued.target);
+    const def = slotAbility(entity, queued.slot);
+    if (target && def) {
+      walkInto(world, entity, target, def.stats(entity).range, radius);
+      return;
+    }
+    dropChase(entity);
+  }
+  if (!player.chase) return;
   const target = enemyOf(world, entity, caster.target);
   const range = primaryRange(entity);
   if (!target || range === null) {
     player.chase = false;
     return;
   }
+  walkInto(world, entity, target, range, radius);
+}
+
+/** Paths toward `target` until it's within `range`, then stops. */
+function walkInto(
+  world: World<Entity>,
+  entity: Entity,
+  target: Targetable,
+  range: number,
+  radius: number,
+): void {
+  const { player, transform } = entity;
+  if (!player || !transform) return;
   if (inRange(entity, target, range)) {
     player.order = null;
     return;

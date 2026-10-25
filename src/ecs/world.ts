@@ -44,6 +44,9 @@ export type Player = {
   /** A normal cast being aimed (Shift + an ability key): the indicator shows until a left click
    * confirms it or something cancels it. Absent when not aiming. */
   aiming?: Aiming;
+  /** A normal cast pressed while its slot couldn't start (cooldown, another cast): it arms
+   * `aiming` once it can, for `abilities.buffer` seconds. Absent when there's none. */
+  aimQueued?: { slot: SlotId; age: number };
 };
 
 /** The slot a normal cast is aiming; the confirm queues it like a quick cast at that tick's aim. */
