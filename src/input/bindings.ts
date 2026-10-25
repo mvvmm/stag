@@ -3,8 +3,10 @@ import type { Action } from "@/input/actions";
 /**
  * A physical control: a `KeyboardEvent.code` (`KeyW`, `Digit1`, `Space`) or a mouse button as
  * `Mouse<button>` (`Mouse0` = left, `Mouse2` = right). Physical codes keep the layout the same
- * on AZERTY and other keyboard layouts. `Shift+<control>` is a chord: pressed with either Shift
- * held, the control triggers the chord's actions instead of its own.
+ * on AZERTY and other keyboard layouts. `Shift+<control>` and `Alt+<control>` are chords: pressed
+ * with either Shift (or Alt) held, the control triggers the chord's actions instead of its own,
+ * when that chord is bound. With both held, the `Alt+` chord wins, then the `Shift+` one, then the
+ * plain control.
  */
 export type Control = string;
 
@@ -46,12 +48,26 @@ export const MMO_PRESET: Preset = {
     ability2: ["Digit2"],
     ability3: ["Digit3"],
     ultimate: ["Digit4"],
-    dodge: ["Space"],
-    // Left click is the auto attack; interact waits on F until 2.3 settles the keys.
+    // Left click is the auto attack, so interact is on F.
     interact: ["KeyF"],
     pause: ["Escape"],
   },
 };
+
+/** moba: the slot keys, each with a Shift chord (normal cast) and an Alt chord (self cast). */
+export const MOBA_SLOT_KEYS = {
+  ability1: "KeyQ",
+  ability2: "KeyW",
+  ability3: "KeyE",
+  ultimate: "KeyR",
+  extra1: "KeyD",
+  extra2: "KeyF",
+} as const satisfies Partial<Record<Action, Control>>;
+
+/** A slot key on its own (quick cast) and with Shift (normal cast) or Alt (self cast). */
+const slotControls = (key: Control): Control[] => [key, `Shift+${key}`, `Alt+${key}`];
+const slotChords = (modifier: "Shift" | "Alt"): Control[] =>
+  Object.values(MOBA_SLOT_KEYS).map((key) => `${modifier}+${key}`);
 
 export const MOBA_PRESET: Preset = {
   id: "moba",
@@ -60,12 +76,17 @@ export const MOBA_PRESET: Preset = {
   actions: {
     // Same button as moving: on an enemy it's an attack order, on the ground a move order.
     primary: ["Mouse2"],
-    ability1: ["KeyQ"],
-    ability2: ["KeyW"],
-    ability3: ["KeyE"],
-    ultimate: ["KeyR"],
-    // Space centers the camera, like League; dodge takes League's Flash key until 2.3 decides.
-    dodge: ["KeyF"],
+    // The slot keys quick cast; with Shift they also press `normalCast` (aim first, a left click
+    // casts), with Alt `selfCast`. No dodge: mobility comes from abilities. D and F (League's
+    // summoner spells) are two extra slots outside the loadout.
+    ability1: slotControls(MOBA_SLOT_KEYS.ability1),
+    ability2: slotControls(MOBA_SLOT_KEYS.ability2),
+    ability3: slotControls(MOBA_SLOT_KEYS.ability3),
+    ultimate: slotControls(MOBA_SLOT_KEYS.ultimate),
+    extra1: slotControls(MOBA_SLOT_KEYS.extra1),
+    extra2: slotControls(MOBA_SLOT_KEYS.extra2),
+    normalCast: slotChords("Shift"),
+    selfCast: slotChords("Alt"),
     interact: ["Mouse0"],
     // A stops and S attack-moves (League's S and A, swapped: the way we like it). Shift +
     // right-click attack-moves at once (arms and places it in one press).
@@ -73,6 +94,7 @@ export const MOBA_PRESET: Preset = {
     attackMove: ["KeyS", "Shift+Mouse2"],
     confirm: ["Mouse0", "Shift+Mouse2"],
     pause: ["Escape"],
+    // Space centers the camera, like League.
     centerCamera: ["Space"],
   },
 };

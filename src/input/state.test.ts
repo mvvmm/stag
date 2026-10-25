@@ -29,29 +29,29 @@ describe("createInputState: actions", () => {
 
   it("reports a tap within one frame as pressed and released, not held", () => {
     const input = createInputState("mmo");
-    tap(input, "Space");
+    tap(input, "KeyF");
 
     const frame = input.sampleTick(0);
-    expect(frame.pressed.has("dodge")).toBe(true);
-    expect(frame.released.has("dodge")).toBe(true);
-    expect(frame.held.has("dodge")).toBe(false);
+    expect(frame.pressed.has("interact")).toBe(true);
+    expect(frame.released.has("interact")).toBe(true);
+    expect(frame.held.has("interact")).toBe(false);
   });
 
   it("keeps a press latched across frames that run no ticks", () => {
     const input = createInputState("mmo");
-    tap(input, "Space");
+    tap(input, "KeyF");
     input.sampleFrame(); // a paused frame: no tick samples
 
-    expect(input.sampleTick(0).pressed.has("dodge")).toBe(true);
+    expect(input.sampleTick(0).pressed.has("interact")).toBe(true);
   });
 
   it("reports a press to only the first of several ticks", () => {
     const input = createInputState("mmo");
-    input.controlDown("Space");
+    input.controlDown("KeyF");
 
-    expect(input.sampleTick(0).pressed.has("dodge")).toBe(true);
-    expect(input.sampleTick(0).pressed.has("dodge")).toBe(false);
-    expect(input.sampleTick(0).held.has("dodge")).toBe(true);
+    expect(input.sampleTick(0).pressed.has("interact")).toBe(true);
+    expect(input.sampleTick(0).pressed.has("interact")).toBe(false);
+    expect(input.sampleTick(0).held.has("interact")).toBe(true);
   });
 
   it("latches ticks and frames independently", () => {
@@ -65,16 +65,16 @@ describe("createInputState: actions", () => {
 
   it("ignores repeated downs and unbound controls", () => {
     const input = createInputState("mmo");
-    input.controlDown("Space");
+    input.controlDown("KeyF");
     input.sampleTick(0);
-    input.controlDown("Space");
+    input.controlDown("KeyF");
     input.controlDown("KeyZ");
 
     const frame = input.sampleTick(0);
     expect(frame.pressed.size).toBe(0);
-    expect([...frame.held]).toEqual(["dodge"]);
+    expect([...frame.held]).toEqual(["interact"]);
     expect(input.isBound("KeyZ")).toBe(false);
-    expect(input.isBound("Space")).toBe(true);
+    expect(input.isBound("KeyF")).toBe(true);
     expect(input.isBound("KeyW")).toBe(true);
   });
 
@@ -250,6 +250,66 @@ describe("createInputState: Shift chords", () => {
   });
 });
 
+describe("createInputState: cast-mode chords", () => {
+  it("a slot key alone quick casts, with Shift normal casts, with Alt self casts", () => {
+    const input = createInputState("moba");
+    tap(input, "KeyQ");
+    expect([...input.sampleTick(0).pressed]).toEqual(["ability1"]);
+
+    input.controlDown("ShiftLeft");
+    tap(input, "KeyW");
+    input.controlUp("ShiftLeft");
+    expect([...input.sampleTick(0).pressed].sort()).toEqual(["ability2", "normalCast"]);
+
+    input.controlDown("AltRight");
+    tap(input, "KeyD");
+    input.controlUp("AltRight");
+    expect([...input.sampleTick(0).pressed].sort()).toEqual(["extra1", "selfCast"]);
+  });
+
+  it("releases an Alt chord with its key, even when Alt goes up first", () => {
+    const input = createInputState("moba");
+    input.controlDown("AltLeft");
+    input.controlDown("KeyF");
+    input.controlUp("AltLeft");
+    let frame = input.sampleTick(0);
+    expect([...frame.held].sort()).toEqual(["extra2", "selfCast"]);
+
+    input.controlUp("KeyF");
+    frame = input.sampleTick(0);
+    expect([...frame.released].sort()).toEqual(["extra2", "selfCast"]);
+    expect(frame.held.size).toBe(0);
+  });
+
+  it("with Shift and Alt both held, a bound Alt chord wins, else the Shift one", () => {
+    const input = createInputState("moba");
+    input.controlDown("ShiftLeft");
+    input.controlDown("AltLeft");
+    tap(input, "KeyE");
+    expect([...input.sampleTick(0).pressed].sort()).toEqual(["ability3", "selfCast"]);
+
+    // There's no `Alt+Mouse2`, so Shift + right-click is still an attack move.
+    tap(input, "Mouse2");
+    expect([...input.sampleTick(0).pressed].sort()).toEqual(["attackMove", "confirm"]);
+  });
+
+  it("falls back to the plain control when Alt has no chord for it", () => {
+    const input = createInputState("moba");
+    input.controlDown("AltLeft");
+    tap(input, "KeyA");
+    expect([...input.sampleTick(0).pressed]).toEqual(["stop"]);
+  });
+
+  it("binds Alt where chords use it, and the Alt chords themselves", () => {
+    const moba = createInputState("moba");
+    expect(moba.isBound("AltLeft")).toBe(true);
+    expect(moba.isBound("AltRight")).toBe(true);
+    expect(moba.isBound("Alt+KeyQ")).toBe(true);
+    expect(moba.isBound("Alt+KeyA")).toBe(false);
+    expect(createInputState("mmo").isBound("AltLeft")).toBe(false);
+  });
+});
+
 describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
   it("releases held buttons with edges and ignores new presses, but keeps keys", () => {
     const input = createInputState("mmo");
@@ -259,11 +319,11 @@ describe("createInputState: borrowed mouse (debug free camera, picker)", () => {
 
     input.borrowMouse("freeCamera", true);
     input.controlDown("Mouse2");
-    input.controlDown("Space");
+    input.controlDown("KeyF");
     const frame = input.sampleTick(0);
     expect([...frame.released]).toEqual(["primary"]);
-    expect([...frame.pressed]).toEqual(["dodge"]);
-    expect([...frame.held]).toEqual(["ability1", "dodge"]);
+    expect([...frame.pressed]).toEqual(["interact"]);
+    expect([...frame.held]).toEqual(["ability1", "interact"]);
   });
 
   it("sends no move command in the moba scheme while off", () => {

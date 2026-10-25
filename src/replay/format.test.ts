@@ -20,10 +20,10 @@ const script: InputFrame[] = [
   frame(),
   frame({ move: { x: quantize(Math.SQRT1_2), z: quantize(-Math.SQRT1_2) }, held: set("primary") }),
   frame({ move: { x: quantize(Math.SQRT1_2), z: quantize(-Math.SQRT1_2) }, held: set("primary") }),
-  frame({ pressed: set("dodge"), held: set("dodge"), aim: { x: 3.5, z: -1.25 } }),
+  frame({ pressed: set("interact"), held: set("interact"), aim: { x: 3.5, z: -1.25 } }),
   frame({ moveCommand: { x: 2, z: 4 }, aim: { x: 2, z: 4 } }),
   frame({ moveCommand: { x: 2, z: 4 }, aim: { x: 2, z: 4 } }),
-  frame({ released: set("dodge"), aim: { x: 2, z: 4 } }),
+  frame({ released: set("interact"), aim: { x: 2, z: 4 } }),
   frame({ hover: 3, held: set("primary") }),
   frame({ hover: 3, held: set("primary") }),
   frame({ hover: 0 }),
@@ -63,8 +63,8 @@ describe("input encoding", () => {
 
   it("maps actions by name, dropping ones this build doesn't know", () => {
     const encoder = createInputEncoder();
-    encoder.push(frame({ held: set("primary", "dodge") }));
-    const renamed = ACTIONS.map((action) => (action === "dodge" ? "roll" : action));
+    encoder.push(frame({ held: set("primary", "interact") }));
+    const renamed = ACTIONS.map((action) => (action === "interact" ? "use" : action));
     const reordered = [...ACTIONS].reverse();
     // Reading with another file order reinterprets the bits by name.
     const bits = encoder.data[2] as number;
