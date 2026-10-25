@@ -188,6 +188,9 @@ export type Entity = {
   caster?: Caster;
   /** Abilities ignore their cooldowns (the cheat). */
   noCooldowns?: true;
+  /** The test kit cheat is on: the slots it filled (`data/testKit.ts`), emptied again when it's
+   * turned off. */
+  testKit?: SlotId[];
   transform?: Transform;
   /** Transform at the start of the current tick; the renderer interpolates from it. */
   prevTransform?: Transform;
