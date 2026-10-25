@@ -60,6 +60,18 @@ export type AbilitySlotView = {
  * scene has no caster player. */
 export const abilityBar = signal<AbilitySlotView[]>([]);
 
+/** The player's cast in progress, for the cast bar: League's bar under a windup or channel. */
+export type CastBarView = {
+  label: string;
+  /** "windup": fills from 0 to 1; "channel": drains from 1 to 0. */
+  phase: "windup" | "channel";
+  /** How full the bar is, 0..1 (rounded to 0.01). */
+  fill: number;
+};
+
+/** Null when the player isn't casting anything with a cast time (auto attacks never show). */
+export const castBar = signal<CastBarView | null>(null);
+
 /** Written by the dev tools' input overlay; null while it's off. */
 export const inputStats = signal<InputStats | null>(null);
 
