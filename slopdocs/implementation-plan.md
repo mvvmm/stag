@@ -54,7 +54,7 @@
 - [x] **2.1 Health, damage & test dummies:** health, hit shapes (circle/cone/line), damage events; a Training yard with a static and a patrolling dummy (no AI) that refill instead of dying, so abilities have something to hit. → [plan](plans/2.1-health-and-dummies.md)
 - [x] **2.2 Ability framework + Cat basic attack:** slots, cooldowns, cast states (instant/windup/channel), aiming, data-driven definitions, built so enemies can cast through it later (3.1); proven by the Cat's auto attack (single target: left click in WASD, right-click a target in MOBA) damaging the Training yard dummies. → [plan](plans/2.2-ability-framework.md)
 - [x] **2.2.1 cf preview output:** upgrade cf to beta.18, remove the output-file shim, and verify native Workers Builds preview reporting. → [plan](plans/2.2.1-cf-preview-output.md)
-- [ ] **2.3 Keybinds & dodge decision:** final ability keys; decide whether dodge is universal or form-specific.
+- [ ] **2.3 Keybinds & dodge decision:** final ability keys; decide whether dodge is universal or form-specific. → [plan](plans/2.3-keybinds-and-dodge.md)
 - [ ] **2.4 First mobility ability:** Cat pounce/dash (movement override, collision, cooldown).
 - [ ] **2.5 First Cat damage ability.**
 - [ ] **2.6 HUD v1:** health bar, ability bar with cooldowns (HTML overlay).

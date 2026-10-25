@@ -8,6 +8,13 @@ export const ACTIONS = [
   "ability3",
   "ultimate",
   "dodge",
+  /** D/F: two slots outside the loadout, reserved (empty for now). */
+  "extra1",
+  "extra2",
+  /** Pressed with an ability key (Shift + key by default): aim it first, a left click casts. */
+  "normalCast",
+  /** Pressed with an ability key (Alt + key by default): cast on yourself, if the ability can. */
+  "selfCast",
   "interact",
   "stop",
   /** moba: arm an attack move (League's A); the next `confirm` click issues it. */
