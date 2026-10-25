@@ -30,13 +30,16 @@ Small in scope, deep in replayability: we get longevity from a tight core loop t
 
 - **Camera:** angled top-down / isometric-style 3D view (Hades / V Rising-like). Chosen for threat readability (telegraphs, enemies, and terrain visible at once) and for achievable visual quality.
 - **Movement:** **right-click to move** (League-style) is the scheme. 1.7 kept two schemes as a player setting with WASD the default; in 2.2 we dropped WASD for players ("right click is the correct movement scheme for us"). Its code stays, reachable from the debug pane, in case it comes back, but new features don't consider it.
-  - **MMO preset (dormant since 2.2):** **WASD** direct control of the character (WoW-style "I'm steering my body" feel). Abilities on `1`/`2`/`3` + `4` (ultimate), left mouse = auto attack (click an enemy; hold to attack whatever's under the cursor while moving), interact on `F` until 2.3.
-  - **MOBA preset (the scheme):** League-style **right-click to move** (hold to steer; right-click on an enemy attacks; a move order during the auto attack's short windup cancels it, like League), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `A` = stop, `S` = attack move (League's A and S, swapped on purpose: arm it (a range circle shows the auto attack's reach until you click), then left-click to go for the hovered enemy, or walk there and attack the first enemy on the way; `Shift` + right-click does both at once). League's camera too: the cursor is locked inside the window, the camera is free and pans at the screen edges, and `Space` centers it on the character (held: follows). Dodge is provisionally `F` here.
+  - **MMO preset (dormant since 2.2):** **WASD** direct control of the character (WoW-style "I'm steering my body" feel). Abilities on `1`/`2`/`3` + `4` (ultimate), left mouse = auto attack (click an enemy; hold to attack whatever's under the cursor while moving), interact on `F`. It has no dodge since 2.3, and no D/F slots or cast-mode chords.
+  - **MOBA preset (the scheme):** League-style **right-click to move** (hold to steer; right-click on an enemy attacks; a move order during the auto attack's short windup cancels it, like League), abilities on `Q`/`W`/`E` + `R` (ultimate), left mouse = interact, `A` = stop, `S` = attack move (League's A and S, swapped on purpose: arm it (a range circle shows the auto attack's reach until you click), then left-click to go for the hovered enemy, or walk there and attack the first enemy on the way; `Shift` + right-click does both at once). League's camera too: the cursor is locked inside the window, the camera is free and pans at the screen edges, and `Space` centers it on the character (held: follows). `D`/`F` are two reserved slots (2.3).
   - There's no scheme to pick in the pause menu any more, and `M` no longer switches.
 - **Aiming:** mouse aims abilities (cursor projected onto the ground).
 - **Abilities:** 3 basics + 1 ultimate; keys per preset above. Bindings are data, and remapping comes in 16.1.
+- **Cast modes (2.3), League's:** `Q` **quick casts** at the cursor the moment it goes down. `Shift+Q` is a **normal cast**: it shows the ability's range and shape, a left click casts there, a right click cancels (and still moves), and Esc cancels without pausing. `Alt+Q` **self casts** abilities flagged for it (a point ability lands at your feet); on the others it's a quick cast. A targeted ability on an enemy out of range walks you into range, then casts. The same goes for every slot key.
+- **No dedicated dodge (2.3).** "No dedicated dodge, although a character can have a dodge-like ability." Mobility comes from each form's abilities (a sidestep, a roll, a blink), which keeps each form's movement identity its own.
+- **`D`/`F` are reserved (2.3)** for two slots outside the form's loadout (`extra1`/`extra2`, empty for now: items, consumables or relic actives, to be decided).
 
-> Open: final keybinds (2.3); whether dodge (provisionally `Space`) is universal or form-specific; controller support.
+> Open: controller support; what goes on D/F.
 
 ### Movement feel requirements
 
@@ -130,7 +133,7 @@ If that loop is fun with placeholder art, the rest of the game builds on it. If 
 
 ## 11. Open Questions (not yet decided)
 
-- Control scheme (WASD vs right-click-to-move, decided at 1.7), exact keybinds, controller support; whether dodge is universal or form-specific.
+- Controller support (the scheme was decided in 1.7 and 2.2, the keys and dodge in 2.3); what goes on D/F.
 - Full ability arsenals per form; which abilities are basics vs ultimates.
 - Augment system details (rarity, stacking, synergies).
 - Run length, number of biomes/chambers, boss count.
