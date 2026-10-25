@@ -334,9 +334,6 @@ export async function startShell(canvas: HTMLCanvasElement): Promise<Shell> {
 
     const shellFrame = input.sampleFrame();
     if (shellFrame.pressed.has("pause")) setMenu(!pauseMenu.value.open);
-    if (shellFrame.pressed.has("switchControls")) {
-      setControls(input.preset.id === "mmo" ? "moba" : "mmo");
-    }
     if (pauseMenu.value.controls !== input.preset.id) {
       pauseMenu.value = { ...pauseMenu.value, controls: input.preset.id };
     }

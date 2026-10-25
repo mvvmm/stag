@@ -18,7 +18,11 @@ type Latch = { pressed: Set<Action>; released: Set<Action> };
 const newLatch = (): Latch => ({ pressed: new Set(), released: new Set() });
 
 const isMouseButton = (control: Control) => control.startsWith("Mouse");
-const SHIFT_KEYS: readonly Control[] = ["ShiftLeft", "ShiftRight"];
+/** Chord modifiers and their keys, in precedence order: with both held, an `Alt+` chord wins. */
+const MODIFIERS = [
+  { prefix: "Alt+", keys: ["AltLeft", "AltRight"] },
+  { prefix: "Shift+", keys: ["ShiftLeft", "ShiftRight"] },
+] as const satisfies readonly { prefix: string; keys: readonly Control[] }[];
 
 export type InputState = ReturnType<typeof createInputState>;
 
@@ -71,12 +75,25 @@ export function createInputState(initialPreset: PresetId) {
     return pos ? 1 : neg ? -1 : 0;
   };
 
-  const hasChords = (): boolean => [...bindings.keys()].some((control) => control.includes("+"));
+  /** True if the control is a modifier key that some chord in the preset uses. */
+  const isChordModifier = (control: Control): boolean =>
+    MODIFIERS.some(
+      ({ prefix, keys }) =>
+        (keys as readonly Control[]).includes(control) &&
+        [...bindings.keys()].some((bound) => bound.startsWith(prefix)),
+    );
 
-  /** A control pressed with Shift held goes down as its `Shift+` chord, when that's bound. */
+  /**
+   * A control pressed with a modifier held goes down as that modifier's chord (`Alt+KeyQ`,
+   * `Shift+Mouse2`), when it's bound. With Alt and Shift both held, a bound `Alt+` chord wins,
+   * then a bound `Shift+` chord, then the plain control.
+   */
   const resolve = (control: Control): Control => {
-    const chord = `Shift+${control}`;
-    return SHIFT_KEYS.some((key) => down.has(key)) && bindings.has(chord) ? chord : control;
+    for (const { prefix, keys } of MODIFIERS) {
+      const chord = `${prefix}${control}`;
+      if (keys.some((key) => down.has(key)) && bindings.has(chord)) return chord;
+    }
+    return control;
   };
 
   const actionHeld = (action: Action): boolean => {
@@ -142,8 +159,8 @@ export function createInputState(initialPreset: PresetId) {
       return (
         bindings.has(control) ||
         isMoveControl(control) ||
-        bindings.has(`Shift+${control}`) ||
-        (SHIFT_KEYS.includes(control) && hasChords())
+        MODIFIERS.some(({ prefix }) => bindings.has(`${prefix}${control}`)) ||
+        isChordModifier(control)
       );
     },
 

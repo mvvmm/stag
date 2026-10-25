@@ -7,7 +7,6 @@ export const ACTIONS = [
   "ability2",
   "ability3",
   "ultimate",
-  "dodge",
   /** D/F: two slots outside the loadout, reserved (empty for now). */
   "extra1",
   "extra2",
@@ -23,8 +22,6 @@ export const ACTIONS = [
   "confirm",
   "pause",
   // Shell actions (read through `sampleFrame`, never by the simulation):
-  /** Swap the control scheme (WASD ↔ right-click), until 1.7 picks one. */
-  "switchControls",
   /** moba: snap the camera back onto the player (held: keep following). */
   "centerCamera",
 ] as const;
