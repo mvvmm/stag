@@ -37,3 +37,7 @@ The ability keys are settled for good, and dodge is decided: there isn't one. `Q
 After the first playtest the kit became the Cat's loadout from the start, and a minimal ability bar joined it: icons, keys, cooldowns, and an outline on the slot being aimed.
 
 ![The ability bar: the auto attack on RMB, Q outlined while it's aimed, W and E cooling down, R ready, D and F empty](06-ability-bar.png)
+
+Every test ability roots the cat for a short windup (R's is half a second), which felt like lag with nothing on screen. So there's League's cast bar too, filling over the ability bar while it winds up.
+
+![The cast bar halfway through W's windup (time slowed to a quarter for the shot)](07-cast-bar.png)
